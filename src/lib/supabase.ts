@@ -1,75 +1,43 @@
 /**
- * Backend Client Configuration for OPTIMAT-FRONT
+ * Supabase Client Configuration for OPTIMAT-FRONT
  *
  * This module provides:
- * - Backend-agnostic API client (Supabase Edge Functions or AWS API Gateway)
- * - Helper functions for calling backend endpoints
+ * - Supabase client initialization with environment variables
+ * - Helper functions for calling Edge Functions
  * - Streaming support for chat functionality
- *
- * Set VITE_API_BACKEND to 'aws' to use AWS API Gateway instead of Supabase.
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// ─── Backend Selection ──────────────────────────────────────────────────────
-
-type BackendType = 'supabase' | 'aws';
-
-const API_BACKEND: BackendType =
-  (import.meta.env.VITE_API_BACKEND as BackendType) || 'supabase';
-
-// Supabase configuration
+// Environment variables with defaults for development
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-// AWS configuration
-const AWS_API_URL = import.meta.env.VITE_AWS_API_URL || '';
-const AWS_API_KEY = import.meta.env.VITE_AWS_API_KEY || '';
-
-// Validate configuration based on active backend
-if (API_BACKEND === 'supabase' && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
+// Validate required environment variables
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn(
     'Supabase environment variables not configured. ' +
     'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable Supabase integration.'
   );
 }
-if (API_BACKEND === 'aws' && !AWS_API_URL) {
-  console.warn(
-    'AWS API Gateway URL not configured. ' +
-    'Set VITE_AWS_API_URL to enable AWS backend.'
-  );
-}
-
-/**
- * Get the base URL for API calls (without trailing slash).
- */
-function getBaseUrl(): string {
-  if (API_BACKEND === 'aws') {
-    return AWS_API_URL.replace(/\/$/, '');
-  }
-  return `${SUPABASE_URL}/functions/v1`;
-}
 
 /**
  * Supabase client singleton
- * Only created when using Supabase backend
+ * Only created if environment variables are configured
  */
 export const supabase: SupabaseClient | null =
-  API_BACKEND === 'supabase' && SUPABASE_URL && SUPABASE_ANON_KEY
+  SUPABASE_URL && SUPABASE_ANON_KEY
     ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: {
-          persistSession: false,
+          persistSession: false, // No auth needed for public API
         },
       })
     : null;
 
 /**
- * Check if the backend is configured and available
+ * Check if Supabase is configured and available
  */
 export function isSupabaseConfigured(): boolean {
-  if (API_BACKEND === 'aws') {
-    return !!AWS_API_URL;
-  }
   return supabase !== null;
 }
 
@@ -93,22 +61,17 @@ export interface EdgeFunctionResponse<T = unknown> {
 export async function invokeEdgeFunction<T = unknown>(
   functionName: string,
   body: Record<string, unknown> = {},
-  options: { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; headers?: Record<string, string> } = {}
+  options: { method?: string; headers?: Record<string, string> } = {}
 ): Promise<EdgeFunctionResponse<T>> {
-  if (!isSupabaseConfigured()) {
+  if (!supabase) {
     return {
       data: null,
-      error: new Error('Backend is not configured. Set VITE_API_BACKEND and the corresponding URL/key variables.'),
+      error: new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'),
     };
   }
 
-  // For AWS backend, delegate to fetchEdgeFunction
-  if (API_BACKEND === 'aws') {
-    return fetchEdgeFunction<T>(functionName, { method: options.method || 'POST', body });
-  }
-
   try {
-    const { data, error } = await supabase!.functions.invoke<T>(functionName, {
+    const { data, error } = await supabase.functions.invoke<T>(functionName, {
       body,
       headers: options.headers,
     });
@@ -142,15 +105,15 @@ export async function fetchEdgeFunction<T = unknown>(
     params?: Record<string, string>;
   } = {}
 ): Promise<EdgeFunctionResponse<T>> {
-  if (!isSupabaseConfigured()) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     return {
       data: null,
-      error: new Error('Backend is not configured. Set VITE_API_BACKEND and the corresponding URL/key variables.'),
+      error: new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'),
     };
   }
 
   try {
-    let url = `${getBaseUrl()}/${path}`;
+    let url = `${SUPABASE_URL}/functions/v1/${path}`;
 
     // Add query parameters for GET requests
     if (options.params && Object.keys(options.params).length > 0) {
@@ -202,35 +165,27 @@ export async function fetchEdgeFunction<T = unknown>(
 }
 
 /**
- * Get the full URL for a backend endpoint.
- * Used for streaming endpoints that cannot use the SDK.
+ * Get the Edge Function URL for streaming endpoints
+ * This is needed for SSE connections that cannot use the SDK
  *
- * @param functionName - Name of the endpoint (e.g., 'chat', 'providers')
- * @returns Full URL to the endpoint
+ * @param functionName - Name of the Edge Function
+ * @returns Full URL to the Edge Function
  */
 export function getEdgeFunctionUrl(functionName: string): string {
-  const base = getBaseUrl();
-  if (!base) {
-    throw new Error('Backend URL is not configured');
+  if (!SUPABASE_URL) {
+    throw new Error('VITE_SUPABASE_URL is not configured');
   }
-  return `${base}/${functionName}`;
+
+  // Supabase Edge Functions URL pattern
+  // https://<project-ref>.supabase.co/functions/v1/<function-name>
+  return `${SUPABASE_URL}/functions/v1/${functionName}`;
 }
 
 /**
- * Get authorization headers for backend API calls.
- * Returns appropriate headers based on the active backend.
+ * Get authorization headers for Edge Function calls
+ * Required for authenticated requests or when using custom fetch
  */
 export function getAuthHeaders(): Record<string, string> {
-  if (API_BACKEND === 'aws') {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (AWS_API_KEY) {
-      headers['x-api-key'] = AWS_API_KEY;
-    }
-    return headers;
-  }
-
   return {
     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     'apikey': SUPABASE_ANON_KEY,
