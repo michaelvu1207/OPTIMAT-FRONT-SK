@@ -295,13 +295,6 @@
     }
   }
 
-  function getProviderTypeIcon(type) {
-    if (type?.includes('paratransit') || type?.includes('ADA')) return '?';
-    if (type?.includes('fix') || type?.includes('fixed')) return '?';
-    if (type?.includes('dial') || type?.includes('demand')) return '?';
-    return '?';
-  }
-
   function getProviderTypeColor(type) {
     if (type?.includes('paratransit') || type?.includes('ADA')) return 'bg-purple-100 text-purple-700 border-purple-200';
     if (type?.includes('fix') || type?.includes('fixed')) return 'bg-blue-100 text-blue-700 border-blue-200';
@@ -456,7 +449,6 @@
                       onclick={() => selectProvider(provider)}
                     >
                       <div class="flex items-center gap-2 mb-1">
-                        <span class="text-lg">{getProviderTypeIcon(provider.provider_type)}</span>
                         <span class="font-semibold text-sm text-foreground truncate">{provider.provider_name}</span>
                       </div>
                       <div class="flex items-center gap-2 text-xs text-muted-foreground">

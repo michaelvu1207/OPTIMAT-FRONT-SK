@@ -1,0 +1,16 @@
+{
+  "name": "optimat-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "OPTIMAT database migration scripts",
+  "scripts": {
+    "providers:test-cleaning": "node provider-cleaning.test.mjs",
+    "providers:supabase-dry": "node apply-supabase-provider-updates.mjs",
+    "providers:supabase-apply": "node apply-supabase-provider-updates.mjs --apply"
+  },
+  "dependencies": {
+    "csv-parse": "^5.5.6",
+    "dotenv": "^16.4.5",
+    "pg": "^8.13.1"
+  }
+}
