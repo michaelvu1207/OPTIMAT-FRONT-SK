@@ -4,7 +4,6 @@
 	  import TripRouteMap from '../../components/TripRouteMap.svelte';
 	  import { getTripRecordPairsGrouped } from '$lib/api';
 	  import { decodePolyline } from '$lib/utils/decodePolyline';
-	  import { Button } from '$lib/components/ui/button';
 	  import * as Resizable from '$lib/components/ui/resizable/index.js';
 
   export let providerId = null;
@@ -72,6 +71,11 @@
   function selectPair(index) {
     selectedPairIndex = index;
     mapKey = `pair-${index}-${Date.now()}`;
+  }
+
+  function setViewMode(mode) {
+    viewMode = mode;
+    mapKey = `${mode}-${Date.now()}`;
   }
 
   function formatDateLabel(dateString) {
@@ -263,10 +267,7 @@
                 {visiblePairs.length} pairs ({drivingRoutes.length} routes)
               {/if}
             </div>
-            <div class="mt-2 flex flex-wrap gap-2">
-              <Button size="sm" variant={viewMode === 'routes' ? 'secondary' : 'outline'} on:click={() => { viewMode = 'routes'; mapKey = `routes-${Date.now()}`; }}>Routes</Button>
-              <Button size="sm" variant={viewMode === 'heat' ? 'secondary' : 'outline'} on:click={() => { viewMode = 'heat'; mapKey = `heat-${Date.now()}`; }}>Heatmap</Button>
-            </div>
+            <div class="mt-1 text-xs text-muted-foreground">{viewMode === 'heat' ? 'Heatmap layer' : 'Route layer'}</div>
           </div>
           {#if loadingPairs && pairs.length === 0}
             <div class="flex h-full items-center justify-center text-sm text-muted-foreground">Loading map…</div>
@@ -296,10 +297,29 @@
       <Resizable.Pane defaultSize={40} minSize={20} class="flex flex-col overflow-hidden bg-card border-t border-border/40">
         <!-- Stats Header -->
         <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
-          <div class="flex items-center justify-between">
+          <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Daily Analysis</span>
               <p class="text-xs text-muted-foreground">Stats for {formatDateLabel(selectedDate)}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-muted-foreground">Map layer</span>
+              <div class="grid grid-cols-2 gap-1 rounded-md border border-border bg-muted/30 p-1" aria-label="Map layer">
+                <button
+                  type="button"
+                  class={`rounded px-2 py-1 text-xs transition ${viewMode === 'routes' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  onclick={() => setViewMode('routes')}
+                >
+                  Routes
+                </button>
+                <button
+                  type="button"
+                  class={`rounded px-2 py-1 text-xs transition ${viewMode === 'heat' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  onclick={() => setViewMode('heat')}
+                >
+                  Heatmap
+                </button>
+              </div>
             </div>
             <div class="text-xs rounded-full bg-muted px-2 py-1 text-muted-foreground">{stats.pairCount} pairs · {stats.legCount} legs</div>
           </div>
@@ -402,7 +422,7 @@
         {#each pairs as pair, index (pairKey(pair, index))}
           <button
             class={`w-full rounded-lg border px-3 py-3 text-left shadow-sm transition hover:border-primary/60 ${index === selectedPairIndex ? 'border-primary/60 bg-primary/5' : 'border-border/70 bg-card'}`}
-            on:click={() => selectPair(index)}
+            onclick={() => selectPair(index)}
           >
             <!-- Pair Header -->
             <div class="flex items-center justify-between">
