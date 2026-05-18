@@ -66,13 +66,14 @@
     {:else if overlayMode === 'heat'}
       {#each heatPoints as pt, i}
         <CircleMarker
-          latLng={pt}
+          latLng={pt.latLng ?? pt}
           options={{
-            radius: 8,
-            color: 'rgba(239,68,68,0.35)',
-            weight: 0,
-            fillColor: 'rgba(239,68,68,0.55)',
-            fillOpacity: 0.55
+            radius: pt.radius ?? 8,
+            color: pt.fillColor ?? '#ef4444',
+            weight: 1,
+            opacity: 0.2,
+            fillColor: pt.fillColor ?? '#ef4444',
+            fillOpacity: pt.fillOpacity ?? 0.55
           }}
         />
       {/each}

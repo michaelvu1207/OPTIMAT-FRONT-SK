@@ -46,11 +46,10 @@
     <article class="prose prose-sm dark:prose-invert max-w-none">
       <h2 id="overview">Overview</h2>
       <p>
-        OPTIMAT is a single-page web app rendered by SvelteKit, but navigation between “app screens”
-        is handled by <code>svelte-spa-router</code> using hash routes (e.g. <code>#/chat</code>).
-        The frontend talks to Supabase almost exclusively through Edge Functions (HTTP endpoints under
-        <code>/functions/v1/*</code>), which then read/write Postgres (schema: <code>optimat</code>) and
-        call external services (AWS Bedrock for the chatbot, Google Maps/Places for geocoding/routing).
+        OPTIMAT is a web app that behaves like a single-page application, so users can move between
+        screens without full page reloads. The front end sends most requests to a backend API layer,
+        which stores and reads data from a database and calls external services when needed (for
+        example, chat and mapping services).
       </p>
 
       <div class="not-prose my-4 rounded-lg border border-border/60 bg-background p-3">
@@ -65,29 +64,29 @@
           <!-- Client -->
           <rect x="30" y="40" width="260" height="110" rx="12" fill="var(--card)" stroke="var(--border)" />
           <text x="55" y="70" fill="var(--foreground)" font-size="14" font-weight="600">Browser</text>
-          <text x="55" y="95" fill="var(--muted-foreground)" font-size="12">SvelteKit shell (SSR off)</text>
-          <text x="55" y="115" fill="var(--muted-foreground)" font-size="12">SPA routes (hash): Map / Chat / …</text>
-          <text x="55" y="135" fill="var(--muted-foreground)" font-size="12">UI + Leaflet maps + Chat UI</text>
+          <text x="55" y="95" fill="var(--muted-foreground)" font-size="12">Web app shell</text>
+          <text x="55" y="115" fill="var(--muted-foreground)" font-size="12">Single-page navigation (Map / Chat / ...)</text>
+          <text x="55" y="135" fill="var(--muted-foreground)" font-size="12">User interface (maps + chat)</text>
 
-          <!-- Supabase -->
+          <!-- Backend platform -->
           <rect x="360" y="25" width="290" height="280" rx="12" fill="var(--card)" stroke="var(--border)" />
-          <text x="385" y="55" fill="var(--foreground)" font-size="14" font-weight="600">Supabase</text>
+          <text x="385" y="55" fill="var(--foreground)" font-size="14" font-weight="600">Backend platform</text>
           <rect x="390" y="75" width="230" height="75" rx="10" fill="var(--background)" stroke="var(--border)" />
-          <text x="405" y="100" fill="var(--foreground)" font-size="12" font-weight="600">Edge Functions</text>
-          <text x="405" y="120" fill="var(--muted-foreground)" font-size="11">chat, providers, geocode, directions</text>
-          <text x="405" y="138" fill="var(--muted-foreground)" font-size="11">conversations, messages, tool-calls</text>
+          <text x="405" y="100" fill="var(--foreground)" font-size="12" font-weight="600">API layer</text>
+          <text x="405" y="120" fill="var(--muted-foreground)" font-size="11">chat, provider lookup, location, routing</text>
+          <text x="405" y="138" fill="var(--muted-foreground)" font-size="11">conversations, messages, event logs</text>
 
           <rect x="390" y="170" width="230" height="105" rx="10" fill="var(--background)" stroke="var(--border)" />
-          <text x="405" y="195" fill="var(--foreground)" font-size="12" font-weight="600">Postgres (schema: optimat)</text>
-          <text x="405" y="215" fill="var(--muted-foreground)" font-size="11">providers</text>
+          <text x="405" y="195" fill="var(--foreground)" font-size="12" font-weight="600">Database</text>
+          <text x="405" y="215" fill="var(--muted-foreground)" font-size="11">provider records</text>
           <text x="405" y="232" fill="var(--muted-foreground)" font-size="11">conversations, messages</text>
-          <text x="405" y="249" fill="var(--muted-foreground)" font-size="11">tool call logs (find_providers, …)</text>
+          <text x="405" y="249" fill="var(--muted-foreground)" font-size="11">API/tool activity logs</text>
 
           <!-- External -->
           <rect x="715" y="40" width="235" height="110" rx="12" fill="var(--card)" stroke="var(--border)" />
           <text x="740" y="70" fill="var(--foreground)" font-size="14" font-weight="600">External services</text>
-          <text x="740" y="95" fill="var(--muted-foreground)" font-size="12">AWS Bedrock (Claude)</text>
-          <text x="740" y="115" fill="var(--muted-foreground)" font-size="12">Google Maps / Places APIs</text>
+          <text x="740" y="95" fill="var(--muted-foreground)" font-size="12">AI services</text>
+          <text x="740" y="115" fill="var(--muted-foreground)" font-size="12">mapping and geocoding services</text>
 
           <!-- Arrows -->
           <line x1="290" y1="95" x2="360" y2="95" stroke="var(--muted-foreground)" stroke-width="2" marker-end="url(#arrow)" />

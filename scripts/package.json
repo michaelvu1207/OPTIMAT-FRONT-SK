@@ -5,6 +5,11 @@
   "description": "OPTIMAT database migration scripts",
   "scripts": {
     "providers:test-cleaning": "node provider-cleaning.test.mjs",
+    "providers:test-workbook": "node provider-workbook.test.mjs",
+    "providers:test-service-areas": "node service-area-resolver.test.mjs",
+    "providers:test-heatmap": "node heatmap.test.mjs",
+    "providers:test": "node provider-cleaning.test.mjs && node provider-workbook.test.mjs && node service-area-resolver.test.mjs && node heatmap.test.mjs",
+    "providers:build-payload": "node build-provider-update-payload.mjs",
     "providers:supabase-dry": "node apply-supabase-provider-updates.mjs",
     "providers:supabase-apply": "node apply-supabase-provider-updates.mjs --apply"
   },

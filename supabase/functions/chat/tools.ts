@@ -373,8 +373,23 @@ async function geocodeAddress(
 function isPointInPolygon(
   lat: number,
   lng: number,
-  geometry: { type: string; coordinates: number[][][] | number[][][][] }
+  geometry: { type: string; coordinates?: number[][][] | number[][][][]; features?: unknown[]; geometry?: unknown }
 ): boolean {
+  // Handle FeatureCollection — check if point is in ANY feature
+  if (geometry.type === "FeatureCollection" && Array.isArray((geometry as any).features)) {
+    return (geometry as any).features.some((feature: any) => {
+      if (feature.geometry) {
+        return isPointInPolygon(lat, lng, feature.geometry);
+      }
+      return false;
+    });
+  }
+
+  // Handle Feature — unwrap to geometry
+  if (geometry.type === "Feature" && (geometry as any).geometry) {
+    return isPointInPolygon(lat, lng, (geometry as any).geometry);
+  }
+
   if (geometry.type === "Polygon") {
     return isPointInSinglePolygon(lat, lng, geometry.coordinates as number[][][]);
   } else if (geometry.type === "MultiPolygon") {
