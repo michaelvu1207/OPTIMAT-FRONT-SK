@@ -9,9 +9,9 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// Environment variables with defaults for development
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Environment variables with Supabase-first defaults for the current dev deployment.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://htjohidcoyfuwfjecazu.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_SBYfj4PnJcyhTX4U77jp2w_BvEN2aEL';
 
 // Validate required environment variables
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {

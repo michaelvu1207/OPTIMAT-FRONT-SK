@@ -4,21 +4,20 @@
   import { push } from 'svelte-spa-router';
   import PageShell from '$lib/components/PageShell.svelte';
   import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
   import { getAllProviders, type Provider } from '$lib/api';
   import providerSession, { setProvider } from '$lib/stores/providerSession';
   import mockDataEnabled from '$lib/stores/mockData';
   import { providerPortalNavItems } from '$lib/providerPortalNav';
 
   let mounted = false;
-  let email = '';
+  let selectedProviderKey = '';
   let lookupLoading = false;
   let lookupError: string | null = null;
 
   let providers: Provider[] = [];
   let optionsLoading = false;
   let optionsError: string | null = null;
-  let providerOptions: Array<{ value: string; email: string; providerName: string }> = [];
+  let providerOptions: Array<{ value: string; providerName: string }> = [];
   $: currentProvider = $providerSession.provider;
   $: mockEnabled = $mockDataEnabled;
 
@@ -49,70 +48,20 @@
   }
 
   function buildProviderOptions(list: Provider[]) {
-    const options: Array<{ value: string; email: string; providerName: string }> = [];
+    const options: Array<{ value: string; providerName: string }> = [];
     for (const provider of list) {
-      const emails = extractProviderEmails(provider);
-      for (const address of emails) {
-        const value = `${address}::${provider.provider_id || provider.id || provider.provider_name}`;
-        options.push({
-          value,
-          email: address,
-          providerName: provider.provider_name
-        });
-      }
+      const value = String(provider.provider_id || provider.id || provider.provider_name);
+      options.push({
+        value,
+        providerName: provider.provider_name
+      });
     }
     return options.sort((a, b) => a.providerName.localeCompare(b.providerName));
   }
 
-  function extractProviderEmails(provider: Provider): string[] {
-    const emails: string[] = [];
-    const pushEmail = (value?: string) => {
-      if (!value) return;
-      const normalized = value.trim().toLowerCase();
-      if (!normalized || emails.includes(normalized)) return;
-      emails.push(normalized);
-    };
-
-    // Direct email field if present on provider record
-    const providerEmail = (provider as Provider & { email?: string }).email;
-    pushEmail(providerEmail);
-
-    if (provider.contacts) {
-      try {
-        const contacts = typeof provider.contacts === 'string'
-          ? JSON.parse(provider.contacts)
-          : provider.contacts;
-
-        if (Array.isArray(contacts)) {
-          for (const contact of contacts) {
-            if (contact?.email) pushEmail(contact.email);
-            if (contact?.type?.toLowerCase() === 'email' && contact?.value) {
-              pushEmail(contact.value);
-            }
-          }
-        } else if (contacts && typeof contacts === 'object') {
-          if ((contacts as { email?: string }).email) {
-            pushEmail((contacts as { email?: string }).email);
-          }
-        }
-      } catch {
-        // Ignore malformed contact JSON
-      }
-    }
-
-    return emails;
-  }
-
-  function findProviderByEmail(address: string, list: Provider[]): Provider | null {
-    const emailLower = address.trim().toLowerCase();
-    if (!emailLower) return null;
-
-    return list.find((provider) => extractProviderEmails(provider).includes(emailLower)) || null;
-  }
-
   async function lookupProvider() {
-    if (!email.trim()) {
-      lookupError = 'Please enter an email address.';
+    if (!selectedProviderKey) {
+      lookupError = 'Please select a provider.';
       return;
     }
 
@@ -127,10 +76,12 @@
         list = data || [];
       }
 
-      const foundProvider = findProviderByEmail(email, list);
+      const foundProvider = list.find((provider) =>
+        String(provider.provider_id || provider.id || provider.provider_name) === selectedProviderKey
+      ) || null;
 
       if (!foundProvider) {
-        lookupError = 'No provider found with this email address. Please contact support if you believe this is an error.';
+        lookupError = 'No provider found. Please refresh the list and try again.';
         return;
       }
 
@@ -149,16 +100,9 @@
     }
   }
 
-  function handleSelect(event: Event) {
-    const value = (event.target as HTMLSelectElement).value;
-    const selected = providerOptions.find((option) => option.value === value);
-    if (!selected) return;
-    email = selected.email;
-  }
-
   function toggleMockData() {
     mockDataEnabled.update((value) => !value);
-    email = '';
+    selectedProviderKey = '';
   }
 </script>
 
@@ -181,38 +125,26 @@
               </svg>
             </div>
             <h1 class="text-2xl font-bold text-slate-900">Provider Portal</h1>
-            <p class="text-slate-600 mt-2">Enter your email to access your provider workspace.</p>
+            <p class="text-slate-600 mt-2">Select a provider to view the current public profile.</p>
           </div>
 
           <div class="space-y-4">
             <div>
               <!-- svelte-ignore a11y_label_has_associated_control -->
-              <label class="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
-              <Input
-                type="email"
-                bind:value={email}
-                placeholder="your@email.com"
-                class="w-full"
-                onkeydown={handleKeydown}
-                disabled={lookupLoading}
-              />
-            </div>
-
-            <div>
-              <!-- svelte-ignore a11y_label_has_associated_control -->
-              <label class="block text-xs font-medium text-slate-600 mb-2">Debug: Select provider email</label>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Provider</label>
               <select
                 class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
-                on:change={handleSelect}
+                bind:value={selectedProviderKey}
                 disabled={optionsLoading || providerOptions.length === 0}
+                onkeydown={handleKeydown}
               >
-                <option value="">Select an email…</option>
+                <option value="">Select a provider…</option>
                 {#each providerOptions as option}
-                  <option value={option.value}>{option.email} — {option.providerName}</option>
+                  <option value={option.value}>{option.providerName}</option>
                 {/each}
               </select>
               {#if optionsLoading}
-                <p class="text-xs text-slate-500 mt-2">Loading provider emails…</p>
+                <p class="text-xs text-slate-500 mt-2">Loading providers…</p>
               {:else if optionsError}
                 <p class="text-xs text-red-600 mt-2">{optionsError}</p>
               {/if}
@@ -227,7 +159,7 @@
             <Button
               class="w-full"
               onclick={lookupProvider}
-              disabled={lookupLoading || !email.trim()}
+              disabled={lookupLoading || !selectedProviderKey}
             >
               {#if lookupLoading}
                 <span class="animate-spin mr-2">
@@ -238,13 +170,13 @@
                 </span>
                 Looking up…
               {:else}
-                Access Provider Portal
+                Open Provider View
               {/if}
             </Button>
           </div>
 
           <p class="text-center text-xs text-slate-500 mt-6">
-            If you're having trouble accessing your account, please contact OPTIMAT support.
+            Provider profile edits are handled through the controlled data update workflow.
           </p>
         </div>
       </div>

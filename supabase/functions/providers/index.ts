@@ -9,7 +9,6 @@
  * - GET /providers/geocode?address=... - Geocode an address
  * - GET /providers/:id - Get single provider by provider_id
  * - GET /providers/:id/service-zone - Get provider service zone
- * - PUT /providers/:id - Update provider
  *
  * Uses optimat.providers table in Supabase.
  */
@@ -45,21 +44,6 @@ interface ProviderFilter {
   fare_type?: string;
 }
 
-interface ProviderUpdate {
-  provider_name?: string;
-  provider_type?: string;
-  routing_type?: string;
-  schedule_type?: unknown;
-  eligibility_reqs?: unknown;
-  booking?: unknown;
-  fare?: unknown;
-  contacts?: unknown;
-  website?: string;
-  round_trip_booking?: boolean;
-  investigated?: boolean;
-  service_zone?: unknown;
-}
-
 interface GeoCoordinate {
   lat: number;
   lon: number;
@@ -92,12 +76,16 @@ const PROVIDER_SELECT_FIELDS = `
   fare,
   service_hours,
   service_zone,
+  service_area_cities,
+  service_area_source,
+  service_area_notes,
+  provider_software,
   website,
   provider_org,
-  contacts,
   round_trip_booking,
   investigated,
-  created_at
+  created_at,
+  updated_at
 `;
 
 /**
@@ -479,6 +467,7 @@ async function getProviderServiceZone(
       {
         provider_id: data.provider_id,
         has_service_zone: serviceZone !== null && serviceZone !== undefined,
+        service_zone: serviceZone,
         raw_data: serviceZone,
       },
       200,
@@ -676,133 +665,6 @@ async function filterProviders(
 }
 
 /**
- * Update a provider by provider_id.
- */
-async function updateProvider(
-  providerId: string,
-  updateData: ProviderUpdate,
-  origin?: string | null
-): Promise<Response> {
-  try {
-    const supabase = createOptimatClient();
-    const id = parseInt(providerId, 10);
-
-    if (isNaN(id)) {
-      return errorResponse("Invalid provider ID", 400, origin);
-    }
-
-    // Check if provider exists
-    const { data: existing, error: checkError } = await supabase
-      .from(TABLES.PROVIDERS)
-      .select("provider_id")
-      .eq("provider_id", id)
-      .single();
-
-    if (checkError || !existing) {
-      return errorResponse(`Provider with id ${providerId} not found`, 404, origin);
-    }
-
-    // Build update object, only including non-null fields
-    const updates: Record<string, unknown> = {};
-    const fieldMapping: Record<keyof ProviderUpdate, { column: string; isJsonb: boolean }> = {
-      provider_name: { column: "provider_name", isJsonb: false },
-      provider_type: { column: "provider_type", isJsonb: false },
-      routing_type: { column: "routing_type", isJsonb: false },
-      schedule_type: { column: "schedule_type", isJsonb: true },
-      eligibility_reqs: { column: "eligibility_reqs", isJsonb: true },
-      booking: { column: "booking", isJsonb: true },
-      fare: { column: "fare", isJsonb: true },
-      contacts: { column: "contacts", isJsonb: true },
-      website: { column: "website", isJsonb: false },
-      round_trip_booking: { column: "round_trip_booking", isJsonb: false },
-      investigated: { column: "investigated", isJsonb: false },
-      service_zone: { column: "service_zone", isJsonb: true },
-    };
-
-    for (const [field, { column, isJsonb }] of Object.entries(fieldMapping)) {
-      const value = updateData[field as keyof ProviderUpdate];
-      if (value !== undefined) {
-        if (!isJsonb) {
-          updates[column] = value;
-          continue;
-        }
-
-        if (value === null) {
-          updates[column] = null;
-          continue;
-        }
-
-        let parsed: unknown = value;
-        if (typeof value === "string") {
-          const trimmed = value.trim();
-          if (!trimmed) {
-            // Treat empty string as null (clears the field)
-            updates[column] = null;
-            continue;
-          }
-          try {
-            parsed = JSON.parse(trimmed);
-          } catch {
-            return errorResponse(`Invalid JSON for field '${field}'`, 400, origin);
-          }
-        }
-
-        // Enforce basic shapes to avoid storing JSONB scalar strings/numbers accidentally
-        const expectsArray = field === "eligibility_reqs" || field === "contacts";
-        if (expectsArray) {
-          if (parsed !== null && parsed !== undefined && !Array.isArray(parsed)) {
-            return errorResponse(`Field '${field}' must be a JSON array`, 400, origin);
-          }
-        } else {
-          if (parsed !== null && parsed !== undefined && (typeof parsed !== "object" || Array.isArray(parsed))) {
-            return errorResponse(`Field '${field}' must be a JSON object`, 400, origin);
-          }
-        }
-
-        updates[column] = parsed;
-      }
-    }
-
-    if (Object.keys(updates).length === 0) {
-      // No fields to update, return existing provider
-      const { data: provider } = await supabase
-        .from(TABLES.PROVIDERS)
-        .select(PROVIDER_SELECT_FIELDS)
-        .eq("provider_id", id)
-        .single();
-
-      return jsonResponse(
-        normalizeProvider(provider as Record<string, unknown>),
-        200,
-        origin
-      );
-    }
-
-    // Perform update
-    const { data: updated, error: updateError } = await supabase
-      .from(TABLES.PROVIDERS)
-      .update(updates)
-      .eq("provider_id", id)
-      .select(PROVIDER_SELECT_FIELDS)
-      .single();
-
-    if (updateError) {
-      console.error("Error updating provider:", updateError);
-      return errorResponse(`Database error: ${updateError.message}`, 500, origin);
-    }
-
-    return jsonResponse(
-      normalizeProvider(updated as Record<string, unknown>),
-      200,
-      origin
-    );
-  } catch (err) {
-    console.error("Unexpected error in updateProvider:", err);
-    return errorResponse("Internal server error", 500, origin);
-  }
-}
-
-/**
  * Main request handler.
  */
 serve(async (req: Request): Promise<Response> => {
@@ -863,15 +725,13 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // GET /providers/:id/service-zone - Get provider service zone
-    if (method === "GET" && segments.length === 1 && segments[0] === "service-zone") {
-      // Need to re-parse the path to extract the ID before service-zone
-      const pathParts = pathname.split("/").filter(Boolean);
-      // Format: /providers/{id}/service-zone
-      if (pathParts.length >= 3) {
-        const providerId = pathParts[pathParts.length - 2];
-        return await getProviderServiceZone(providerId, origin);
-      }
-      return errorResponse("Invalid service-zone path", 400, origin);
+    if (
+      method === "GET" &&
+      segments.length === 2 &&
+      /^\d+$/.test(segments[0]) &&
+      segments[1] === "service-zone"
+    ) {
+      return await getProviderServiceZone(segments[0], origin);
     }
 
     // GET /providers/:id - Get single provider
@@ -879,14 +739,9 @@ serve(async (req: Request): Promise<Response> => {
       return await getProviderById(id, origin);
     }
 
-    // PUT /providers/:id - Update provider
+    // PUT /providers/:id - Provider updates are restricted to backend import/admin workflows.
     if (method === "PUT" && id && segments.length === 0) {
-      try {
-        const body = await req.json();
-        return await updateProvider(id, body as ProviderUpdate, origin);
-      } catch (err) {
-        return errorResponse("Invalid JSON body", 400, origin);
-      }
+      return errorResponse("Provider updates are disabled on the public API", 405, origin);
     }
 
     // Route not found

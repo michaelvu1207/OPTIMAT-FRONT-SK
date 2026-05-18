@@ -171,17 +171,22 @@ export function normalizeProvider(record: Record<string, unknown>): Record<strin
     normalized.provider_id = String(normalized.provider_id);
   }
 
-  // Parse service_zone if it's a string
-  if (typeof normalized.service_zone === "string") {
-    try {
-      normalized.service_zone = JSON.parse(normalized.service_zone);
-    } catch {
-      console.warn(`Failed to parse service_zone JSON for provider ${normalized.provider_id}`);
+  // Public provider responses must not expose operational contacts.
+  delete normalized.contacts;
+
+  // Parse GeoJSON JSONB fields if they arrive as strings.
+  for (const field of ["service_zone", "service_area_geojson"]) {
+    if (typeof normalized[field] === "string") {
+      try {
+        normalized[field] = JSON.parse(normalized[field] as string);
+      } catch {
+        console.warn(`Failed to parse ${field} JSON for provider ${normalized.provider_id}`);
+      }
     }
   }
 
   // Convert JSONB fields to JSON strings for frontend display
-  const jsonbFields = ["eligibility_reqs", "booking", "fare", "contacts", "schedule_type", "service_hours"];
+  const jsonbFields = ["eligibility_reqs", "booking", "fare", "schedule_type", "service_hours"];
   for (const field of jsonbFields) {
     const value = normalized[field];
     if (value !== null && value !== undefined && typeof value === "object") {

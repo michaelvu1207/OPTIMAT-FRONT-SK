@@ -39,6 +39,10 @@ export interface Provider {
   provider_type: string;
   provider_org?: string;
   service_zone?: string | object;
+  service_area_cities?: string[];
+  service_area_source?: string;
+  service_area_notes?: string;
+  provider_software?: string | null;
   has_service_zone?: boolean;
   service_hours?: string | object;
   eligibility_reqs?: string | string[] | object;
@@ -50,7 +54,6 @@ export interface Provider {
   planning_type?: string;
   schedule_type?: string | object;
   fare?: string | object;
-  contacts?: string | object;
   round_trip_booking?: boolean;
   investigated?: boolean;
   _zone_color?: string;
@@ -76,7 +79,6 @@ function normalizeProviderForUi(provider: Provider): Provider {
     eligibility_reqs: parseJsonIfString(provider.eligibility_reqs) as Provider['eligibility_reqs'],
     booking: parseJsonIfString(provider.booking) as Provider['booking'],
     fare: parseJsonIfString(provider.fare) as Provider['fare'],
-    contacts: parseJsonIfString(provider.contacts) as Provider['contacts'],
     service_hours: parseJsonIfString(provider.service_hours) as Provider['service_hours'],
     service_zone: parseJsonIfString(provider.service_zone) as Provider['service_zone'],
   };
@@ -329,24 +331,6 @@ export async function getProvider(
   providerId: string | number
 ): Promise<{ data: Provider | null; error: Error | null }> {
   const { data, error } = await fetchEdgeFunction<Provider>(`providers/${providerId}`);
-  return { data: data ? normalizeProviderForUi(data) : null, error };
-}
-
-/**
- * Update a provider
- *
- * @param providerId - Provider ID
- * @param providerData - Updated provider data
- * @returns Updated provider
- */
-export async function updateProvider(
-  providerId: string | number,
-  providerData: Partial<Provider>
-): Promise<{ data: Provider | null; error: Error | null }> {
-  const { data, error } = await fetchEdgeFunction<Provider>(`providers/${providerId}`, {
-    method: 'PUT',
-    body: providerData,
-  });
   return { data: data ? normalizeProviderForUi(data) : null, error };
 }
 

@@ -40,10 +40,44 @@ export interface EligibilityRequirement {
   proof?: string;
 }
 
-export interface Contact {
-  name?: string;
-  email?: string;
+export interface ProviderServiceAreaSummary {
+  service_area_cities?: string[] | null;
+  service_area_source?: string | null;
+  service_area_notes?: string | null;
+  service_zone?: unknown;
+  has_service_zone?: boolean;
 }
+
+const SCHEDULE_LABELS: Record<string, string> = {
+  'fixed-schedules': 'Fixed schedule',
+  'in-advance-book': 'Book in advance',
+  'real-time-book': 'Book on demand',
+};
+
+const BOOKING_LABELS: Record<string, string> = {
+  none: 'No booking needed',
+  call: 'Call',
+  app: 'App',
+};
+
+const FARE_LABELS: Record<string, string> = {
+  free: 'Free',
+  fixed: 'Fixed fare',
+  'distance-based': 'Distance-based fare',
+};
+
+const ELIGIBILITY_PROOF_LABELS: Record<string, string> = {
+  'id-certified': 'ID or residency proof required',
+  'ada-approved': 'ADA eligibility required',
+};
+
+const SERVICE_AREA_SOURCE_LABELS: Record<string, string> = {
+  custom_geojson: 'Custom mapped service area',
+  city_list: 'City boundary service area',
+  existing_preserved: 'Existing mapped service area',
+  unresolved: 'Service area needs review',
+  manual: 'Manually curated service area',
+};
 
 export const PROVIDER_TYPE_OPTIONS: ReadonlyArray<{ value: ProviderType; label: string }> = [
   { value: 'ADA Paratransit', label: 'ADA Paratransit' },
@@ -137,11 +171,16 @@ export function formatScheduleType(value: unknown): string | null {
   if (!type) return null;
 
   if (type === 'in-advance-book') {
-    return advance ? `Book in advance (${advance})` : 'Book in advance';
+    return advance ? `${SCHEDULE_LABELS[type]} (${advance})` : SCHEDULE_LABELS[type];
   }
-  if (type === 'real-time-book') return 'Book in real time';
-  if (type === 'fixed-schedules') return 'Fixed schedules';
+  if (SCHEDULE_LABELS[type]) return SCHEDULE_LABELS[type];
   return type;
+}
+
+export function formatRoutingType(value: unknown): string | null {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return null;
+  return ROUTING_TYPE_OPTIONS.find((option) => option.value === raw)?.label ?? raw;
 }
 
 export function formatBooking(value: unknown): string | null {
@@ -159,9 +198,10 @@ export function formatBooking(value: unknown): string | null {
   const details = typeof obj.details === 'string' ? obj.details.trim() : '';
 
   if (!method) return null;
-  if (method === 'none') return 'No booking needed';
-  if (method === 'call') return details ? `Call: ${details}` : 'Call';
-  if (method === 'app') return details ? `App: ${details}` : 'App';
+  const methodLabel = BOOKING_LABELS[method] ?? method;
+  if (method === 'none') return methodLabel;
+  if (details) return `${methodLabel}: ${details}`;
+  if (methodLabel) return methodLabel;
   return details ? `${method}: ${details}` : method;
 }
 
@@ -181,10 +221,10 @@ export function formatFare(value: unknown): string | null {
   const payment = typeof obj.payment === 'string' ? obj.payment.trim() : '';
 
   if (!type) return null;
-  if (type === 'free') return 'Free';
-  if (type === 'distance-based') return 'Distance-based';
+  if (type === 'free') return FARE_LABELS.free;
+  if (type === 'distance-based') return FARE_LABELS['distance-based'];
   if (type === 'fixed') {
-    const parts = ['Fixed'];
+    const parts = [FARE_LABELS.fixed];
     if (cost) parts.push(cost);
     if (payment) parts.push(payment);
     return parts.join(' · ');
@@ -193,36 +233,6 @@ export function formatFare(value: unknown): string | null {
   if (cost) parts.push(cost);
   if (payment) parts.push(payment);
   return parts.join(' · ');
-}
-
-export function formatContacts(value: unknown): string | null {
-  const parsed = tryParseJson(value);
-  if (!parsed) return null;
-
-  if (typeof parsed === 'string') {
-    const trimmed = parsed.trim();
-    return trimmed ? trimmed : null;
-  }
-
-  if (!Array.isArray(parsed)) return null;
-
-  const lines = parsed
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return null;
-      const name = typeof (entry as Record<string, unknown>).name === 'string'
-        ? ((entry as Record<string, unknown>).name as string).trim()
-        : '';
-      const email = typeof (entry as Record<string, unknown>).email === 'string'
-        ? ((entry as Record<string, unknown>).email as string).trim()
-        : '';
-      if (name && email) return `${name} <${email}>`;
-      if (email) return email;
-      if (name) return name;
-      return null;
-    })
-    .filter(Boolean) as string[];
-
-  return lines.length ? lines.join('\n') : null;
 }
 
 export function formatEligibilityReqs(value: unknown): string | null {
@@ -252,7 +262,8 @@ export function formatEligibilityReqs(value: unknown): string | null {
       const proof = typeof (entry as Record<string, unknown>).proof === 'string'
         ? ((entry as Record<string, unknown>).proof as string).trim()
         : '';
-      if (type && proof) return `${type} (${proof})`;
+      const proofLabel = ELIGIBILITY_PROOF_LABELS[proof] ?? proof;
+      if (type && proofLabel) return `${type}: ${proofLabel}`;
       if (type) return type;
       return null;
     })
@@ -276,8 +287,36 @@ export function formatServiceZone(value: unknown): string | null {
   const features = obj.features;
   const count = Array.isArray(features) ? features.length : null;
   if (type === 'FeatureCollection' && typeof count === 'number') {
-    return `FeatureCollection (${count} feature${count === 1 ? '' : 's'})`;
+    return `Mapped service area (${count} boundary${count === 1 ? '' : ' boundaries'})`;
   }
-  if (type) return type;
-  return 'GeoJSON set';
+  if (type) return 'Mapped service area';
+  return 'Mapped service area';
+}
+
+export function formatServiceAreaSource(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return SERVICE_AREA_SOURCE_LABELS[trimmed] ?? trimmed;
+}
+
+export function formatServiceAreaSummary(provider: ProviderServiceAreaSummary | null | undefined): string | null {
+  if (!provider) return null;
+  const source = formatServiceAreaSource(provider.service_area_source);
+  const cities = Array.isArray(provider.service_area_cities)
+    ? provider.service_area_cities.filter((city) => typeof city === 'string' && city.trim())
+    : [];
+  const mappedZone = formatServiceZone(provider.service_zone);
+
+  const parts: string[] = [];
+  if (source) parts.push(source);
+  if (cities.length) {
+    const shown = cities.slice(0, 6).join(', ');
+    const extra = cities.length > 6 ? `, +${cities.length - 6} more` : '';
+    parts.push(`Cities: ${shown}${extra}`);
+  }
+  if (!source && mappedZone) parts.push(mappedZone);
+  if (!parts.length && provider.has_service_zone) parts.push('Mapped service area');
+  if (!parts.length) parts.push('No mapped service area');
+  return parts.join('\n');
 }

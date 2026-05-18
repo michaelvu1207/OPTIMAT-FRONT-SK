@@ -197,38 +197,6 @@
     }
   }
   
-  // Format contacts
-  function formatContacts(contacts) {
-    if (!contacts) return 'Not available';
-    
-    try {
-      const contactData = typeof contacts === 'string' ? JSON.parse(contacts) : contacts;
-      if (Array.isArray(contactData)) {
-        const parts = contactData
-          .map((c) => {
-            if (!c || typeof c !== 'object') return null;
-            const name = typeof c.name === 'string' ? c.name.trim() : '';
-            const email = typeof c.email === 'string' ? c.email.trim() : '';
-            if (name && email) return `${name} <${email}>`;
-            if (email) return email;
-            if (name) return name;
-            return null;
-          })
-          .filter(Boolean);
-        return parts.length > 0 ? parts.join('\n') : 'Not available';
-      }
-
-      const parts = [];
-      if (contactData && typeof contactData === 'object') {
-        if (contactData.phone) parts.push(`Phone: ${contactData.phone}`);
-        if (contactData.email) parts.push(`Email: ${contactData.email}`);
-      }
-
-      return parts.length > 0 ? parts.join('\n') : 'Not available';
-    } catch (e) {
-      return 'Not available';
-    }
-  }
 </script>
 
 <div class="provider-panel" in:fly={{ x: -50, duration: 600, delay: 200 }}>
@@ -372,11 +340,6 @@
           </a>
         </div>
       {/if}
-      
-      <div class="tooltip-section">
-        <strong>Contact:</strong>
-        <div class="pre-wrap">{formatContacts(hoveredProvider.contacts)}</div>
-      </div>
       
       {#if hoveredProvider.booking}
         <div class="tooltip-section">
