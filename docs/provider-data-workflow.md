@@ -4,10 +4,13 @@ This workflow keeps Supabase as the source of truth for the current service-area
 
 ## Inputs
 
-- Provider workbook: `/Users/maikyon/Downloads/OPTIMAT Provider Validation.xlsx`
+- Provider workbook: `/Users/maikyon/Downloads/OPTIMAT Provider Validation (1).xlsx`
 - Workbook sheet: `Updated providers`
 - Service-area files: `/Users/maikyon/Downloads/Geojson Files for Service Areas`
 - Master city boundary file: `/Users/maikyon/Downloads/Geojson Files for Service Areas/contra_costa_cities.geojson`
+- Supplemental community boundary file: `/Users/maikyon/Downloads/Census Place Disadvantaged Communities 2023.geojson`
+- Supplemental ZIP boundary file: `/Users/maikyon/Downloads/Bay Area Zip GeoJSON.json`
+- TDT ADA service-area file: `/Users/maikyon/Downloads/TDT ADA.geojson`
 
 ## Import Steps
 
@@ -17,9 +20,11 @@ This workflow keeps Supabase as the source of truth for the current service-area
    ```bash
    cd /Users/maikyon/Documents/Programming/OPTIMAT-FRONT-SK/scripts
    node build-provider-update-payload.mjs \
-     --xlsx "/Users/maikyon/Downloads/OPTIMAT Provider Validation.xlsx" \
+     --xlsx "/Users/maikyon/Downloads/OPTIMAT Provider Validation (1).xlsx" \
      --sheet "Updated providers" \
-     --geojson-dir "/Users/maikyon/Downloads/Geojson Files for Service Areas"
+     --geojson-dir "/Users/maikyon/Downloads/Geojson Files for Service Areas" \
+     --community-geojson "/Users/maikyon/Downloads/Census Place Disadvantaged Communities 2023.geojson" \
+     --zip-geojson "/Users/maikyon/Downloads/Bay Area Zip GeoJSON.json"
    ```
 
 3. Review the generated files in `scripts/backup/`:
@@ -37,7 +42,8 @@ This workflow keeps Supabase as the source of truth for the current service-area
 ## Service-Area Source Rules
 
 - Custom GeoJSON wins over city listings.
-- City-list-generated areas use `contra_costa_cities.geojson`.
+- City-list-generated areas use `contra_costa_cities.geojson`, supplemented by Census Place community boundaries for missing CDP/unincorporated community names such as `Kensington CDP`.
+- ZIP-limited service areas use `Bay Area Zip GeoJSON.json` for explicit workbook entries such as `ZIP 94806`.
 - The importer does not call OpenStreetMap/Nominatim.
 - If a service area references a city, county, neighborhood, or vague description that is not in the provided boundary files, the importer either preserves the existing service zone or marks the provider as unresolved.
 
@@ -54,35 +60,19 @@ A short-lived service-role import endpoint was used for the write and then redep
 
 Latest dry-run review artifact:
 
-- `scripts/backup/provider-update-report-2026-05-18T19-08-20-607Z.md`
+- `scripts/backup/provider-update-report-2026-06-08T02-48-01-116Z.md`
 
 Current source counts:
 
-- `custom_geojson`: 9 providers
-- `city_list`: 6 providers
-- `existing_preserved`: 13 providers
-- `unresolved`: 1 provider
+- `custom_geojson`: 11 providers
+- `city_list`: 18 providers
+- `existing_preserved`: 0 providers
+- `unresolved`: 0 providers
+- deleted providers: 1 (`Richmond Moves`, provider `5029`)
 
 ## Remaining Data Issues
 
-These rows still need Sofia/Michael review because the attached GeoJSON folder does not include enough boundaries to regenerate them confidently:
-
-- Mobility Matters: Contra Costa County
-- Pleasant Hill Van Service: Walnut Creek Service Area Depends On The Day Of The Week
-- R-Transit (Richmond): North Richmond, El Sobrante, Kensington
-- Richmond Moves: no service-area source available
-- Rossmoor Dial-A-Bus: Rossmoor
-- San Pablo Senior & Disabled Transportation: Unincorporated
-- Senior Express Van (San Ramon): Dublin
-- TDT ADA Paratransit: nine Bay Area counties
-- TDT Senior Paratransit: Bay Point, Discovery Bay, Byron, Knightsen
-- Walnut Creek Mini Bus: unincorporated areas
-- WestCAT Senior Dial-A-Ride: Montalvin Manor, Tara Hills, Bayview, Rodeo, Crockett, Port Costa
-- WestCAT Paratransit: Montalvin Manor, Tara Hills, Bayview, Rodeo, Crockett, Port Costa
-- Wheels Dial-a-Ride: Livermore, Dublin, Pleasanton
-- Wheels Go Tri-Valley: Dublin, Pleasanton, Livermore
-
-Existing zones are preserved for all unresolved rows except Richmond Moves, which remains `service_area_source = unresolved` until a real boundary source is supplied.
+The current workbook dry run has no unresolved service areas. `Richmond Moves` is intentionally removed from the generated SQL.
 
 ## Validation Commands
 

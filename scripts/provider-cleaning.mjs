@@ -7,6 +7,7 @@ export const MANUAL_NAME_MAP = {
   'County Connection (weekend)': '__MERGE_WITH_WEEKDAY__',
   'Richmond R-Transit': 'R-Transit (Richmond)',
   'El Cerrito Easy Ride Paratransit Services': 'Easy Ride Paratransit Services (El Cerrito)',
+  'Lamorinda Sprint': 'Lamorinda Spirit',
   'San Ramon Go San Ramon': 'Go San Ramon!',
   'San Ramon Senior Express Van': 'Senior Express Van (San Ramon)',
   'Orinda Seniors Around Town': 'Seniors Around Town (Orinda)',
@@ -27,6 +28,14 @@ export const PROVIDER_ID_NAME_ALIASES = {
 };
 
 export const MANUAL_PROVIDER_DEFAULTS = {
+  'Concord Senior Center Shuttle': {
+    provider_type: 'Non-ADA Paratransit',
+    routing_type: 'door-to-door',
+    schedule_type: { type: 'in-advance-book' },
+    provider_org: 'City of Concord',
+    round_trip_booking: true,
+    investigated: true,
+  },
   'Walnut Creek Lyft Self Access Pass': {
     provider_type: 'Volunteer Driver or TNC',
     routing_type: 'door-to-door',

@@ -8,8 +8,13 @@ import {
   readProviderWorkbookRows,
 } from './provider-workbook.mjs';
 import {
+  DEFAULT_COMMUNITY_PLACE_GEOJSON_PATH,
   DEFAULT_SERVICE_AREA_GEOJSON_DIR,
+  DEFAULT_ZIP_GEOJSON_PATH,
   loadContraCostaCityIndex,
+  loadCommunityPlaceIndex,
+  loadZipCodeIndex,
+  mergeBoundaryIndexes,
   resolveProviderServiceArea,
 } from './service-area-resolver.mjs';
 import {
@@ -36,9 +41,12 @@ const SKIP_FETCH_EXISTING = args.includes('--skip-fetch-existing');
 const XLSX_PATH = getArgValue(process.argv, '--xlsx') || DEFAULT_UPDATED_PROVIDERS_XLSX;
 const SHEET_NAME = getArgValue(process.argv, '--sheet') || DEFAULT_UPDATED_PROVIDERS_SHEET;
 const GEOJSON_DIR = getArgValue(process.argv, '--geojson-dir') || DEFAULT_SERVICE_AREA_GEOJSON_DIR;
+const COMMUNITY_GEOJSON_PATH = getArgValue(process.argv, '--community-geojson') || DEFAULT_COMMUNITY_PLACE_GEOJSON_PATH;
+const ZIP_GEOJSON_PATH = getArgValue(process.argv, '--zip-geojson') || DEFAULT_ZIP_GEOJSON_PATH;
 const OUTPUT_PATH = getArgValue(process.argv, '--output') || path.join(BACKUP_DIR, 'provider-update-payload-latest.json');
 
 const NEW_PROVIDER_IDS = {
+  'Concord Senior Center Shuttle': 5033,
   'Walnut Creek Lyft Self Access Pass': 5031,
   'Walnut Creek Lyft Concierge Pass': 5032,
 };
@@ -46,6 +54,12 @@ const NEW_PROVIDER_IDS = {
 const NEW_PROVIDER_BASE_NAMES = {
   'Walnut Creek Lyft Self Access Pass': 'Walnut Creek Lyft Rideshare',
   'Walnut Creek Lyft Concierge Pass': 'Walnut Creek Lyft Rideshare',
+};
+
+const DELETE_PROVIDER_IDS = [5029];
+
+const MANUAL_SERVICE_AREA_CITIES = {
+  'Concord Senior Center Shuttle': 'Concord',
 };
 
 function parseMaybeJson(value) {
@@ -162,13 +176,21 @@ function providerUpsertSql(providers) {
   return `insert into optimat.providers (${columns.join(', ')}) values\n${rows.join(',\n')}\non conflict (provider_id) do update set\n${updateColumns.map((column) => `  ${column} = excluded.${column}`).join(',\n')},\n  updated_at = now();`;
 }
 
+function providerDeleteSql(providerIds) {
+  if (providerIds.length === 0) return '-- no providers to delete';
+  return `delete from optimat.providers\nwhere provider_id in (${providerIds.map((id) => Number(id)).join(', ')});`;
+}
+
 function markdownReport({
   xlsxPath,
   sheetName,
   geojsonDir,
+  communityGeoJsonPath,
+  zipGeoJsonPath,
   providers,
   mapping,
   missingFromWorkbook,
+  deletedProviders,
   unresolved,
 }) {
   const customCount = mapping.filter((item) => item.serviceAreaSource === 'custom_geojson').length;
@@ -183,10 +205,12 @@ function markdownReport({
     `- Workbook: \`${xlsxPath}\``,
     `- Sheet: \`${sheetName}\``,
     `- GeoJSON directory: \`${geojsonDir}\``,
+    `- Community GeoJSON: \`${communityGeoJsonPath}\``,
+    `- ZIP GeoJSON: \`${zipGeoJsonPath}\``,
     `- Providers in payload: ${providers.length}`,
     `- Providers to update: ${updateCount}`,
     `- Providers to insert: ${insertCount}`,
-    '- Providers to retire/delete: 0 (missing providers are preserved for manual review)',
+    `- Providers to delete: ${deletedProviders.length}`,
     `- Custom GeoJSON providers: ${customCount}`,
     `- City-list-generated providers: ${cityListCount}`,
     `- Existing zones preserved: ${preservedCount}`,
@@ -220,6 +244,12 @@ function markdownReport({
       ? mapping.filter((item) => item.newRow).map((item) => `- [${item.providerId}] ${item.providerName}`)
       : ['- None']),
     '',
+    '## Provider Deletes',
+    '',
+    ...(deletedProviders.length
+      ? deletedProviders.map((provider) => `- [${provider.provider_id}] ${provider.provider_name}`)
+      : ['- None']),
+    '',
     '## Provider Updates',
     '',
     ...(updateCount
@@ -239,7 +269,13 @@ async function main() {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
   const workbookRows = readProviderWorkbookRows(XLSX_PATH, SHEET_NAME);
-  const cityIndex = loadContraCostaCityIndex(path.join(GEOJSON_DIR, 'contra_costa_cities.geojson'));
+  const cityIndex = mergeBoundaryIndexes(
+    mergeBoundaryIndexes(
+      loadContraCostaCityIndex(path.join(GEOJSON_DIR, 'contra_costa_cities.geojson')),
+      loadCommunityPlaceIndex(COMMUNITY_GEOJSON_PATH),
+    ),
+    loadZipCodeIndex(ZIP_GEOJSON_PATH),
+  );
   const existingRows = await fetchExistingProviders();
   const existingByName = new Map(existingRows.map((row) => [row.provider_name, row]));
   const existingById = new Map(existingRows.map((row) => [String(row.provider_id), row]));
@@ -261,10 +297,14 @@ async function main() {
       throw new Error(`No provider_id mapping for ${csvName} (lookup ${lookupName})`);
     }
 
+    if (DELETE_PROVIDER_IDS.includes(Number(providerId))) {
+      continue;
+    }
+
     const serviceArea = await resolveProviderServiceArea({
       providerName,
       serviceAreaGeoJson: row['Service Area GeoJSON'] ?? '',
-      serviceAreaCitiesText: row['Service Area Cities (provider website)'] ?? '',
+      serviceAreaCitiesText: row['Service Area Cities (provider website)'] || MANUAL_SERVICE_AREA_CITIES[providerName] || '',
       geojsonDir: GEOJSON_DIR,
       cityIndex,
       existingServiceZone: existingRow?.service_zone ?? null,
@@ -322,16 +362,23 @@ async function main() {
 
   const mappedProviderIds = new Set(mapping.map((item) => String(item.providerId)));
   const unresolved = mapping.filter((item) => item.serviceAreaSource === 'unresolved' || item.unresolvedCities.length > 0);
-  const missingFromWorkbook = existingRows.filter((row) => !mappedProviderIds.has(String(row.provider_id)));
+  const deletedProviders = existingRows.filter((row) => DELETE_PROVIDER_IDS.includes(Number(row.provider_id)));
+  const deletedProviderIds = new Set(deletedProviders.map((row) => String(row.provider_id)));
+  const missingFromWorkbook = existingRows.filter((row) =>
+    !mappedProviderIds.has(String(row.provider_id)) && !deletedProviderIds.has(String(row.provider_id))
+  );
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const payload = {
     generated_at: new Date().toISOString(),
     xlsxPath: XLSX_PATH,
     sheetName: SHEET_NAME,
     geojsonDir: GEOJSON_DIR,
+    communityGeoJsonPath: COMMUNITY_GEOJSON_PATH,
+    zipGeoJsonPath: ZIP_GEOJSON_PATH,
     providers,
     mapping,
     missingFromWorkbook,
+    deletedProviders,
     unresolved,
   };
 
@@ -346,9 +393,12 @@ async function main() {
     xlsxPath: XLSX_PATH,
     sheetName: SHEET_NAME,
     geojsonDir: GEOJSON_DIR,
+    communityGeoJsonPath: COMMUNITY_GEOJSON_PATH,
+    zipGeoJsonPath: ZIP_GEOJSON_PATH,
     providers,
     mapping,
     missingFromWorkbook,
+    deletedProviders,
     unresolved,
   }));
 
@@ -356,10 +406,11 @@ async function main() {
   fs.writeFileSync(unresolvedPath, JSON.stringify(unresolved, null, 2));
 
   const sqlPath = path.join(BACKUP_DIR, `provider-update-upsert-${ts}.sql`);
-  fs.writeFileSync(sqlPath, providerUpsertSql(providers));
+  fs.writeFileSync(sqlPath, `${providerUpsertSql(providers)}\n\n${providerDeleteSql(deletedProviders.map((provider) => provider.provider_id))}\n`);
 
   console.log(`Provider rows read: ${workbookRows.length}`);
   console.log(`Providers in payload: ${providers.length}`);
+  console.log(`Providers to delete: ${deletedProviders.length}`);
   console.log(`Unresolved service areas: ${unresolved.length}`);
   console.log(`Payload: ${path.relative(process.cwd(), OUTPUT_PATH)}`);
   console.log(`Report: ${path.relative(process.cwd(), reportPath)}`);

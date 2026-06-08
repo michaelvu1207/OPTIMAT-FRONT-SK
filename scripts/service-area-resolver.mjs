@@ -4,6 +4,12 @@ import { getServiceAreaSource } from './service-area-sources.mjs';
 
 export const DEFAULT_SERVICE_AREA_GEOJSON_DIR =
   '/Users/maikyon/Downloads/Geojson Files for Service Areas';
+export const DEFAULT_COMMUNITY_PLACE_GEOJSON_PATH =
+  '/Users/maikyon/Downloads/Census Place Disadvantaged Communities 2023.geojson';
+export const DEFAULT_ZIP_GEOJSON_PATH =
+  '/Users/maikyon/Downloads/Bay Area Zip GeoJSON.json';
+export const DEFAULT_TDT_ADA_GEOJSON_PATH =
+  '/Users/maikyon/Downloads/TDT ADA.geojson';
 
 const CITY_ALIASES = {
   'walnut creek.': 'Walnut Creek',
@@ -48,6 +54,16 @@ function normalizeName(value) {
     .replace(/\s+/g, ' ')
     .replace(/\.$/, '')
     .trim();
+}
+
+function normalizeBoundaryLookupName(value) {
+  return normalizeName(value)
+    .replace(/\s+(?:CDP|city|town|village)(?:\s*\([^)]*\))?$/i, '')
+    .trim();
+}
+
+function isContraCostaPlace(feature) {
+  return /contra costa county/i.test(String(feature?.properties?.PlaceNames ?? ''));
 }
 
 function titleCase(value) {
@@ -114,6 +130,65 @@ export function loadContraCostaCityIndex(cityGeoJsonPath) {
   return index;
 }
 
+export function loadCommunityPlaceIndex(communityGeoJsonPath = DEFAULT_COMMUNITY_PLACE_GEOJSON_PATH) {
+  if (!communityGeoJsonPath || !fs.existsSync(communityGeoJsonPath)) return new Map();
+
+  const raw = JSON.parse(fs.readFileSync(communityGeoJsonPath, 'utf8'));
+  const collection = normalizeGeoJsonToFeatureCollection(raw);
+  const index = new Map();
+
+  for (const feature of collection.features) {
+    const placeName = feature?.properties?.PlaceNames;
+    const lookupName = normalizeBoundaryLookupName(placeName);
+    if (!lookupName) continue;
+    const next = cloneJson(feature);
+    next.properties = {
+      ...(next.properties ?? {}),
+      city: lookupName,
+      source_place_name: placeName,
+    };
+    const existing = index.get(lookupName);
+    if (!existing || (!isContraCostaPlace(existing) && isContraCostaPlace(next))) {
+      index.set(lookupName, next);
+    }
+  }
+
+  return index;
+}
+
+export function loadZipCodeIndex(zipGeoJsonPath = DEFAULT_ZIP_GEOJSON_PATH) {
+  if (!zipGeoJsonPath || !fs.existsSync(zipGeoJsonPath)) return new Map();
+
+  const raw = JSON.parse(fs.readFileSync(zipGeoJsonPath, 'utf8'));
+  const collection = normalizeGeoJsonToFeatureCollection(raw);
+  const index = new Map();
+
+  for (const feature of collection.features) {
+    const zip = normalizeName(feature?.properties?.ZIP);
+    if (!zip) continue;
+    const key = `ZIP ${zip}`;
+    const next = cloneJson(feature);
+    next.properties = {
+      ...(next.properties ?? {}),
+      city: key,
+      source_zip: zip,
+    };
+    index.set(key, next);
+  }
+
+  return index;
+}
+
+export function mergeBoundaryIndexes(primaryIndex, supplementalIndex) {
+  const merged = new Map(primaryIndex);
+  for (const [name, feature] of supplementalIndex) {
+    if (!merged.has(name)) {
+      merged.set(name, feature);
+    }
+  }
+  return merged;
+}
+
 function stripServiceAreaNoise(text) {
   return String(text ?? '')
     .replace(/https?:\/\/\S+/gi, '')
@@ -147,7 +222,10 @@ export function parseServiceAreaCities(text) {
 
   for (const rawPart of rawParts) {
     const alias = CITY_ALIASES[rawPart.toLowerCase()];
-    const city = alias ?? titleCase(rawPart);
+    const titled = alias ?? titleCase(rawPart);
+    const city = /^zip\s+\d{5}$/i.test(titled)
+      ? titled.toUpperCase()
+      : normalizeBoundaryLookupName(titled);
     if (/^(none|missing|missing website|service area depends on the day of the week)$/i.test(city)) {
       continue;
     }
@@ -184,6 +262,18 @@ function sourceFromWorkbookValue(value) {
   if (!trimmed) return null;
   if (/^https?:\/\/.+\.geojson(?:\?.*)?$/i.test(trimmed)) {
     return { type: 'remote_geojson', url: trimmed };
+  }
+  if (/^tdt-ada\.geojson$/i.test(trimmed)) {
+    return { type: 'local_geojson', path: DEFAULT_TDT_ADA_GEOJSON_PATH };
+  }
+  if (/^contra_costa_county_boundary\.geojson$/i.test(trimmed)) {
+    return { type: 'local_geojson', path: trimmed };
+  }
+  if (/^(i16_)?Census_Place_DisadvantagedCommunities_2023\.geojson$/i.test(trimmed)) {
+    return null;
+  }
+  if (/^Bay_Area_Zip_.*\.json$/i.test(trimmed)) {
+    return null;
   }
   return null;
 }

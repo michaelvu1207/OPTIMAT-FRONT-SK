@@ -20,6 +20,7 @@
   let loading = true;
   let error = null;
   let selectedProvider = null;
+  let activeProviderGroupId = 'fixed-route';
 
   let mapCenter = [37.9020731, -122.0618702];
   let mapZoom = 10;
@@ -33,6 +34,18 @@
   ];
   let currentMapStyleId = mapStyles[0].id;
   $: currentMapStyle = mapStyles.find((style) => style.id === currentMapStyleId) || mapStyles[0];
+
+  const providerGroups = [
+    { id: 'fixed-route', label: 'fixed-route', matches: (type) => normalizeProviderType(type).includes('fixed route') },
+    { id: 'ada-paratransit', label: 'ADA paratransit', matches: (type) => normalizeProviderType(type) === 'ada paratransit' },
+    { id: 'non-ada-paratransit', label: 'non-ADA paratransit', matches: (type) => normalizeProviderType(type) === 'non-ada paratransit' },
+    { id: 'volunteer-driver-tnc', label: 'volunteer-driver and TNC', matches: (type) => {
+      const normalized = normalizeProviderType(type);
+      return normalized.includes('volunteer driver') || normalized.includes('tnc');
+    } }
+  ];
+  $: activeProviderGroup = providerGroups.find((group) => group.id === activeProviderGroupId) || providerGroups[0];
+  $: filteredProviders = providers.filter((provider) => activeProviderGroup.matches(provider.provider_type));
 
   onMount(async () => {
     mounted = true;
@@ -115,6 +128,20 @@
     return 'bg-gray-100 text-gray-700 border-gray-200';
   }
 
+  function normalizeProviderType(type) {
+    return String(type ?? '').trim().toLowerCase();
+  }
+
+  function getProviderGroupCount(group) {
+    return providers.filter((provider) => group.matches(provider.provider_type)).length;
+  }
+
+  function selectProviderGroup(groupId) {
+    activeProviderGroupId = groupId;
+    selectedProvider = null;
+    serviceZoneManager.clearAllServiceZones();
+  }
+
   function formatText(value) {
     const text = String(value ?? '').trim();
     return text || '-';
@@ -193,10 +220,31 @@
 
           <Resizable.Pane defaultSize={45} minSize={25} class="flex flex-col overflow-hidden bg-card border-t border-border/40">
             <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Providers ({providers.length})
-                </span>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex min-w-0 flex-wrap items-center gap-2">
+                  <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Providers ({filteredProviders.length})
+                  </span>
+                  <div class="flex max-w-full flex-wrap items-center gap-1" role="tablist" aria-label="Provider service groups">
+                    {#each providerGroups as group}
+                      {@const isActiveGroup = activeProviderGroupId === group.id}
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={isActiveGroup}
+                        class="rounded-md border px-2 py-1 text-[11px] font-medium leading-none transition {
+                          isActiveGroup
+                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                            : 'border-border/60 bg-background text-muted-foreground hover:border-border hover:bg-muted/60 hover:text-foreground'
+                        }"
+                        onclick={() => selectProviderGroup(group.id)}
+                      >
+                        {group.label}
+                        <span class="ml-1 opacity-70">{getProviderGroupCount(group)}</span>
+                      </button>
+                    {/each}
+                  </div>
+                </div>
                 <button
                   class="text-xs text-primary hover:text-primary/80 transition"
                   onclick={loadProviders}
@@ -220,9 +268,13 @@
                 <div class="flex items-center justify-center h-32 text-sm text-muted-foreground">
                   No providers found
                 </div>
+              {:else if filteredProviders.length === 0}
+                <div class="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                  No providers found for {activeProviderGroup.label}
+                </div>
               {:else}
                 <div class="space-y-2">
-                  {#each providers as provider (provider.provider_id || provider.id)}
+                  {#each filteredProviders as provider (provider.provider_id || provider.id)}
                     {@const providerId = provider.provider_id || provider.id}
                     {@const isSelected = (selectedProvider?.provider_id || selectedProvider?.id) === providerId}
                     <button
