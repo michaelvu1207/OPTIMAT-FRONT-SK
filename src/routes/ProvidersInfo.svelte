@@ -45,6 +45,12 @@
     } }
   ];
   $: activeProviderGroup = providerGroups.find((group) => group.id === activeProviderGroupId) || providerGroups[0];
+  $: providerGroupCounts = Object.fromEntries(
+    providerGroups.map((group) => [
+      group.id,
+      providers.filter((provider) => group.matches(provider.provider_type)).length
+    ])
+  );
   $: filteredProviders = providers.filter((provider) => activeProviderGroup.matches(provider.provider_type));
 
   onMount(async () => {
@@ -130,10 +136,6 @@
 
   function normalizeProviderType(type) {
     return String(type ?? '').trim().toLowerCase();
-  }
-
-  function getProviderGroupCount(group) {
-    return providers.filter((provider) => group.matches(provider.provider_type)).length;
   }
 
   function selectProviderGroup(groupId) {
@@ -240,7 +242,7 @@
                         onclick={() => selectProviderGroup(group.id)}
                       >
                         {group.label}
-                        <span class="ml-1 opacity-70">{getProviderGroupCount(group)}</span>
+                        <span class="ml-1 opacity-70">{providerGroupCounts[group.id] ?? 0}</span>
                       </button>
                     {/each}
                   </div>
