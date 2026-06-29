@@ -10,6 +10,8 @@ import {
   fetchEdgeFunction,
   getEdgeFunctionUrl,
   getAuthHeaders,
+  getSupabaseRestUrl,
+  getRestHeaders,
 } from './supabase';
 
 // =============================================================================
@@ -98,6 +100,11 @@ export interface ProviderFilterResponse {
   destination_address?: string;
   source_coords?: { lat: number; lng: number };
   destination_coords?: { lat: number; lng: number };
+  origin?: { lat: number; lon: number } | null;
+  destination?: { lat: number; lon: number } | null;
+  message?: string;
+  error?: string;
+  details?: unknown;
   public_transit?: {
     journey_description?: string;
     routes?: unknown[];
@@ -110,6 +117,7 @@ export interface ConversationMessage {
   content: string;
   created_at?: string;
   conversation_id?: string;
+  attachments?: unknown[] | null;
 }
 
 export interface Conversation {
@@ -214,6 +222,13 @@ export interface HealthCheckResponse {
   ok?: boolean;
 }
 
+export interface TranscriptionResponse {
+  text: string;
+  model?: string;
+  language?: string;
+  duration_seconds?: number;
+}
+
 // =============================================================================
 // API Configuration Check
 // =============================================================================
@@ -299,6 +314,15 @@ export async function filterProviders(
     body: request,
   });
   if (!data) return { data: null, error };
+  if (typeof data.error === 'string' && data.error.trim()) {
+    return { data: null, error: new Error(data.error) };
+  }
+  if (
+    typeof data.message === 'string' &&
+    /spatial filtering unavailable|spatial provider filtering is not configured/i.test(data.message)
+  ) {
+    return { data: null, error: new Error(data.message) };
+  }
   return {
     data: {
       ...data,
@@ -458,6 +482,8 @@ export async function sendChatMessage(
       conversation_id: conversationId,
       message,
     },
+    timeoutMs: 20000,
+    useApiFunctionsHost: true,
   });
 
   if (!data || error) return { data, error };
@@ -469,6 +495,68 @@ export async function sendChatMessage(
   };
 
   return { data: normalized, error: null };
+}
+
+/**
+ * Transcribe recorded voice input through a server-side OpenAI proxy.
+ *
+ * The browser sends only the audio blob. OpenAI credentials stay in the
+ * Supabase/AWS function environment.
+ */
+export async function transcribeAudio(
+  audioBlob: Blob,
+  filename = 'voice-input.webm'
+): Promise<{ data: TranscriptionResponse | null; error: Error | null }> {
+  try {
+    const formData = new FormData();
+    formData.append('file', audioBlob, filename);
+
+    const headers = getAuthHeaders();
+    delete headers['Content-Type'];
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+
+    const response = await fetch(getEdgeFunctionUrl('transcribe'), {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal: controller.signal,
+    });
+
+    window.clearTimeout(timeoutId);
+
+    const raw = await response.text();
+    let parsed: unknown = null;
+    if (raw.trim()) {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = raw;
+      }
+    }
+
+    if (!response.ok) {
+      const message =
+        parsed && typeof parsed === 'object' && 'error' in parsed
+          ? String((parsed as { error?: unknown }).error)
+          : raw || `Transcription failed: HTTP ${response.status}`;
+      return { data: null, error: new Error(message) };
+    }
+
+    if (!parsed || typeof parsed !== 'object' || !('text' in parsed)) {
+      return { data: null, error: new Error('Transcription response did not include text.') };
+    }
+
+    return { data: parsed as TranscriptionResponse, error: null };
+  } catch (err) {
+    const message = err instanceof Error && err.name === 'AbortError'
+      ? 'Transcription timed out. Please try a shorter recording.'
+      : err instanceof Error
+        ? err.message
+        : String(err);
+    return { data: null, error: new Error(message) };
+  }
 }
 
 /**
@@ -556,6 +644,10 @@ export async function* streamChatResponse(
           try {
             const event = JSON.parse(line.slice(6)) as ChatStreamEvent;
             yield event;
+            if (event.event === 'done') {
+              await reader.cancel().catch(() => undefined);
+              return;
+            }
           } catch (e) {
             console.warn('Failed to parse SSE event:', line, e);
           }
@@ -812,10 +904,30 @@ export async function loadExampleReplayData(
 export async function getConversationMessages(
   conversationId: string
 ): Promise<{ data: { messages: ConversationMessage[] } | null; error: Error | null }> {
-  const { data, error } = await fetchEdgeFunction<{ messages: ConversationMessage[] }>('messages', {
-    params: { conversation_id: conversationId },
-  });
-  return { data, error };
+  try {
+    const params = new URLSearchParams({
+      conversation_id: `eq.${conversationId}`,
+      select: 'id,conversation_id,role,content,attachments,created_at',
+      order: 'created_at.asc',
+    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(getSupabaseRestUrl(`messages?${params.toString()}`), {
+      headers: getRestHeaders(),
+      signal: controller.signal,
+    });
+    window.clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const message = await response.text().catch(() => '');
+      return { data: null, error: new Error(message || `Messages error: ${response.status}`) };
+    }
+
+    const messages = await response.json() as ConversationMessage[];
+    return { data: { messages }, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err : new Error(String(err)) };
+  }
 }
 
 /**

@@ -13,8 +13,10 @@ import UniversalServiceDashboard from './routes/UniversalServiceDashboard.svelte
 import WhatIsOptimat from './routes/WhatIsOptimat.svelte';
 
 const routes = {
-  // Map interface (default)
-  '/': MapView,
+  // Chat interface (default)
+  '/': ChatView,
+
+  // Map interface
   '/map': MapView,
 
   // Paired trip records viewer

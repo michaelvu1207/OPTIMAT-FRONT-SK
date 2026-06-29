@@ -180,13 +180,47 @@
 
   function getEligibilityList(provider) {
     let elig = provider?.eligibility_reqs;
-    if (elig && !Array.isArray(elig) && typeof elig === 'object' && Array.isArray(elig.eligibility_reqs)) {
-      elig = elig.eligibility_reqs;
+    if (elig && !Array.isArray(elig) && typeof elig === 'object') {
+      const eligibility = typeof elig.eligibility === 'string'
+        ? elig.eligibility.trim()
+        : typeof elig.eligibility_text === 'string'
+          ? elig.eligibility_text.trim()
+          : '';
+      const proof = typeof elig.proof === 'string'
+        ? elig.proof.trim()
+        : typeof elig.proof_process === 'string'
+          ? elig.proof_process.trim()
+          : '';
+      if (eligibility || proof) {
+        elig = [
+          eligibility ? `Eligibility: ${eligibility}` : null,
+          proof ? `Proof: ${proof}` : null
+        ].filter(Boolean);
+      } else if (Array.isArray(elig.eligibility_reqs)) {
+        elig = elig.eligibility_reqs;
+      }
     }
     if (elig && !Array.isArray(elig)) {
       elig = [String(elig)];
     }
-    return Array.isArray(elig) ? elig : [];
+    if (!Array.isArray(elig)) return [];
+
+    return elig.map((entry) => {
+      if (typeof entry === 'string') return entry;
+      if (entry && typeof entry === 'object') {
+        const type = typeof entry.type === 'string'
+          ? entry.type
+          : typeof entry.eligibility_req === 'string'
+            ? entry.eligibility_req
+            : typeof entry.eligibility_type === 'string'
+              ? entry.eligibility_type
+              : '';
+        const proof = typeof entry.proof === 'string' ? entry.proof : '';
+        if (type && proof) return `${type} (${proof})`;
+        if (type) return type;
+      }
+      return String(entry);
+    }).filter(Boolean);
   }
 
   async function handleOriginBlur() {

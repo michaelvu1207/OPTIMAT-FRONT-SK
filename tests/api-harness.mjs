@@ -264,18 +264,45 @@ async function testProviders(target) {
   record('providers', 'GET /providers/map', map);
   captureSnapshot('providers', 'GET /providers/map', map);
 
-  // POST filter providers
+  // POST filter providers with a known in-area ADA trip
   const filter = await request(target, 'POST', 'providers/filter', {
     source_address: '1000 Broadway, Oakland, CA',
-    destination_address: '500 Terry Francine St, San Francisco, CA',
+    destination_address: '2150 Kittredge St, Berkeley, CA',
+    eligibility_type: 'Disabled',
   });
   record('providers', 'POST /providers/filter', filter);
   captureSnapshot('providers', 'POST /providers/filter', filter);
 
   if (filter.json?.data) {
-    recordCustom('providers', `filter returned providers (got ${filter.json.data.length})`, Array.isArray(filter.json.data), { elapsed: 0 });
+    recordCustom('providers', `known-positive filter returns providers (got ${filter.json.data.length})`, Array.isArray(filter.json.data) && filter.json.data.length > 0, { elapsed: 0 });
     recordCustom('providers', 'POST /providers/filter does not expose contacts', !hasOwnDeep(filter.json.data, 'contacts'), { elapsed: 0 });
   }
+
+  const danvillePleasanton = await request(target, 'POST', 'providers/filter', {
+    source_address: '3000 Damani Ct, Danville, CA',
+    destination_address: '4626 Willow Rd, Pleasanton, CA',
+    eligibility_type: 'Senior',
+  });
+  captureSnapshot('providers', 'POST /providers/filter Danville to Pleasanton', danvillePleasanton);
+
+  const routeProviders = Array.isArray(danvillePleasanton.json?.data)
+    ? danvillePleasanton.json.data
+    : [];
+  const safeProviderFilter =
+    (danvillePleasanton.ok && routeProviders.length < providerCount) ||
+    (!danvillePleasanton.ok && danvillePleasanton.status >= 500);
+  recordCustom(
+    'providers',
+    `Danville to Pleasanton filter does not return full provider catalog (got ${routeProviders.length}/${providerCount})`,
+    safeProviderFilter,
+    {
+      status: danvillePleasanton.status,
+      elapsed: danvillePleasanton.elapsed,
+      error: safeProviderFilter
+        ? null
+        : danvillePleasanton.json?.message || danvillePleasanton.json?.error || danvillePleasanton.text?.slice(0, 200),
+    }
+  );
 }
 
 async function testGeocode(target) {

@@ -11,7 +11,12 @@ import {
   resolveCanonicalProviderName,
 } from './provider-cleaning.mjs';
 
-const CSV_PATH = '/Users/maikyon/Downloads/OPTIMAT Provider Validation Updated Providers.csv';
+const CSV_PATHS = [
+  '/Users/maikyon/Downloads/OPTIMAT Provider Validation Updated Providers (2).csv',
+  '/Users/maikyon/Downloads/OPTIMAT Provider Validation Updated Providers.csv',
+];
+const CSV_PATH = CSV_PATHS.find((path) => fs.existsSync(path));
+assert.ok(CSV_PATH, 'Provider validation CSV was not found');
 const rows = parse(fs.readFileSync(CSV_PATH, 'utf-8'), {
   columns: true,
   skip_empty_lines: true,
@@ -21,26 +26,35 @@ const rows = parse(fs.readFileSync(CSV_PATH, 'utf-8'), {
 
 const byName = new Map(rows.map((row) => [row['Provider Name'], row]));
 
-assert.equal(rows.length, 29);
+assert.ok(rows.length >= 29);
 assert.ok(byName.has('Walnut Creek Lyft Self Access Pass'));
 assert.ok(byName.has('Walnut Creek Lyft Concierge Pass'));
 
 const selfAccess = byName.get('Walnut Creek Lyft Self Access Pass');
 const concierge = byName.get('Walnut Creek Lyft Concierge Pass');
 
-assert.deepEqual(parseEligibility(selfAccess['Eligibility (provider website)']), [
+const selfAccessEligibility = parseEligibility(selfAccess['Eligibility (provider website)']);
+assert.ok(selfAccessEligibility.eligibility.includes('Senior'));
+assert.ok(selfAccessEligibility.eligibility.includes('Disabled'));
+assert.ok(selfAccessEligibility.eligibility.includes('Resident'));
+assert.deepEqual(selfAccessEligibility.eligibility_reqs, [
   { type: 'Senior' },
   { type: 'Disabled' },
   { type: 'Resident' },
 ]);
 
-assert.deepEqual(parseEligibility(concierge['Eligibility (provider website)']), [
+const conciergeEligibility = parseEligibility(concierge['Eligibility (provider website)']);
+assert.ok(conciergeEligibility.eligibility.includes('Senior'));
+assert.ok(conciergeEligibility.eligibility.includes('Disabled'));
+assert.ok(conciergeEligibility.eligibility.includes('Resident'));
+assert.deepEqual(conciergeEligibility.eligibility_reqs, [
   { type: 'Senior' },
   { type: 'Disabled' },
   { type: 'Resident' },
 ]);
 
-assert.deepEqual(parseCityNames(selfAccess['Service Area (provider website)']), [
+const serviceAreaColumn = selfAccess['Service Area Cities (provider website)'] ?? selfAccess['Service Area (provider website)'];
+assert.deepEqual(parseCityNames(serviceAreaColumn), [
   'Walnut Creek',
   'Concord',
   'Clayton',

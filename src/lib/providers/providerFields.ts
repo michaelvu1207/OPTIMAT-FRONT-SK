@@ -247,8 +247,27 @@ export function formatEligibilityReqs(value: unknown): string | null {
   let arr: unknown[] | null = null;
   if (Array.isArray(parsed)) {
     arr = parsed;
-  } else if (parsed && typeof parsed === 'object' && Array.isArray((parsed as Record<string, unknown>).eligibility_reqs)) {
-    arr = (parsed as Record<string, unknown>).eligibility_reqs as unknown[];
+  } else if (parsed && typeof parsed === 'object') {
+    const obj = parsed as Record<string, unknown>;
+    const eligibility = typeof obj.eligibility === 'string'
+      ? obj.eligibility.trim()
+      : typeof obj.eligibility_text === 'string'
+        ? obj.eligibility_text.trim()
+        : '';
+    const proof = typeof obj.proof === 'string'
+      ? obj.proof.trim()
+      : typeof obj.proof_process === 'string'
+        ? obj.proof_process.trim()
+        : '';
+    if (eligibility || proof) {
+      return [
+        eligibility ? `Eligibility: ${eligibility}` : null,
+        proof ? `Proof: ${proof}` : null,
+      ].filter(Boolean).join('\n');
+    }
+    if (Array.isArray(obj.eligibility_reqs)) {
+      arr = obj.eligibility_reqs as unknown[];
+    }
   }
 
   if (!arr) return null;

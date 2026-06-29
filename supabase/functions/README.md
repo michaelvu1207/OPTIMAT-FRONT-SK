@@ -17,6 +17,7 @@ Base URL: `https://htjohidcoyfuwfjecazu.supabase.co/functions/v1`
 | `tool-calls` | off | `GET /tool-calls?conversation_id=...` |
 | `replay` | off | `GET /replay?conversation_id=...` |
 | `tri-delta-transit` | off | `GET /tri-delta-transit/trips` |
+| `transcribe` | on | `POST /transcribe` |
 | `chat` | on | `POST /chat` |
 | `chat-examples` | on | `GET /chat-examples` |
 | `trip-records` | on | `GET /trip-records/pairs` |
@@ -33,6 +34,7 @@ Base URL: `https://htjohidcoyfuwfjecazu.supabase.co/functions/v1`
 | `/tri-delta-transit` | Tri Delta Transit historical data |
 | `/conversations` | Chat conversation management |
 | `/chat` | AI chat functionality |
+| `/transcribe` | Voice-to-text transcription for chatbot input |
 
 ## Detailed Function Documentation
 
@@ -43,6 +45,18 @@ Simple health probe for service monitoring.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Returns `{"status": "ok"}` |
+
+---
+
+### `/transcribe`
+
+Server-side OpenAI audio transcription proxy for chatbot voice input. Requires
+`OPENAI_API_KEY`; optionally set `OPENAI_TRANSCRIBE_MODEL` to override the
+default `gpt-4o-mini-transcribe`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/transcribe` | Accepts multipart form data with a `file` audio part and returns `{ "text": "..." }` |
 
 ---
 

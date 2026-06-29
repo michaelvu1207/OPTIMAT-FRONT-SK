@@ -6,7 +6,7 @@
   import ProviderResults from '../components/ProviderResults.svelte';
   import ProviderListPanel from '../components/ProviderListPanel.svelte';
   import { Map, TileLayer, Marker, GeoJSON, Polyline } from 'sveaflet';
-  import { pingManager, PingTypes, pings } from '../lib/pingManager.js';
+  import { pingManager, PingTypes, pings, mapFocus } from '../lib/pingManager.js';
   import { serviceZoneManager, visibleServiceZones } from '../lib/serviceZoneManager.js';
   import PageShell from '$lib/components/PageShell.svelte';
   import { Button } from '$lib/components/ui/button';
@@ -54,7 +54,9 @@
   // Map configuration
   let mapCenter = [37.9020731, -122.0618702];
   let mapZoom = 12;
-  let mapKey = 'initial';
+  let mapRenderNonce = 0;
+  let lastFocusSignature = '';
+  $: mapKey = `${currentMapStyleId}-${mapRenderNonce}`;
 
   const mapStyles = [
     { id: 'voyager', name: 'Voyager', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap & CARTO' },
@@ -66,6 +68,25 @@
   ];
   let currentMapStyleId = mapStyles[0].id;
   $: currentMapStyle = mapStyles.find((s) => s.id === currentMapStyleId) || mapStyles[0];
+
+  $: if ($mapFocus.shouldFocus) {
+    const focusSignature = JSON.stringify({
+      center: $mapFocus.center,
+      zoom: $mapFocus.zoom,
+      focusId: $mapFocus.focusId
+    });
+
+    if (focusSignature !== lastFocusSignature) {
+      lastFocusSignature = focusSignature;
+      mapCenter = $mapFocus.center;
+      mapZoom = $mapFocus.zoom;
+      mapRenderNonce += 1;
+      setTimeout(() => {
+        pingManager.resetFocus();
+        lastFocusSignature = '';
+      }, 100);
+    }
+  }
 
   onMount(async () => {
     mounted = true;
@@ -151,7 +172,54 @@
     if (!style) return;
     currentMapStyleId = style.id;
     localStorage.setItem('optimat-map-style', style.id);
-    mapKey = Date.now().toString();
+    mapRenderNonce += 1;
+  }
+
+  function safeParsePayload(value) {
+    if (typeof value !== 'string') return value;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
+  function normalizeProviderSearchPayload(rawPayload) {
+    let payload = safeParsePayload(rawPayload);
+    if (!payload || typeof payload !== 'object') return null;
+
+    // Some callers pass the full attachment instead of attachment.data.
+    if (payload.type === 'provider_search' && payload.data) {
+      payload = safeParsePayload(payload.data);
+    }
+
+    if (!payload || typeof payload !== 'object') return null;
+
+    let data = safeParsePayload(payload.data);
+    let nested = null;
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      nested = data;
+      if (Array.isArray(data.data)) {
+        data = data.data;
+      }
+    }
+
+    const providers = Array.isArray(data)
+      ? data
+      : Array.isArray(payload.providers)
+        ? payload.providers
+        : [];
+
+    return {
+      ...(nested || {}),
+      ...payload,
+      data: providers,
+      source_address: payload.source_address || nested?.source_address,
+      destination_address: payload.destination_address || nested?.destination_address,
+      origin: payload.origin || nested?.origin || null,
+      destination: payload.destination || nested?.destination || null,
+      public_transit: payload.public_transit || nested?.public_transit || null
+    };
   }
 
   async function geocodeAddress(address) {
@@ -184,6 +252,7 @@
         description,
         metadata: { source: 'address_attachment', address, placeName }
       }, false);
+      pingManager.focusOnAllPings();
       if (viewMode === 'providers') {
         viewMode = 'chat';
         showProviderResults = false;
@@ -199,6 +268,7 @@
         description: address,
         metadata: { source: 'system_geocode', address, placeName }
       }, false);
+      pingManager.focusOnAllPings();
     } else {
       const isDestination = foundAddresses.length >= 2;
       pingManager.removePingsByType(PingTypes.DESTINATION);
@@ -209,11 +279,12 @@
         description: address,
         metadata: { source: 'system_geocode', address, placeName }
       }, false);
+      pingManager.focusOnAllPings();
     }
   }
 
   async function handleProvidersFound(event) {
-    providerData = event.detail;
+    providerData = normalizeProviderSearchPayload(event.detail);
     showProviderResults = true;
     viewMode = 'providers';
     if (providerData?.data && Array.isArray(providerData.data)) {
@@ -432,8 +503,28 @@
     }
 
     // Extract from object wrapper if needed
-    if (reqs?.eligibility_reqs) {
-      reqs = reqs.eligibility_reqs;
+    if (reqs && typeof reqs === 'object' && !Array.isArray(reqs)) {
+      const eligibility = typeof reqs.eligibility === 'string'
+        ? reqs.eligibility.trim()
+        : typeof reqs.eligibility_text === 'string'
+          ? reqs.eligibility_text.trim()
+          : '';
+      const proof = typeof reqs.proof === 'string'
+        ? reqs.proof.trim()
+        : typeof reqs.proof_process === 'string'
+          ? reqs.proof_process.trim()
+          : '';
+
+      if (eligibility || proof) {
+        return [
+          eligibility ? `Eligibility: ${eligibility}` : null,
+          proof ? `Proof: ${proof}` : null
+        ].filter(Boolean).join(' · ');
+      }
+
+      if (reqs.eligibility_reqs) {
+        reqs = reqs.eligibility_reqs;
+      }
     }
 
     if (!Array.isArray(reqs) || reqs.length === 0) return null;
@@ -441,10 +532,104 @@
     // Extract eligibility_req values
     const eligList = reqs.map(r => {
       if (typeof r === 'string') return r;
-      return r?.eligibility_req || r?.eligibility_type || '';
+      const type = r?.eligibility_req || r?.eligibility_type || r?.type || '';
+      const proof = r?.proof || r?.proof_process || '';
+      if (type && proof) return `${type} (${proof})`;
+      return type;
     }).filter(Boolean);
 
     return eligList.length > 0 ? eligList.join(', ') : null;
+  }
+
+  function formatEligibilitySections(eligibilityReqs) {
+    const formatted = formatEligibility(eligibilityReqs);
+    if (!formatted) return [];
+    return formatted.split(' · ').filter(Boolean);
+  }
+
+  function formatMetadataValue(value) {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (Array.isArray(value)) {
+      const compact = value
+        .map((item) => typeof item === 'object' ? JSON.stringify(item) : String(item))
+        .filter(Boolean);
+      return compact.length ? compact.join(', ') : null;
+    }
+    if (typeof value === 'object') {
+      const type = value.type || value.method || value.advance_notice || value.advanceNotice;
+      if (type) {
+        return [type, value.advance_notice || value.advanceNotice].filter(Boolean).join(' · ');
+      }
+      return JSON.stringify(value);
+    }
+    return String(value);
+  }
+
+  function titleizeKey(key) {
+    return key
+      .replace(/^provider_/, '')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  function getProviderMetadataRows(provider) {
+    const keys = [
+      'provider_org',
+      'eligibility_reqs',
+      'routing_type',
+      'planning_type',
+      'schedule_type',
+      'booking',
+      'fare',
+      'service_area_cities',
+      'service_area_source',
+      'service_area_notes',
+      'provider_software',
+      'round_trip_booking',
+      'investigated'
+    ];
+
+    return keys
+      .map((key) => ({
+        label: key === 'eligibility_reqs' ? 'Eligibility Requirements' : titleizeKey(key),
+        value: key === 'eligibility_reqs'
+          ? formatEligibility(provider?.eligibility_reqs)
+          : formatMetadataValue(provider?.[key])
+      }))
+      .filter((row) => row.value);
+  }
+
+  function getProviderMatchCriteria(provider) {
+    const criteria = provider?.match_criteria;
+    const passed = Array.isArray(criteria?.passed) ? criteria.passed : [];
+    if (passed.length > 0) {
+      return passed.map((item) => {
+        if (typeof item === 'string') return item;
+        const label = item?.label || 'Matched criterion';
+        const detail = item?.detail ? `: ${item.detail}` : '';
+        return `${label}${detail}`;
+      });
+    }
+
+    const fallback = [];
+    if (providerData?.source_address || providerData?.origin || providerData?.source_coordinates) {
+      fallback.push(`Origin is inside this provider's service area`);
+    }
+    if (providerData?.destination_address || providerData?.destination || providerData?.destination_coordinates) {
+      fallback.push(`Destination is inside this provider's service area`);
+    }
+    if (providerData?.filtered_out_count !== undefined) {
+      fallback.push('Service-hour filter was applied before returning this provider');
+    }
+    fallback.push('Eligibility was not hard-filtered; it is shown for recommendation reasoning');
+    return fallback;
+  }
+
+  function getFilterAlgorithmText(provider) {
+    return provider?.match_criteria?.algorithm ||
+      providerData?.filter_algorithm ||
+      'The search geocodes the trip, checks provider service areas against the trip points, applies structured filters such as service hours or provider type when available, and leaves eligibility for the chatbot to reason over from the displayed text.';
   }
 
   function formatServiceHours(serviceHours) {
@@ -608,7 +793,7 @@
 
   function getEstimatedTime(providerId) {
     // Generate consistent random time based on provider ID
-    const hash = providerId?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) || 0;
+    const hash = String(providerId ?? '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) || 0;
     return 25 + (hash % 21); // 25-45 minutes
   }
 
@@ -746,101 +931,167 @@
 
           <!-- Bottom: Results/Examples Panel -->
           <Resizable.Pane defaultSize={providerData ? 40 : 30} minSize={20} class="flex flex-col overflow-hidden bg-card border-t border-border/40">
-            {#if providerData && providerData.data && providerData.data.length > 0}
+            {#if providerData}
               <!-- Provider Results View -->
 
-              <!-- Provider Cards Grid - 3 columns, 3:2 aspect ratio cards -->
               <div class="flex-1 overflow-y-auto p-2">
-                <div class="grid grid-cols-3 gap-2">
-                  {#each providerData.data as provider, idx (provider.provider_id || idx)}
-                    <button
-                      class="aspect-[3/2] text-left rounded-lg border p-3 transition flex flex-col {
-                        selectedProvider && (selectedProvider.provider_id || selectedProvider.id) === (provider.provider_id || provider.id)
-                          ? 'bg-primary/10 border-primary shadow-md ring-1 ring-primary/50'
-                          : 'bg-card border-border/60 hover:bg-muted/50 hover:border-border'
-                      }"
-                      on:click={() => selectProvider(provider)}
-                    >
-                      <!-- Provider Name & Type with Estimated Time -->
-                      <div class="flex items-center justify-between gap-1 mb-1.5">
-                        <div class="flex items-center gap-2 min-w-0">
-                          <span class="text-base shrink-0">{getProviderTypeIcon(provider.provider_type)}</span>
-                          <span class="font-semibold text-sm text-foreground truncate">{provider.provider_name}</span>
+                {#if providerData.data && providerData.data.length > 0}
+                  <!-- Provider Cards Grid -->
+                  <div class="grid grid-cols-2 gap-2">
+                    {#each providerData.data as provider, idx (provider.provider_id || idx)}
+                      <article
+                        class="min-h-[18rem] max-h-80 overflow-y-auto text-left rounded-lg border p-3 transition flex flex-col {
+                          selectedProvider && (selectedProvider.provider_id || selectedProvider.id) === (provider.provider_id || provider.id)
+                            ? 'bg-primary/10 border-primary shadow-md ring-1 ring-primary/50'
+                            : 'bg-card border-border/60 hover:bg-muted/50 hover:border-border'
+                        }"
+                      >
+                        <!-- Provider Name & Type with Estimated Time -->
+                        <div class="flex items-center justify-between gap-1 mb-1.5">
+                          <div class="flex items-center gap-2 min-w-0">
+                            <span class="text-base shrink-0">{getProviderTypeIcon(provider.provider_type)}</span>
+                            <span class="font-semibold text-sm text-foreground truncate">{provider.provider_name}</span>
+                          </div>
+                          <span class="text-xs text-green-600 font-medium shrink-0">~{getEstimatedTime(provider.provider_id)}min</span>
                         </div>
-                        <span class="text-xs text-green-600 font-medium shrink-0">~{getEstimatedTime(provider.provider_id)}min</span>
+                        <button
+                          type="button"
+                          class="mb-2 w-fit rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/15 transition"
+                          on:click={() => selectProvider(provider)}
+                        >
+                          {selectedProvider && (selectedProvider.provider_id || selectedProvider.id) === (provider.provider_id || provider.id)
+                            ? 'Hide area'
+                            : 'Show area'}
+                        </button>
+
+                        <!-- Provider Info -->
+                        <div class="space-y-2 text-xs flex-1">
+                          {#if provider.phone}
+                            <div class="flex items-center gap-1.5">
+                              <span class="text-muted-foreground shrink-0">📞</span>
+                              <a
+                                href="tel:{provider.phone}"
+                                class="text-primary hover:underline truncate"
+                                on:click|stopPropagation
+                              >
+                                {provider.phone}
+                              </a>
+                            </div>
+                          {/if}
+
+                          {#if provider.website}
+                            <div class="flex items-center gap-1.5">
+                              <span class="text-muted-foreground shrink-0">🌐</span>
+                              <a
+                                href="{provider.website}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-primary hover:underline"
+                                on:click|stopPropagation
+                              >
+                                Website
+                              </a>
+                            </div>
+                          {/if}
+
+                          {#if formatEligibilitySections(provider.eligibility_reqs).length > 0}
+                            <div class="rounded-md border border-border/50 bg-background/70 px-2 py-1.5">
+                              <div class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                                Eligibility
+                              </div>
+                              <div class="space-y-1 text-foreground">
+                                {#each formatEligibilitySections(provider.eligibility_reqs) as eligibilityLine}
+                                  <div class="leading-snug">{eligibilityLine}</div>
+                                {/each}
+                              </div>
+                            </div>
+                          {/if}
+
+                          <div class="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-emerald-800">
+                            <div class="text-[10px] font-semibold uppercase tracking-wide mb-1">
+                              Why It Matched
+                            </div>
+                            <ul class="space-y-0.5">
+                              {#each getProviderMatchCriteria(provider) as criterion}
+                                <li class="leading-snug">✓ {criterion}</li>
+                              {/each}
+                            </ul>
+                            <details class="mt-1.5 text-[11px]">
+                              <summary class="cursor-pointer font-medium">Filtering logic</summary>
+                              <p class="mt-1 leading-snug">{getFilterAlgorithmText(provider)}</p>
+                            </details>
+                          </div>
+
+                          {#if formatServiceHours(provider.service_hours)}
+                            <div class="flex items-center gap-1.5 text-muted-foreground">
+                              <span class="shrink-0">🕐</span>
+                              <span>{formatServiceHours(provider.service_hours)}</span>
+                            </div>
+                          {/if}
+
+                          {#if getBookingNotice(provider)}
+                            <div class="flex items-center gap-1.5 text-amber-600">
+                              <span class="shrink-0">⏰</span>
+                              <span class="font-medium">{getBookingNotice(provider)}</span>
+                            </div>
+                          {/if}
+
+                          {#if getProviderMetadataRows(provider).length > 0}
+                            <div class="rounded-md border border-border/50 bg-muted/30 px-2 py-1.5">
+                              <div class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                                Provider Metadata
+                              </div>
+                              <dl class="space-y-1">
+                                {#each getProviderMetadataRows(provider) as row}
+                                  <div class="grid grid-cols-[5.5rem_1fr] gap-2">
+                                    <dt class="text-muted-foreground">{row.label}</dt>
+                                    <dd class="text-foreground break-words">{row.value}</dd>
+                                  </div>
+                                {/each}
+                              </dl>
+                            </div>
+                          {/if}
+                        </div>
+                      </article>
+                    {/each}
+
+                    {#if providerData.public_transit && (
+                      providerData.public_transit.journey_description ||
+                      providerData.public_transit.summary ||
+                      (providerData.public_transit.steps && providerData.public_transit.steps.length > 0) ||
+                      (providerData.public_transit.routes && providerData.public_transit.routes.length > 0)
+                    )}
+                      <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <div class="flex items-center gap-2 text-blue-700 text-sm font-medium">
+                          <span>🚇</span>
+                          <span>Public Transit Also Available</span>
+                        </div>
                       </div>
-
-                      <!-- Compact Info -->
-                      <div class="space-y-1 text-xs flex-1 overflow-hidden">
-                        {#if provider.phone}
-                          <div class="flex items-center gap-1.5">
-                            <span class="text-muted-foreground shrink-0">📞</span>
-                            <a
-                              href="tel:{provider.phone}"
-                              class="text-primary hover:underline truncate"
-                              on:click|stopPropagation
-                            >
-                              {provider.phone}
-                            </a>
-                          </div>
-                        {/if}
-
-                        {#if provider.website}
-                          <div class="flex items-center gap-1.5">
-                            <span class="text-muted-foreground shrink-0">🌐</span>
-                            <a
-                              href="{provider.website}"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="text-primary hover:underline"
-                              on:click|stopPropagation
-                            >
-                              Website
-                            </a>
-                          </div>
-                        {/if}
-
-                        {#if formatEligibility(provider.eligibility_reqs)}
-                          <div class="flex items-center gap-1.5 text-muted-foreground">
-                            <span class="shrink-0">•</span>
-                            <span class="truncate">{formatEligibility(provider.eligibility_reqs)}</span>
-                          </div>
-                        {/if}
-
-                        {#if formatServiceHours(provider.service_hours)}
-                          <div class="flex items-center gap-1.5 text-muted-foreground">
-                            <span class="shrink-0">🕐</span>
-                            <span class="truncate">{formatServiceHours(provider.service_hours)}</span>
-                          </div>
-                        {/if}
-
-                        {#if getBookingNotice(provider)}
-                          <div class="flex items-center gap-1.5 text-amber-600">
-                            <span class="shrink-0">⏰</span>
-                            <span class="font-medium">{getBookingNotice(provider)}</span>
-                          </div>
-                        {/if}
+                    {/if}
+                  </div>
+                {:else}
+                  <div class="flex h-full items-center justify-center">
+                    <div class="max-w-md rounded-lg border border-border/60 bg-background/70 p-5 text-center">
+                      <div class="text-sm font-medium text-foreground">No providers found</div>
+                      <div class="mt-2 text-xs text-muted-foreground">
+                        No provider service area matched both addresses for this search.
                       </div>
-                    </button>
-                  {/each}
-
-                  {#if providerData.public_transit && (
-                    providerData.public_transit.journey_description ||
-                    providerData.public_transit.summary ||
-                    (providerData.public_transit.steps && providerData.public_transit.steps.length > 0) ||
-                    (providerData.public_transit.routes && providerData.public_transit.routes.length > 0)
-                  )}
-                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                      <div class="flex items-center gap-2 text-blue-700 text-sm font-medium">
-                        <span>🚇</span>
-                        <span>Public Transit Also Available</span>
-                      </div>
+                      {#if providerData.source_address || providerData.destination_address}
+                        <div class="mt-3 text-[11px] text-muted-foreground">
+                          {providerData.source_address || 'Origin'} → {providerData.destination_address || 'Destination'}
+                        </div>
+                      {/if}
+                      {#if providerData.public_transit}
+                        <div class="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                          Public transit routing may still be available for this trip.
+                        </div>
+                      {/if}
                     </div>
-                  {/if}
-                </div>
+                  </div>
+                {/if}
               </div>
             {:else}
-              <!-- Examples View (no providers) -->
+              <!-- Examples View (no provider search selected) -->
               <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
                 <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   💡 Examples
@@ -972,7 +1223,7 @@
         <div class="flex-1 min-h-0 overflow-hidden">
           <Chat
             bind:this={chatComponent}
-            on:providersFound={handleProvidersFound}
+            onProvidersFound={handleProvidersFound}
             on:addressFound={handleAddressFound}
             on:newConversationStarted={handleNewConversationStarted}
             on:exampleSaved={handleExampleSaved}

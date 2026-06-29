@@ -193,6 +193,55 @@
     }
   }
 
+  function formatEligibility(eligibilityReqs) {
+    if (!eligibilityReqs) return null;
+
+    let reqs = eligibilityReqs;
+    if (typeof eligibilityReqs === 'string') {
+      try {
+        reqs = JSON.parse(eligibilityReqs);
+      } catch {
+        return eligibilityReqs.trim() || null;
+      }
+    }
+
+    if (reqs && typeof reqs === 'object' && !Array.isArray(reqs)) {
+      const eligibility = typeof reqs.eligibility === 'string'
+        ? reqs.eligibility.trim()
+        : typeof reqs.eligibility_text === 'string'
+          ? reqs.eligibility_text.trim()
+          : '';
+      const proof = typeof reqs.proof === 'string'
+        ? reqs.proof.trim()
+        : typeof reqs.proof_process === 'string'
+          ? reqs.proof_process.trim()
+          : '';
+
+      if (eligibility || proof) {
+        return [
+          eligibility ? `Eligibility: ${eligibility}` : null,
+          proof ? `Proof: ${proof}` : null
+        ].filter(Boolean).join('\n');
+      }
+
+      if (Array.isArray(reqs.eligibility_reqs)) {
+        reqs = reqs.eligibility_reqs;
+      }
+    }
+
+    if (!Array.isArray(reqs) || reqs.length === 0) return null;
+
+    const eligList = reqs.map(r => {
+      if (typeof r === 'string') return r;
+      const type = typeof r?.type === 'string' ? r.type : r?.eligibility_req || r?.eligibility_type || '';
+      const proof = typeof r?.proof === 'string' ? r.proof : '';
+      if (type && proof) return `${type} (${proof})`;
+      return type;
+    }).filter(Boolean);
+
+    return eligList.length > 0 ? eligList.join(', ') : null;
+  }
+
   // Array of colors for service zones
   const zoneColors = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD',
@@ -333,6 +382,12 @@
                         <div class="flex">
                           <dt class="font-medium w-20">Hours:</dt>
                           <dd class="flex-1">{formatServiceHours(provider.service_hours)}</dd>
+                        </div>
+                      {/if}
+                      {#if formatEligibility(provider.eligibility_reqs)}
+                        <div class="flex">
+                          <dt class="font-medium w-20">Eligibility:</dt>
+                          <dd class="flex-1 whitespace-pre-line">{formatEligibility(provider.eligibility_reqs)}</dd>
                         </div>
                       {/if}
                       <div class="flex">

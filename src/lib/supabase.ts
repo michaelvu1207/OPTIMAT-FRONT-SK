@@ -12,6 +12,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 // Environment variables with Supabase-first defaults for the current dev deployment.
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://htjohidcoyfuwfjecazu.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_SBYfj4PnJcyhTX4U77jp2w_BvEN2aEL';
+const SUPABASE_FUNCTIONS_URL =
+  import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
+  SUPABASE_URL.replace(/^https:\/\/([^.]+)\.supabase\.co$/, 'https://$1.functions.supabase.co');
 
 // Validate required environment variables
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -103,6 +106,8 @@ export async function fetchEdgeFunction<T = unknown>(
     method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
     body?: object;
     params?: Record<string, string>;
+    timeoutMs?: number;
+    useApiFunctionsHost?: boolean;
   } = {}
 ): Promise<EdgeFunctionResponse<T>> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -113,7 +118,8 @@ export async function fetchEdgeFunction<T = unknown>(
   }
 
   try {
-    let url = `${SUPABASE_URL}/functions/v1/${path}`;
+    const baseUrl = options.useApiFunctionsHost ? `${SUPABASE_URL}/functions/v1` : SUPABASE_FUNCTIONS_URL;
+    let url = `${baseUrl}/${path}`;
 
     // Add query parameters for GET requests
     if (options.params && Object.keys(options.params).length > 0) {
@@ -121,9 +127,15 @@ export async function fetchEdgeFunction<T = unknown>(
       url += `?${searchParams.toString()}`;
     }
 
+    const controller = options.timeoutMs ? new AbortController() : null;
+    const timeoutId = controller
+      ? window.setTimeout(() => controller.abort(), options.timeoutMs)
+      : null;
+
     const fetchOptions: RequestInit = {
       method: options.method || 'GET',
       headers: getAuthHeaders(),
+      signal: controller?.signal,
     };
 
     // Add body for POST/PUT requests
@@ -132,6 +144,7 @@ export async function fetchEdgeFunction<T = unknown>(
     }
 
     const response = await fetch(url, fetchOptions);
+    if (timeoutId) window.clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -176,9 +189,15 @@ export function getEdgeFunctionUrl(functionName: string): string {
     throw new Error('VITE_SUPABASE_URL is not configured');
   }
 
-  // Supabase Edge Functions URL pattern
-  // https://<project-ref>.supabase.co/functions/v1/<function-name>
-  return `${SUPABASE_URL}/functions/v1/${functionName}`;
+  return `${SUPABASE_FUNCTIONS_URL}/${functionName}`;
+}
+
+export function getSupabaseRestUrl(path: string): string {
+  if (!SUPABASE_URL) {
+    throw new Error('VITE_SUPABASE_URL is not configured');
+  }
+
+  return `${SUPABASE_URL}/rest/v1/${path}`;
 }
 
 /**
@@ -190,6 +209,15 @@ export function getAuthHeaders(): Record<string, string> {
     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     'apikey': SUPABASE_ANON_KEY,
     'Content-Type': 'application/json',
+  };
+}
+
+export function getRestHeaders(schema: string = 'optimat'): Record<string, string> {
+  return {
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'apikey': SUPABASE_ANON_KEY,
+    'Accept': 'application/json',
+    'Accept-Profile': schema,
   };
 }
 

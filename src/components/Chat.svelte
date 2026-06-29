@@ -1,14 +1,18 @@
 <script>
     import { onMount, createEventDispatcher } from 'svelte';
     import { fade, fly, slide } from 'svelte/transition';
+    import MicIcon from '@lucide/svelte/icons/mic';
+    import SquareIcon from '@lucide/svelte/icons/square';
     import { serviceZoneManager } from '../lib/serviceZoneManager.js';
     import { marked } from 'marked';
     import {
         checkChatHealth,
         createConversation,
-        streamChatResponse,
+        sendChatMessage,
+        getConversationMessages,
         saveConversationAsExample,
         getProviderServiceZone,
+        transcribeAudio,
     } from '$lib/api';
 
     // Configure marked for safe rendering
@@ -22,6 +26,8 @@
         if (!content) return '';
         return marked.parse(content);
     }
+
+    export let onProvidersFound = null;
 
     function normalizeChatRole(role) {
         const value = (role || '').toString().toLowerCase();
@@ -84,6 +90,12 @@
     }
 
     const dispatch = createEventDispatcher();
+
+    function emitProvidersFound(providerData) {
+        if (typeof onProvidersFound === 'function') {
+            onProvidersFound({ detail: providerData });
+        }
+    }
     
     // Typewriter effect component
     function typewriterAction(node, { text, maxDuration = 2000, messageId, onComplete = null }) {
@@ -153,6 +165,11 @@ How can I assist you today?`,
     let error = null;
     let serverOnline = false;
     let conversationId = null;
+    let isRecording = false;
+    let isTranscribing = false;
+    let mediaRecorder = null;
+    let recordingStream = null;
+    let audioChunks = [];
     
     // Save as example functionality
     let savingAsExample = false;
@@ -251,6 +268,130 @@ How can I assist you today?`,
         console.groupEnd();
     }
 
+    function getRecordingMimeType() {
+      if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) {
+        return '';
+      }
+      const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus'
+      ];
+      return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+    }
+
+    function getRecordingExtension(mimeType) {
+      if (mimeType.includes('mp4')) return 'mp4';
+      if (mimeType.includes('ogg')) return 'ogg';
+      return 'webm';
+    }
+
+    function appendTranscribedText(text) {
+      const cleanText = text.trim();
+      if (!cleanText) return;
+      userInput = userInput.trim()
+        ? `${userInput.trim()} ${cleanText}`
+        : cleanText;
+    }
+
+    function cleanupRecording() {
+      if (recordingStream) {
+        recordingStream.getTracks().forEach((track) => track.stop());
+      }
+      recordingStream = null;
+      mediaRecorder = null;
+      audioChunks = [];
+      isRecording = false;
+    }
+
+    async function startRecording() {
+      if (isRecording || isTranscribing) return;
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+        error = 'Voice input is not supported in this browser.';
+        return;
+      }
+
+      try {
+        error = null;
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = getRecordingMimeType();
+        const recorder = mimeType
+          ? new MediaRecorder(stream, { mimeType })
+          : new MediaRecorder(stream);
+
+        recordingStream = stream;
+        mediaRecorder = recorder;
+        audioChunks = [];
+
+        recorder.ondataavailable = (event) => {
+          if (event.data?.size > 0) {
+            audioChunks = [...audioChunks, event.data];
+          }
+        };
+
+        recorder.onerror = () => {
+          error = 'Recording failed. Please try again.';
+          cleanupRecording();
+        };
+
+        recorder.onstop = async () => {
+          const chunks = audioChunks;
+          const recordedType = recorder.mimeType || mimeType || 'audio/webm';
+          cleanupRecording();
+
+          if (!chunks.length) {
+            error = 'No audio was recorded. Please try again.';
+            return;
+          }
+
+          isTranscribing = true;
+          try {
+            const blob = new Blob(chunks, { type: recordedType });
+            const filename = `voice-input-${Date.now()}.${getRecordingExtension(recordedType)}`;
+            const { data, error: transcriptionError } = await transcribeAudio(blob, filename);
+            if (transcriptionError) throw transcriptionError;
+            appendTranscribedText(data?.text || '');
+          } catch (e) {
+            error = e?.message || 'Voice transcription failed. Please try again.';
+          } finally {
+            isTranscribing = false;
+          }
+        };
+
+        recorder.start();
+        isRecording = true;
+      } catch (e) {
+        cleanupRecording();
+        if (e?.name === 'NotAllowedError') {
+          error = 'Microphone access was blocked. Allow microphone access to use voice input.';
+        } else {
+          error = e?.message || 'Could not start voice recording.';
+        }
+      }
+    }
+
+    function stopRecording() {
+      if (!mediaRecorder) {
+        cleanupRecording();
+        return;
+      }
+
+      if (mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      } else {
+        cleanupRecording();
+      }
+    }
+
+    function toggleRecording() {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    }
+
     function debugLogFullChatHistory() {
         if (!DEBUG_MODE) return;
         
@@ -346,6 +487,7 @@ How can I assist you today?`,
                 destinationAddress: data.destination_address,
                 publicTransit: data.public_transit
             };
+            emitProvidersFound(data);
             // Auto-open detail panel if we have results
             if (providers.length > 0 && !isDetailPanelOpen) {
                 selectedProvider = providers[0];
@@ -589,8 +731,8 @@ How can I assist you today?`,
                     serviceZoneManager.addProviderServiceZones(providerData.data, false);
                 }
                 
-                // Emit provider data for the popup
-                dispatch('providersFound', providerData);
+                // Show provider data in the parent results panel.
+                emitProvidersFound(providerData);
             }
             
             // Handle address attachments - only for recent messages to show location on map
@@ -652,6 +794,28 @@ How can I assist you today?`,
         initializing = false;
       }
     }
+
+    async function waitForPersistedAssistantMessage(conversationId, assistantCountBefore, timeoutMs = 90000) {
+      const deadline = Date.now() + timeoutMs;
+
+      while (Date.now() < deadline) {
+        const { data, error } = await getConversationMessages(conversationId);
+        if (!error && Array.isArray(data?.messages)) {
+          const assistantMessages = data.messages.filter((message) => normalizeChatRole(message.role) === 'ai');
+          if (assistantMessages.length > assistantCountBefore) {
+            const latest = assistantMessages[assistantMessages.length - 1];
+            return {
+              message: latest.content || '',
+              attachments: Array.isArray(latest.attachments) ? latest.attachments : []
+            };
+          }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+
+      throw new Error('Timed out waiting for the assistant response.');
+    }
   
     onMount(() => {
       checkServerHealth().then(() => {
@@ -674,6 +838,7 @@ How can I assist you today?`,
       return () => {
         clearInterval(interval);
         window.removeEventListener('keydown', handleKeydown);
+        cleanupRecording();
         // Clean up auto-play timer on component destroy
         if (autoPlayTimer) {
           clearInterval(autoPlayTimer);
@@ -701,79 +866,37 @@ How can I assist you today?`,
         content: userInput,
         id: `human-${Date.now()}`
       };
+      const assistantCountBefore = messages.filter((message) => normalizeChatRole(message.role) === 'ai').length;
 
       messages = [...messages, newMessage];
       userInput = '';
       scrollToBottom();
 
-      // Create placeholder for streaming AI response
-      const streamingMessageId = `streaming-${Date.now()}`;
-      let pendingAttachments = [];
-
       try {
-        // Use the new API module for streaming
-        for await (const event of streamChatResponse(conversationId, newMessage)) {
-          switch (event.event) {
-            case 'tool_start':
-              // Clear previous streaming text and show new tool
-              streamingMessage = '';
-              currentTool = { name: event.tool, status: 'running' };
-              scrollToBottom();
-              break;
-
-            case 'tool_end':
-              // Mark tool as done, it will be hidden when streaming resumes
-              if (currentTool && currentTool.name === event.tool) {
-                currentTool = { ...currentTool, status: 'done' };
-              }
-              break;
-
-            case 'token':
-              // Hide tool indicator when text starts streaming
-              if (currentTool && currentTool.status === 'done') {
-                currentTool = null;
-              }
-              streamingMessage += event.content;
-              scrollToBottom();
-              break;
-
-            case 'message':
-              // Final message received
-              streamingMessage = event.content;
-              break;
-
-            case 'done':
-              pendingAttachments = event.attachments || [];
-              break;
-
-            case 'error':
-              error = event.message;
-              break;
-          }
-        }
+        sendChatMessage(conversationId, newMessage.content).catch((apiError) => {
+          console.error('Chat request error:', apiError);
+        });
+        const chatResponse = await waitForPersistedAssistantMessage(conversationId, assistantCountBefore);
 
         // Add final message
-        if (streamingMessage.trim()) {
+        const responseContent = chatResponse?.message || chatResponse?.response || '';
+        const pendingAttachments = Array.isArray(chatResponse?.attachments) ? chatResponse.attachments : [];
+
+        if (responseContent.trim()) {
           const finalMessage = {
             role: 'ai',
-            content: streamingMessage,
-            id: streamingMessageId
+            content: responseContent,
+            id: `ai-${Date.now()}`
           };
           messages = [...messages, finalMessage];
 
           // Handle attachments
           if (pendingAttachments.length > 0) {
-            messageAttachments.set(streamingMessageId, pendingAttachments);
+            messageAttachments.set(finalMessage.id, pendingAttachments);
             messageAttachments = messageAttachments;
 
             // Update the bottom provider bar with latest results
             updateLatestProviderResults(pendingAttachments);
-
-            // Auto-open provider results in popup
-            const hasProviderAttachment = pendingAttachments.some(att => att.type === 'provider_search');
-            if (hasProviderAttachment) {
-              setTimeout(() => handleMessageClick(streamingMessageId), 100);
-            }
           }
         }
 
@@ -781,7 +904,7 @@ How can I assist you today?`,
 
       } catch (e) {
         error = e.message;
-        console.error('SSE error:', e);
+        console.error('Chat error:', e);
       } finally {
         loading = false;
         isStreaming = false;
@@ -902,8 +1025,7 @@ How can I assist you today?`,
         // Handle providers state
         if (state.providers || state.origin || state.destination) {
           console.log('Applying provider state:', state);
-          console.log('Dispatching providersFound event...');
-          // Dispatch the full state object with providers, origin, destination, etc.
+          // Send the full state object with providers, origin, destination, etc.
           const providerData = {
             data: state.providers || [],
             source_address: state.source_address,
@@ -912,12 +1034,11 @@ How can I assist you today?`,
             destination: state.destination,
             public_transit: state.public_transit
           };
-          dispatch('providersFound', providerData);
-          console.log('Provider event dispatched successfully with:', providerData);
+          emitProvidersFound(providerData);
 
           // For examples, we want providers to show immediately
           if (isViewingExample) {
-            console.log('Example mode: Ensuring provider popup shows');
+            console.log('Example mode: Ensuring provider panel shows');
           }
         } else {
           console.log('No providers in state');
@@ -1052,19 +1173,30 @@ How can I assist you today?`,
           await applyUIHints(state.ui_hints);
         }
 
-        // Apply provider data with full structure including coordinates
-        if (state.providers || state.state_snapshot?.providers || state.state_snapshot?.origin) {
-          const snapshot = state.state_snapshot || state;
-          console.log('Dispatching providers from replay state:', snapshot);
+        // Apply provider data with full structure including coordinates.
+        // Replay states often contain empty provider arrays before the tool result state;
+        // don't emit those or the parent panel will show a false "No providers found".
+        const snapshot = state.state_snapshot || state;
+        const hintData = state.ui_hints?.new_data || {};
+        const snapshotProviders = Array.isArray(snapshot.providers) ? snapshot.providers : [];
+        const hintProviders = Array.isArray(hintData.providers) ? hintData.providers : [];
+        const replayProviders = snapshotProviders.length > 0 ? snapshotProviders : hintProviders;
+        const shouldShowReplayProviders =
+          replayProviders.length > 0 ||
+          state.ui_hints?.show_providers ||
+          Boolean(snapshot.origin || snapshot.destination || hintData.origin || hintData.destination);
+
+        if (shouldShowReplayProviders) {
+          console.log('Dispatching providers from replay state:', { snapshot, hintData });
           const providerData = {
-            data: snapshot.providers || [],
-            source_address: snapshot.source_address,
-            destination_address: snapshot.destination_address,
-            origin: snapshot.origin,
-            destination: snapshot.destination,
-            public_transit: snapshot.public_transit
+            data: replayProviders,
+            source_address: snapshot.source_address || hintData.source_address,
+            destination_address: snapshot.destination_address || hintData.destination_address,
+            origin: snapshot.origin || hintData.origin,
+            destination: snapshot.destination || hintData.destination,
+            public_transit: snapshot.public_transit || hintData.public_transit
           };
-          dispatch('providersFound', providerData);
+          emitProvidersFound(providerData);
         }
 
         // Apply service zones
@@ -1111,7 +1243,7 @@ How can I assist you today?`,
 
       // Show providers panel
       if (hints.show_providers) {
-        // Provider display is handled by providersFound event
+        // Provider display is handled by the parent results panel callback.
         console.log('UI hint: show_providers');
       }
 
@@ -1396,7 +1528,7 @@ How can I assist you today?`,
         <div class="flex items-center gap-2">
           {#if isViewingExample}
             <button
-              on:click={startNewConversation}
+	              onclick={startNewConversation}
               class="text-xs text-primary hover:text-primary/80 transition"
             >
               New Chat
@@ -1404,7 +1536,7 @@ How can I assist you today?`,
           {:else if conversationId && !isViewingExample}
             <!-- Save as Example button -->
             <button
-              on:click={openExampleForm}
+	              onclick={openExampleForm}
               class="save-example-btn group flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-all duration-200"
               title="Save as Example"
             >
@@ -1472,12 +1604,12 @@ How can I assist you today?`,
                         <div class="text-xs text-muted-foreground">
                           Providers found: <span class="font-medium text-foreground">{providerSummary.count}</span>
                         </div>
-                        <button
-                          type="button"
-                          class="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/15 transition"
-                          disabled={isViewingExample}
-                          on:click={() => handleMessageClick(message.id)}
-                        >
+	                        <button
+	                          type="button"
+	                          class="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/15 transition"
+	                          disabled={isViewingExample}
+	                          onclick={() => handleMessageClick(message.id)}
+	                        >
                           Open results
                         </button>
                       </div>
@@ -1497,7 +1629,7 @@ How can I assist you today?`,
                           <button
                             type="button"
                             class="text-left text-xs px-2 py-1 rounded-md bg-muted/60 hover:bg-muted transition"
-                            on:click={() => openAddressPlace(place)}
+	                            onclick={() => openAddressPlace(place)}
                           >
                             {#if place.name}
                               <div class="font-medium text-foreground line-clamp-1">{place.name}</div>
@@ -1638,23 +1770,46 @@ How can I assist you today?`,
 
     <!-- Input form (hidden during example viewing) -->
     {#if !isViewingExample}
-      <form
-        on:submit|preventDefault={handleSubmit}
-        class="flex-shrink-0 border-t border-border/40 bg-card px-3 py-3"
-      >
+	      <form
+	        onsubmit={(e) => {
+	          e.preventDefault();
+	          handleSubmit();
+	        }}
+	        class="flex-shrink-0 border-t border-border/40 bg-card px-3 py-3"
+	      >
         <div class="flex gap-2">
           <textarea
             bind:value={userInput}
             placeholder={serverOnline ? "Type your message..." : "Chat unavailable"}
             class="flex-1 resize-none rounded-lg border border-border/60 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={loading || !serverOnline}
-            on:keydown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
+	            onkeydown={(e) => {
+	              if (e.key === 'Enter' && !e.shiftKey) {
+	                e.preventDefault();
                 handleSubmit();
               }
             }}
           ></textarea>
+          <button
+            type="button"
+            onclick={toggleRecording}
+            disabled={loading || !serverOnline || initializing || isTranscribing}
+            aria-label={isRecording ? 'Stop voice recording' : 'Start voice input'}
+            title={isRecording ? 'Stop voice recording' : 'Start voice input'}
+            class={`self-end h-10 w-10 shrink-0 rounded-lg border transition flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
+              isRecording
+                ? 'border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/15'
+                : 'border-border/60 bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            {#if isTranscribing}
+              <div class="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>
+            {:else if isRecording}
+              <SquareIcon size={16} strokeWidth={2.5} />
+            {:else}
+              <MicIcon size={18} strokeWidth={2.25} />
+            {/if}
+          </button>
           <button
             type="submit"
             disabled={loading || !serverOnline || !userInput.trim()}
@@ -1672,7 +1827,13 @@ How can I assist you today?`,
         </div>
         {#if serverOnline}
           <div class="text-[10px] text-muted-foreground mt-1.5 px-1">
-            Enter to send · Shift+Enter for new line
+            {#if isRecording}
+              Recording... press stop when finished
+            {:else if isTranscribing}
+              Transcribing voice...
+            {:else}
+              Enter to send · Shift+Enter for new line
+            {/if}
           </div>
         {/if}
       </form>
@@ -1689,8 +1850,8 @@ How can I assist you today?`,
                 min="0"
                 max={replayStates.length - 1}
                 bind:value={currentStateIndex}
-                on:change={() => jumpToState(currentStateIndex)}
-                on:input={(e) => { if (!isAutoPlaying) jumpToState(parseInt(e.target.value)); }}
+	                onchange={() => jumpToState(currentStateIndex)}
+	                oninput={(e) => { if (!isAutoPlaying) jumpToState(parseInt(e.target.value)); }}
                 class="flex-1 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
                 disabled={isAutoPlaying}
               />
@@ -1704,7 +1865,7 @@ How can I assist you today?`,
               <div class="flex items-center gap-2">
                 <!-- Play/Pause button -->
                 <button
-                  on:click={toggleAutoPlay}
+	                  onclick={toggleAutoPlay}
                   disabled={currentStateIndex >= replayStates.length}
                   class="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   title={isAutoPlaying ? 'Pause' : 'Play'}
@@ -1722,7 +1883,7 @@ How can I assist you today?`,
 
                 <!-- Next button -->
                 <button
-                  on:click={advanceReplay}
+	                  onclick={advanceReplay}
                   disabled={currentStateIndex >= replayStates.length || isAutoPlaying}
                   class="p-2 rounded-lg bg-muted hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   title="Next"
@@ -1735,7 +1896,7 @@ How can I assist you today?`,
                 <!-- Speed selector -->
                 <select
                   bind:value={playbackSpeed}
-                  on:change={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
+	                  onchange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
                   class="text-xs bg-muted border-0 rounded-lg px-2 py-1.5 cursor-pointer focus:ring-1 focus:ring-primary"
                 >
                   <option value={0.5}>0.5x</option>
@@ -1763,7 +1924,7 @@ How can I assist you today?`,
           <div class="flex justify-end">
             {#if currentExampleIndex < totalExampleStates}
               <button
-                on:click={continueExamplePlayback}
+	                onclick={continueExamplePlayback}
                 class="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition text-sm font-medium flex items-center gap-2"
               >
                 <span>Continue</span>
@@ -1786,8 +1947,8 @@ How can I assist you today?`,
       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
       <div
         class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]"
-        on:click={closeExampleForm}
-        on:keydown={(e) => {
+	        onclick={closeExampleForm}
+	        onkeydown={(e) => {
           if (e.key === 'Escape') {
             closeExampleForm();
           }
@@ -1801,8 +1962,8 @@ How can I assist you today?`,
         <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
         <div
           class="bg-card border border-border rounded-xl shadow-xl p-6 w-full max-w-md mx-4"
-          on:click|stopPropagation
-          on:keydown|stopPropagation
+	          onclick={(e) => e.stopPropagation()}
+	          onkeydown={(e) => e.stopPropagation()}
           role="document"
           in:fly={{ y: 20, duration: 200 }}
         >
@@ -1824,7 +1985,7 @@ How can I assist you today?`,
               </p>
               <div class="flex justify-center gap-3">
                 <button
-                  on:click={closeExampleForm}
+	                  onclick={closeExampleForm}
                   class="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                 >
                   Done
@@ -1843,7 +2004,7 @@ How can I assist you today?`,
                 <h3 id="modal-title" class="text-lg font-semibold text-foreground">Save as Example</h3>
               </div>
               <button
-                on:click={closeExampleForm}
+	                onclick={closeExampleForm}
                 class="text-muted-foreground hover:text-foreground transition-colors rounded-lg p-1 hover:bg-muted"
                 aria-label="Close modal"
               >
@@ -1857,7 +2018,10 @@ How can I assist you today?`,
               Save this conversation as an example for training or demonstration purposes.
             </p>
 
-            <form on:submit|preventDefault={saveAsExample} class="space-y-4">
+	            <form onsubmit={(e) => {
+	              e.preventDefault();
+	              saveAsExample();
+	            }} class="space-y-4">
               <div>
                 <label for="example-title" class="block text-sm font-medium text-foreground mb-1.5">
                   Title <span class="text-muted-foreground font-normal">(required)</span>
@@ -1917,7 +2081,7 @@ How can I assist you today?`,
               <div class="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  on:click={closeExampleForm}
+	                  onclick={closeExampleForm}
                   class="px-4 py-2 text-foreground bg-muted hover:bg-muted/80 rounded-lg transition-colors text-sm font-medium"
                 >
                   Cancel

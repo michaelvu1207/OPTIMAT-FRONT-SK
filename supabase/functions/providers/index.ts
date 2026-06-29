@@ -58,6 +58,19 @@ interface GeocodeResult {
   message?: string;
 }
 
+interface ProviderRecord {
+  provider_type?: string | null;
+  routing_type?: string | null;
+  schedule_type?: unknown;
+  planning_type?: string | null;
+  eligibility_reqs?: unknown;
+  booking?: unknown;
+  fare?: unknown;
+  service_zone?: unknown;
+  provider_org?: string | null;
+  provider_name?: string | null;
+}
+
 // Google Places API configuration
 const PLACES_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
 const PLACES_FIELD_MASK = "places.location,places.displayName,places.formattedAddress";
@@ -513,6 +526,102 @@ async function handleGeocodeRequest(
   );
 }
 
+function parseJsonIfString(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  const first = trimmed[0];
+  if (first !== "{" && first !== "[") return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function getObjectType(value: unknown): string | null {
+  const parsed = parseJsonIfString(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const type = (parsed as Record<string, unknown>).type;
+  return typeof type === "string" ? type : null;
+}
+
+function matchesEligibilityText(provider: ProviderRecord, needle?: string): boolean {
+  if (!needle) return true;
+  const haystack = JSON.stringify(parseJsonIfString(provider.eligibility_reqs) ?? "").toLowerCase();
+  return haystack.includes(needle.toLowerCase());
+}
+
+function matchesProviderFilters(provider: ProviderRecord, filter: ProviderFilter): boolean {
+  if (filter.provider_type && provider.provider_type !== filter.provider_type) return false;
+  if (filter.routing_type && provider.routing_type !== filter.routing_type) return false;
+  if (filter.planning_type && provider.planning_type !== filter.planning_type) return false;
+  if (filter.schedule_type && getObjectType(provider.schedule_type) !== filter.schedule_type) return false;
+  if (filter.booking_method && getObjectType(provider.booking) !== filter.booking_method) return false;
+  if (filter.fare_type && getObjectType(provider.fare) !== filter.fare_type) return false;
+  if (filter.provider_org && provider.provider_org !== filter.provider_org) return false;
+  if (
+    filter.provider_name__contains &&
+    !String(provider.provider_name || "").toLowerCase().includes(filter.provider_name__contains.toLowerCase())
+  ) {
+    return false;
+  }
+  if (filter.has_service_zone === true && !provider.service_zone) return false;
+  if (filter.has_service_zone === false && provider.service_zone) return false;
+  if (!matchesEligibilityText(provider, filter.eligibility_req_contains)) return false;
+  return true;
+}
+
+function isPointInSinglePolygon(lat: number, lon: number, coordinates: number[][][]): boolean {
+  const ring = coordinates[0];
+  if (!Array.isArray(ring)) return false;
+  let inside = false;
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+
+    if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+}
+
+function isPointInGeometry(lat: number, lon: number, rawGeometry: unknown): boolean {
+  const geometry = parseJsonIfString(rawGeometry) as {
+    type?: string;
+    coordinates?: unknown;
+    features?: unknown[];
+    geometry?: unknown;
+  } | null;
+
+  if (!geometry || typeof geometry !== "object") return false;
+
+  if (geometry.type === "FeatureCollection" && Array.isArray(geometry.features)) {
+    return geometry.features.some((feature) => isPointInGeometry(lat, lon, feature));
+  }
+
+  if (geometry.type === "Feature" && geometry.geometry) {
+    return isPointInGeometry(lat, lon, geometry.geometry);
+  }
+
+  if (geometry.type === "Polygon") {
+    return isPointInSinglePolygon(lat, lon, geometry.coordinates as number[][][]);
+  }
+
+  if (geometry.type === "MultiPolygon" && Array.isArray(geometry.coordinates)) {
+    return (geometry.coordinates as number[][][][]).some((polygon) =>
+      isPointInSinglePolygon(lat, lon, polygon)
+    );
+  }
+
+  return false;
+}
+
 /**
  * Filter providers by location and criteria.
  */
@@ -545,9 +654,13 @@ async function filterProviders(
           origin: null,
           destination: null,
           public_transit: null,
-          message: "Failed to geocode one or both addresses",
+          error: "Failed to geocode one or both addresses",
+          details: {
+            source: originGeo.success ? null : originGeo.message,
+            destination: destGeo.success ? null : destGeo.message,
+          },
         },
-        200,
+        502,
         origin
       );
     }
@@ -561,90 +674,48 @@ async function filterProviders(
       lon: destGeo.coordinates!.longitude,
     };
 
-    // Try to use the filter_providers_with_coords RPC function
-    const { data, error } = await supabase.rpc("filter_providers_with_coords", {
-      p_origin_lat: originCoord.lat,
-      p_origin_lon: originCoord.lon,
-      p_dest_lat: destCoord.lat,
-      p_dest_lon: destCoord.lon,
-      p_provider_type: filter.provider_type || null,
-      p_routing_type: filter.routing_type || null,
-      p_schedule_type: filter.schedule_type || null,
-      p_planning_type: filter.planning_type || null,
-      p_eligibility_req_contains: filter.eligibility_req_contains || null,
-      p_eligibility_type: filter.eligibility_type || null,
-      p_provider_org: filter.provider_org || null,
-      p_provider_name_contains: filter.provider_name__contains || null,
-      p_has_service_zone: filter.has_service_zone ?? null,
-      p_booking_method: filter.booking_method || null,
-      p_fare_type: filter.fare_type || null,
-    });
+    const { data: providers, error } = await supabase
+      .from(TABLES.PROVIDERS)
+      .select(PROVIDER_SELECT_FIELDS);
 
     if (error) {
-      // If RPC doesn't exist, fall back to basic filtering without spatial checks
-      if (error.code === "42883") {
-        console.warn("filter_providers_with_coords RPC not available, using fallback without spatial filtering");
-
-        // Build filter query (without spatial containment checks)
-        let query = supabase.from(TABLES.PROVIDERS).select(PROVIDER_SELECT_FIELDS);
-
-        if (filter.provider_type) {
-          query = query.eq("provider_type", filter.provider_type);
-        }
-        if (filter.routing_type) {
-          query = query.eq("routing_type", filter.routing_type);
-        }
-        if (filter.planning_type) {
-          query = query.eq("planning_type", filter.planning_type);
-        }
-        if (filter.provider_org) {
-          query = query.eq("provider_org", filter.provider_org);
-        }
-        if (filter.provider_name__contains) {
-          query = query.ilike("provider_name", `%${filter.provider_name__contains}%`);
-        }
-        if (filter.has_service_zone === true) {
-          query = query.not("service_zone", "is", null);
-        } else if (filter.has_service_zone === false) {
-          query = query.is("service_zone", null);
-        }
-
-        const { data: providers, error: queryError } = await query
-          .order("provider_name")
-          .limit(200);
-
-        if (queryError) {
-          console.error("Error filtering providers:", queryError);
-          return errorResponse(`Database error: ${queryError.message}`, 500, origin);
-        }
-
-        const normalizedData = (providers || []).map((provider) =>
-          normalizeProvider(provider as Record<string, unknown>)
-        );
-
-        return jsonResponse(
-          {
-            data: normalizedData,
-            source_address: filter.source_address,
-            destination_address: filter.destination_address,
-            origin: originCoord,
-            destination: destCoord,
-            public_transit: null,
-            message: "Spatial filtering unavailable - showing all providers matching criteria",
-          },
-          200,
-          origin
-        );
-      }
-
-      console.error("Error filtering providers:", error);
+      console.error("Error fetching providers for filter:", error);
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
-    // RPC succeeded - normalize and return data
-    const normalizedProviders = (data?.providers || []).map(
-      (provider: Record<string, unknown>) => normalizeProvider(provider)
-    );
+    const normalizedProviders = (providers || [])
+      .filter((provider) =>
+        matchesProviderFilters(provider as ProviderRecord, filter) &&
+        isPointInGeometry(originCoord.lat, originCoord.lon, (provider as ProviderRecord).service_zone) &&
+        isPointInGeometry(destCoord.lat, destCoord.lon, (provider as ProviderRecord).service_zone)
+      )
+      .map((provider) => ({
+        ...normalizeProvider(provider as Record<string, unknown>),
+        match_criteria: {
+          algorithm:
+            "Geocode origin and destination, apply explicit structured filters, then keep providers whose service zone contains both points. Eligibility text is displayed for reasoning and is not hard-filtered unless an explicit eligibility text search is requested.",
+          passed: [
+            {
+              label: "Origin inside service area",
+              detail: filter.source_address,
+            },
+            {
+              label: "Destination inside service area",
+              detail: filter.destination_address,
+            },
+            ...(filter.provider_type
+              ? [{ label: "Provider type matched", detail: filter.provider_type }]
+              : []),
+            ...(filter.schedule_type
+              ? [{ label: "Schedule type matched", detail: filter.schedule_type }]
+              : []),
+            ...(filter.eligibility_req_contains
+              ? [{ label: "Eligibility text matched", detail: filter.eligibility_req_contains }]
+              : []),
+          ],
+          not_hard_filtered: filter.eligibility_req_contains ? [] : ["eligibility"],
+        },
+      }));
 
     return jsonResponse(
       {

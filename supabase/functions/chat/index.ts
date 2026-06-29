@@ -26,11 +26,17 @@ const SYSTEM_PROMPT = `You are a helpful assistant developed by OPTIMAT, a team 
 You can find paratransit providers that can serve a trip between an origin (pickup) and destination (drop-off) address. The find_providers tool requires departure_time and return_time parameters to filter providers by their service hours.
 
 Before calling find_providers, you MUST ask the user for:
-1. Their eligibility category - ask if they qualify as: Senior (60+), Disabled/ADA certified, Veteran, or Area Resident. If they don't qualify for any category or prefer not to say, that's fine - just note "none" for eligibility. This is REQUIRED before searching.
+1. Their eligibility context - ask about age/senior status, disability or ADA certification, veteran status, and where they live. If they don't qualify for any category or prefer not to say, that's fine - just note "none" or "unknown" for eligibility. This is REQUIRED before searching.
 2. What time they want to be picked up to go to their destination (this is the departure_time)
 3. What time they want to return back to their origin/home (this is the return_time)
 
-IMPORTANT: You must have the user's eligibility status (or confirmation they have none) before calling find_providers. Many transportation services are designed for specific populations, so this helps find appropriate options.
+IMPORTANT: You must have the user's eligibility context (or confirmation they prefer not to share) before calling find_providers. The tool filters by trip geography and service hours, but it does not filter by eligibility. It returns each provider's eligibility requirements. You must compare those requirements to the user's situation and recommend providers in plain English.
+
+When reviewing returned providers:
+- Recommend providers only when the returned eligibility text appears to match the user's situation.
+- If a provider may match but needs an application, proof, ADA approval, residency proof, or a provider decision, say that clearly.
+- If a provider does not appear to match, do not present it as a recommendation; at most mention it as not likely eligible if useful.
+- Preserve AND/OR logic from provider text. For example, "senior or disabled AND Concord resident" means both a category match and Concord residency are needed.
 
 Make sure to mention that you must book 1-3 days in advance for most providers.
 You can also provide public transit routing information for the same trip.
@@ -56,12 +62,13 @@ When booking a trip, gather these details (send short, separate messages if need
 - Mobility aids for you or your companion (wheelchair, walker, cane, scooter, etc.).
 
 When you get the trip information, summarize the trip including:
-1. The paratransit providers found (filtered by location and service hours if times were provided).
+1. The best provider recommendations based on location, service hours, and your reasoning over each provider's eligibility requirements.
 2. Public transit routing options (if available).
 3. Pickup and destination addresses.
 4. If a provider was filtered out due to service hours, mention that some providers may not operate at the requested times.
 5. Make sure to mention that you must book 1-3 days in advance for most providers.
 6. Add a 30 minute buffer to the requested pickup/drop-off time.
+7. For each recommended provider, include the eligibility reason and any proof/application step shown in the provider data.
 Format it concisely.
 
 Please send multiple short messages to the user to ask for the information.
@@ -125,6 +132,91 @@ interface Attachment {
 interface ChatResponse {
   message: string;
   attachments: Attachment[];
+}
+
+function getProviderSearchData(attachments: Attachment[]): Record<string, unknown> | null {
+  for (let i = attachments.length - 1; i >= 0; i--) {
+    const attachment = attachments[i];
+    if (attachment.type === "provider_search" && attachment.data && typeof attachment.data === "object") {
+      return attachment.data as Record<string, unknown>;
+    }
+  }
+
+  return null;
+}
+
+function compactAttachments(attachments: Attachment[]): Attachment[] {
+  const seen = new Set<string>();
+  const compacted: Attachment[] = [];
+
+  for (let i = attachments.length - 1; i >= 0; i--) {
+    const attachment = sanitizeAttachmentForChat(attachments[i]);
+    const toolName = typeof attachment.metadata?.tool_name === "string" ? attachment.metadata.tool_name : "";
+    const key = `${attachment.type}:${toolName}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    compacted.unshift(attachment);
+  }
+
+  return compacted;
+}
+
+function sanitizeAttachmentForChat(attachment: Attachment): Attachment {
+  if (attachment.type !== "provider_search" || !attachment.data || typeof attachment.data !== "object") {
+    return attachment;
+  }
+
+  const data = attachment.data as Record<string, unknown>;
+  if (!Array.isArray(data.data)) return attachment;
+
+  return {
+    ...attachment,
+    data: {
+      ...data,
+      data: data.data.map((provider) => {
+        if (!provider || typeof provider !== "object") return provider;
+        const {
+          service_area_geojson: _serviceAreaGeojson,
+          service_zone_geojson: _serviceZoneGeojson,
+          service_zone: _serviceZone,
+          raw_data: _rawData,
+          ...rest
+        } = provider as Record<string, unknown>;
+        return rest;
+      }),
+    },
+  };
+}
+
+function buildNoProviderResponse(providerSearch: Record<string, unknown>): string | null {
+  const providers = Array.isArray(providerSearch.data) ? providerSearch.data : [];
+  const totalFound =
+    typeof providerSearch.total_found === "number" ? providerSearch.total_found : providers.length;
+
+  if (totalFound !== 0) return null;
+
+  const sourceAddress =
+    typeof providerSearch.source_address === "string" ? providerSearch.source_address : "the pickup address";
+  const destinationAddress =
+    typeof providerSearch.destination_address === "string"
+      ? providerSearch.destination_address
+      : "the destination address";
+  const hasPublicTransit = Boolean(providerSearch.public_transit);
+
+  const lines = [
+    "I couldn't find any providers in our current data that serve both ends of this trip.",
+    "",
+    `Pickup: ${sourceAddress}`,
+    `Destination: ${destinationAddress}`,
+  ];
+
+  if (hasPublicTransit) {
+    lines.push("", "Public transit routing may still be available for this trip. Open the results to review the transit option.");
+  }
+
+  lines.push("", "This means no provider service area matched both addresses after geocoding and service-hour filtering. I won't recommend a specific provider unless it appears in the filtered results.");
+
+  return lines.join("\n");
 }
 
 // Bedrock model ID for Claude Haiku 4.5
@@ -381,12 +473,20 @@ serve(async (req: Request) => {
       ];
     }
 
+    const responseAttachments = compactAttachments(attachments);
+    const providerSearch = getProviderSearchData(responseAttachments);
+    const noProviderResponse = providerSearch ? buildNoProviderResponse(providerSearch) : null;
+    if (noProviderResponse) {
+      finalResponse = noProviderResponse;
+    }
+
     // Save assistant response to database
     if (finalResponse) {
       const { error: saveAssistantError } = await supabase.from(TABLES.MESSAGES).insert({
         conversation_id: body.conversation_id,
         role: "assistant",
         content: finalResponse,
+        attachments: responseAttachments.length > 0 ? responseAttachments : null,
       });
 
       if (saveAssistantError) {
@@ -403,7 +503,7 @@ serve(async (req: Request) => {
     // Return response
     const chatResponse: ChatResponse = {
       message: finalResponse,
-      attachments,
+      attachments: responseAttachments,
     };
 
     return jsonResponse(chatResponse, 200, origin);

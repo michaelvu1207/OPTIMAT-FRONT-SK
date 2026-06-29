@@ -43,6 +43,7 @@ export interface Provider {
   name: string;
   provider_type?: string;
   routing_type?: string;
+  eligibility_reqs?: unknown;
   eligibility_requirements?: string[];
   service_hours?: {
     hours?: Array<{
@@ -55,6 +56,7 @@ export interface Provider {
   website?: string;
   phone?: string;
   description?: string;
+  [key: string]: unknown;
 }
 
 export interface ToolResult {
@@ -71,7 +73,7 @@ export const toolDefinitions = [
 Filters providers to only those operating during both the departure and return times.
 
 Before calling this tool, ensure you have asked the user for:
-1. Their eligibility category (Senior 60+, Disabled/ADA, Veteran, Area Resident, or none)
+1. Their eligibility context (age/senior status, disability or ADA certification, veteran status, and relevant residency)
 2. What time they want to be picked up (departure_time)
 3. What time they want to return (return_time)`,
     input_schema: {
@@ -103,7 +105,7 @@ Before calling this tool, ensure you have asked the user for:
         eligibility_type: {
           type: "string",
           description:
-            'Optional eligibility category: "Senior", "Disabled", "Veteran", or "Resident"',
+            "Optional user eligibility context for the assistant to reason from after providers are returned. This tool does not filter providers by eligibility.",
         },
         schedule_type: {
           type: "string",
@@ -569,15 +571,44 @@ export async function executeFindProviders(
         const destInZone = isPointInPolygon(destLocation.lat, destLocation.lng, serviceZone);
 
         if (sourceInZone && destInZone) {
-          matchingProviders.push(provider);
+          matchingProviders.push({
+            ...provider,
+            match_criteria: {
+              algorithm: "Geocode origin and destination, keep providers whose service zone contains both points, then keep providers operating at both requested times. Eligibility is returned for assistant reasoning and is not hard-filtered.",
+              passed: [
+                {
+                  label: "Origin inside service area",
+                  detail: sourceLocation.formatted_address,
+                },
+                {
+                  label: "Destination inside service area",
+                  detail: destLocation.formatted_address,
+                },
+              ],
+              not_hard_filtered: ["eligibility"],
+            },
+          });
         }
       }
     }
 
-    // Filter by service hours
-    const filteredProviders = matchingProviders.filter((p) =>
-      isTimeWithinServiceHours(p, params.departure_time, params.return_time, params.travel_date)
-    );
+    // Filter by service hours only. Eligibility requirements stay in the
+    // provider payload so the assistant can reason from the full text.
+    const filteredProviders = matchingProviders
+      .filter((p) => isTimeWithinServiceHours(p, params.departure_time, params.return_time, params.travel_date))
+      .map((p) => ({
+        ...p,
+        match_criteria: {
+          ...(p.match_criteria as Record<string, unknown>),
+          passed: [
+            ...(((p.match_criteria as Record<string, unknown>)?.passed as unknown[]) || []),
+            {
+              label: "Service hours include requested trip window",
+              detail: `Departure ${params.departure_time}; return ${params.return_time}`,
+            },
+          ],
+        },
+      }));
 
     // Prepare response without heavy service_zone data for LLM
     const sanitizedProviders = filteredProviders.map((p) => {

@@ -87,6 +87,8 @@
       const destinationPings = pingManager.getPingsByType(PingTypes.DESTINATION);
       if (destinationPings.length > 0) {
         pingManager.focusOnAllPings();
+      } else {
+        pingManager.focusOnAllPings(PingTypes.ORIGIN);
       }
     }
   }
@@ -111,6 +113,8 @@
       const originPings = pingManager.getPingsByType(PingTypes.ORIGIN);
       if (originPings.length > 0) {
         pingManager.focusOnAllPings();
+      } else {
+        pingManager.focusOnAllPings(PingTypes.DESTINATION);
       }
     }
   }
