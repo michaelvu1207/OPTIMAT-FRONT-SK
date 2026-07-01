@@ -15,7 +15,6 @@ export interface FindProvidersParams {
   departure_time: string;
   return_time: string;
   travel_date?: string;
-  eligibility_type?: string;
   schedule_type?: string;
   provider_type?: string;
 }
@@ -101,11 +100,6 @@ Before calling this tool, ensure you have asked the user for:
           type: "string",
           description:
             'Optional travel date to check day-of-week availability (e.g., "2024-12-05")',
-        },
-        eligibility_type: {
-          type: "string",
-          description:
-            "Optional user eligibility context for the assistant to reason from after providers are returned. This tool does not filter providers by eligibility.",
         },
         schedule_type: {
           type: "string",

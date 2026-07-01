@@ -238,7 +238,7 @@
         whose service hours include both the departure and return times. Also fetches a “public transit” option for the same trip.
       </p>
       <ul>
-        <li><strong>Inputs</strong>: <code>source_address</code>, <code>destination_address</code>, <code>departure_time</code>, <code>return_time</code> (required); optional <code>travel_date</code>, <code>eligibility_type</code>, <code>schedule_type</code>, <code>provider_type</code>.</li>
+        <li><strong>Inputs</strong>: <code>source_address</code>, <code>destination_address</code>, <code>departure_time</code>, <code>return_time</code> (required); optional <code>travel_date</code>, <code>schedule_type</code>, <code>provider_type</code>. Eligibility is returned as provider text for the chatbot to reason over, not submitted as a structured filter.</li>
         <li><strong>External calls</strong>:
           <ul>
             <li>Geocoding is done via Google Places “Text Search” (<code>places:searchText</code>) for each address.</li>

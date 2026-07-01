@@ -35,7 +35,6 @@ interface ProviderFilter {
   schedule_type?: string;
   planning_type?: string;
   eligibility_req_contains?: string;
-  eligibility_type?: string;
   provider_org?: string;
   provider_name__contains?: string;
   is_operating?: boolean;
@@ -345,6 +344,52 @@ async function updateProviderById(
     return jsonResponse(normalizeProvider(data as Record<string, unknown>), 200, origin);
   } catch (err) {
     console.error("Unexpected error in updateProviderById:", err);
+    return errorResponse("Internal server error", 500, origin);
+  }
+}
+
+/**
+ * Create or upsert a provider profile by provider_id.
+ */
+async function createProvider(
+  body: Record<string, unknown>,
+  origin?: string | null
+): Promise<Response> {
+  try {
+    const rawProviderId = body.provider_id;
+    const parsedProviderId =
+      typeof rawProviderId === "number" ? rawProviderId : parseInt(String(rawProviderId ?? ""), 10);
+
+    if (!Number.isFinite(parsedProviderId)) {
+      return errorResponse("provider_id must be numeric", 400, origin);
+    }
+
+    const update = buildProviderUpdate(body);
+    if (!update.provider_name) {
+      return errorResponse("Provider name is required", 400, origin);
+    }
+
+    const supabase = createOptimatClient();
+    const { data, error } = await supabase
+      .from(TABLES.PROVIDERS)
+      .upsert(
+        {
+          provider_id: parsedProviderId,
+          ...update,
+        },
+        { onConflict: "provider_id" },
+      )
+      .select(PROVIDER_SELECT_FIELDS)
+      .single();
+
+    if (error) {
+      console.error("Error creating provider:", error);
+      return errorResponse(`Database error: ${error.message}`, 500, origin);
+    }
+
+    return jsonResponse(normalizeProvider(data as Record<string, unknown>), 200, origin);
+  } catch (err) {
+    console.error("Unexpected error in createProvider:", err);
     return errorResponse("Internal server error", 500, origin);
   }
 }
@@ -924,6 +969,16 @@ serve(async (req: Request): Promise<Response> => {
     // GET /providers - List all providers
     if (method === "GET" && segments.length === 0 && !id) {
       return await listProviders(origin);
+    }
+
+    // POST /providers - Create or upsert provider
+    if (method === "POST" && segments.length === 0 && !id) {
+      try {
+        const body = await req.json();
+        return await createProvider(body as Record<string, unknown>, origin);
+      } catch {
+        return errorResponse("Invalid JSON body", 400, origin);
+      }
     }
 
     // GET /providers/search?q=query - Search providers

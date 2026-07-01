@@ -5,7 +5,23 @@ export const DEFAULT_UPDATED_PROVIDERS_XLSX =
 
 export const DEFAULT_UPDATED_PROVIDERS_SHEET = 'Updated providers';
 
-export const EXPECTED_UPDATED_PROVIDER_COLUMNS = [
+export const PROVIDER_WEBSITE_UPDATED_PROVIDER_COLUMNS = [
+  'Provider Name',
+  'Eligibility (provider website)',
+  'Service Area GeoJSON',
+  'Service Area Cities (provider website)',
+  'Cost (provider website)',
+  'Service Area Website',
+  'Booking days in-advance',
+  'Notes',
+  'Questions for Provider',
+  'To tool developers',
+  'Provider Software ',
+  'Origin service area',
+  'Destination service area',
+];
+
+export const LEGACY_UPDATED_PROVIDER_COLUMNS = [
   'Provider Name',
   'Eligibility (provider website)',
   'Eligibility (optimat)',
@@ -19,6 +35,8 @@ export const EXPECTED_UPDATED_PROVIDER_COLUMNS = [
   'To tool developers',
   'Provider Software ',
 ];
+
+export const EXPECTED_UPDATED_PROVIDER_COLUMNS = PROVIDER_WEBSITE_UPDATED_PROVIDER_COLUMNS;
 
 function readZipEntry(xlsxPath, entryPath) {
   return execFileSync('unzip', ['-p', xlsxPath, entryPath], {
@@ -180,7 +198,11 @@ export function readProviderWorkbookRows(
     return record;
   });
 
-  for (const column of EXPECTED_UPDATED_PROVIDER_COLUMNS) {
+  const requiredColumns = PROVIDER_WEBSITE_UPDATED_PROVIDER_COLUMNS.every((column) => headers.includes(column))
+    ? PROVIDER_WEBSITE_UPDATED_PROVIDER_COLUMNS
+    : LEGACY_UPDATED_PROVIDER_COLUMNS;
+
+  for (const column of requiredColumns) {
     if (!headers.includes(column)) {
       throw new Error(`Workbook is missing required column: ${column}`);
     }

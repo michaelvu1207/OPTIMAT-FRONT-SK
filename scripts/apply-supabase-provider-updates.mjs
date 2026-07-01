@@ -26,6 +26,7 @@ const APPLY = process.argv.includes('--apply');
 const SKIP_BOUNDARIES = process.argv.includes('--skip-boundaries');
 
 const NEW_PROVIDER_IDS = {
+  'Richmond Moves': 5029,
   'Walnut Creek Lyft Self Access Pass': 5031,
   'Walnut Creek Lyft Concierge Pass': 5032,
 };
@@ -63,6 +64,34 @@ function parseMaybeJson(value) {
   }
 }
 
+function loadEnvValue(name) {
+  if (process.env[name]) return process.env[name];
+
+  for (const envPath of [path.join(__dirname, '..', '.env'), path.join(__dirname, '.env')]) {
+    if (!fs.existsSync(envPath)) continue;
+    const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+      if (!match || match[1] !== name) continue;
+      return match[2].replace(/^['"]|['"]$/g, '');
+    }
+  }
+
+  return null;
+}
+
+function authHeaders(extra = {}) {
+  const anonKey = loadEnvValue('VITE_SUPABASE_ANON_KEY') || loadEnvValue('SUPABASE_ANON_KEY');
+  if (!anonKey) return extra;
+  return {
+    ...extra,
+    apikey: anonKey,
+    Authorization: `Bearer ${anonKey}`,
+  };
+}
+
 function cleanProvider(row) {
   const out = { ...row };
   for (const key of ['schedule_type', 'eligibility_reqs', 'booking', 'fare', 'contacts', 'service_zone']) {
@@ -82,7 +111,9 @@ function sqlJson(value) {
 }
 
 async function fetchExistingProviders() {
-  const response = await fetch(API_BASE);
+  const response = await fetch(API_BASE, {
+    headers: authHeaders(),
+  });
   if (!response.ok) {
     throw new Error(`GET /providers failed: HTTP ${response.status} ${await response.text()}`);
   }
@@ -112,6 +143,7 @@ async function resolveServiceZone(providerName, serviceAreaText, existingRow) {
 
 function updatePayload(provider) {
   return {
+    provider_id: provider.provider_id,
     provider_name: provider.provider_name,
     provider_type: provider.provider_type,
     routing_type: provider.routing_type,
@@ -127,10 +159,22 @@ function updatePayload(provider) {
   };
 }
 
+async function postProvider(provider) {
+  const response = await fetch(API_BASE, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(updatePayload(provider)),
+  });
+
+  if (!response.ok) {
+    throw new Error(`POST ${provider.provider_id} ${provider.provider_name} failed: HTTP ${response.status} ${await response.text()}`);
+  }
+}
+
 async function putProvider(provider) {
   const response = await fetch(`${API_BASE}/${provider.provider_id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(updatePayload(provider)),
   });
 
@@ -148,7 +192,7 @@ async function main() {
   fs.writeFileSync(backupPath, JSON.stringify(existingRows, null, 2));
 
   const existingByName = new Map(existingRows.map((row) => [row.provider_name, row]));
-  const existingById = new Map(existingRows.map((row) => [row.provider_id, row]));
+  const existingById = new Map(existingRows.map((row) => [String(row.provider_id), row]));
 
   const rows = parse(fs.readFileSync(CSV_PATH, 'utf-8'), {
     skip_empty_lines: true,
@@ -173,10 +217,10 @@ async function main() {
       throw new Error(`No provider_id mapping for ${csvName} (lookup ${lookupName})`);
     }
 
-    const eligibilityReqs = parseEligibility(row[2] ?? '') ?? parseEligibility(row[3] ?? '');
-    const fare = parseFare(row[6] ?? '', existingRow?.fare) ?? parseFare(row[7] ?? '', existingRow?.fare);
-    const website = /^https?:\/\//i.test(row[8] ?? '') ? row[8] : (existingRow?.website ?? null);
-    const serviceZone = await resolveServiceZone(providerName, row[4] ?? '', existingRow);
+    const eligibilityReqs = parseEligibility(row[1] ?? '');
+    const fare = parseFare(row[4] ?? '', existingRow?.fare);
+    const website = /^https?:\/\//i.test(row[5] ?? '') ? row[5] : (existingRow?.website ?? null);
+    const serviceZone = await resolveServiceZone(providerName, row[3] ?? '', existingRow);
 
     const provider = applyManualProviderDefaults({
       provider_id: providerId,
@@ -204,7 +248,7 @@ async function main() {
       providerName,
       providerId,
       existingName: existingRow?.provider_name ?? null,
-      newRow: !existingById.has(providerId),
+      newRow: !existingById.has(String(providerId)),
       zoneFeatures: Array.isArray(provider.service_zone?.features) ? provider.service_zone.features.length : 0,
     });
   }
@@ -213,7 +257,7 @@ async function main() {
   fs.writeFileSync(payloadPath, JSON.stringify({ providers, mapping, deleteProviderIds: DELETE_PROVIDER_IDS }, null, 2));
   fs.writeFileSync(path.join(BACKUP_DIR, 'supabase-provider-updates-latest.json'), JSON.stringify({ providers, mapping, deleteProviderIds: DELETE_PROVIDER_IDS }, null, 2));
 
-  const newProviders = providers.filter((provider) => !existingById.has(provider.provider_id));
+  const newProviders = providers.filter((provider) => !existingById.has(String(provider.provider_id)));
   const insertRows = newProviders.map((provider) => `(${[
     provider.provider_id,
     sqlString(provider.provider_name),
@@ -250,8 +294,13 @@ async function main() {
   }
 
   if (!APPLY) {
-    console.log('Dry run only. Re-run with --apply after inserting new rows and deleting retired rows.');
+    console.log('Dry run only. Re-run with --apply to create missing rows and update mapped providers.');
     return;
+  }
+
+  for (const provider of newProviders) {
+    await postProvider(provider);
+    console.log(`Created ${provider.provider_id} ${provider.provider_name}`);
   }
 
   for (const provider of providers) {

@@ -310,12 +310,8 @@ async function main() {
       existingServiceZone: existingRow?.service_zone ?? null,
     });
 
-    const eligibilityReqs =
-      parseEligibility(row['Eligibility (provider website)'] ?? '') ??
-      parseEligibility(row['Eligibility (optimat)'] ?? '');
-    const fare =
-      parseFare(row['Cost (provider website)'] ?? '', existingRow?.fare) ??
-      parseFare(row['Cost (optimat)'] ?? '', existingRow?.fare);
+    const eligibilityReqs = parseEligibility(row['Eligibility (provider website)'] ?? '');
+    const fare = parseFare(row['Cost (provider website)'] ?? '', existingRow?.fare);
     const website = /^https?:\/\//i.test(row['Service Area Website'] ?? '')
       ? row['Service Area Website']
       : existingRow?.website ?? null;

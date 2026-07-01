@@ -12,8 +12,7 @@ import {
 } from './provider-cleaning.mjs';
 
 const CSV_PATHS = [
-  '/Users/maikyon/Downloads/OPTIMAT Provider Validation Updated Providers (2).csv',
-  '/Users/maikyon/Downloads/OPTIMAT Provider Validation Updated Providers.csv',
+  '/Users/maikyon/Downloads/OPTIMAT Provider Validation Updated Providers (3).csv',
 ];
 const CSV_PATH = CSV_PATHS.find((path) => fs.existsSync(path));
 assert.ok(CSV_PATH, 'Provider validation CSV was not found');
@@ -34,24 +33,20 @@ const selfAccess = byName.get('Walnut Creek Lyft Self Access Pass');
 const concierge = byName.get('Walnut Creek Lyft Concierge Pass');
 
 const selfAccessEligibility = parseEligibility(selfAccess['Eligibility (provider website)']);
-assert.ok(selfAccessEligibility.eligibility.includes('Senior'));
-assert.ok(selfAccessEligibility.eligibility.includes('Disabled'));
-assert.ok(selfAccessEligibility.eligibility.includes('Resident'));
-assert.deepEqual(selfAccessEligibility.eligibility_reqs, [
-  { type: 'Senior' },
-  { type: 'Disabled' },
-  { type: 'Resident' },
-]);
+assert.equal(selfAccessEligibility, selfAccess['Eligibility (provider website)'].trim());
+assert.match(selfAccessEligibility, /Senior/i);
+assert.match(selfAccessEligibility, /Disabled/i);
+assert.match(selfAccessEligibility, /resident/i);
+assert.ok(selfAccessEligibility.includes('Proof:'));
 
 const conciergeEligibility = parseEligibility(concierge['Eligibility (provider website)']);
-assert.ok(conciergeEligibility.eligibility.includes('Senior'));
-assert.ok(conciergeEligibility.eligibility.includes('Disabled'));
-assert.ok(conciergeEligibility.eligibility.includes('Resident'));
-assert.deepEqual(conciergeEligibility.eligibility_reqs, [
-  { type: 'Senior' },
-  { type: 'Disabled' },
-  { type: 'Resident' },
-]);
+assert.equal(conciergeEligibility, concierge['Eligibility (provider website)'].trim());
+assert.match(conciergeEligibility, /Senior/i);
+assert.match(conciergeEligibility, /Disabled/i);
+assert.match(conciergeEligibility, /resident/i);
+assert.ok(conciergeEligibility.includes('Proof:'));
+assert.equal(parseEligibility('none'), 'none');
+assert.equal(parseEligibility('missing'), null);
 
 const serviceAreaColumn = selfAccess['Service Area Cities (provider website)'] ?? selfAccess['Service Area (provider website)'];
 assert.deepEqual(parseCityNames(serviceAreaColumn), [

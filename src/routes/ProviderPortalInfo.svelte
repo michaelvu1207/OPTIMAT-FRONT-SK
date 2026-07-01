@@ -11,7 +11,6 @@
   import mockDataEnabled from '$lib/stores/mockData';
   import { providerPortalNavItems } from '$lib/providerPortalNav';
   import BookingEditor from '$lib/components/providers/BookingEditor.svelte';
-  import EligibilityReqsEditor from '$lib/components/providers/EligibilityReqsEditor.svelte';
   import FareEditor from '$lib/components/providers/FareEditor.svelte';
   import ScheduleTypeEditor from '$lib/components/providers/ScheduleTypeEditor.svelte';
   import ServiceZoneEditor from '$lib/components/providers/ServiceZoneEditor.svelte';
@@ -96,6 +95,12 @@
     }
   }
 
+  function stringifyEligibility(value: unknown) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    return stringifyJson(value);
+  }
+
   function createDraft(input: Provider): ProviderDraft {
     serviceAreaCitiesText = Array.isArray(input.service_area_cities)
       ? input.service_area_cities.join('\n')
@@ -108,7 +113,7 @@
       routing_type: input.routing_type || '',
       planning_type: input.planning_type || '',
       schedule_type: cloneValue(input.schedule_type ?? null),
-      eligibility_reqs: cloneValue(input.eligibility_reqs ?? null),
+      eligibility_reqs: stringifyEligibility(input.eligibility_reqs),
       booking: cloneValue(input.booking ?? null),
       fare: cloneValue(input.fare ?? null),
       service_hours: cloneValue(input.service_hours ?? null),
@@ -385,11 +390,15 @@
                     <div class="mb-2 flex items-center justify-between gap-3">
                       <div class="block text-sm font-medium text-slate-700">Eligibility requirements</div>
                       <label class="text-xs text-slate-500">
-                        Import JSON/text
-                        <input class="ml-2 text-xs" type="file" accept=".json,.txt,application/json,text/plain" onchange={(event) => importFile(event, 'eligibility_reqs', 'json')} />
+                        Import text
+                        <input class="ml-2 text-xs" type="file" accept=".txt,.md,.csv,text/plain,text/csv" onchange={(event) => importFile(event, 'eligibility_reqs', 'text')} />
                       </label>
                     </div>
-                    <EligibilityReqsEditor bind:value={form.eligibility_reqs} />
+                    <Textarea
+                      bind:value={form.eligibility_reqs}
+                      rows={4}
+                      placeholder="Plain English eligibility and proof/application requirements from the provider row"
+                    />
                   </div>
 
                   <div>

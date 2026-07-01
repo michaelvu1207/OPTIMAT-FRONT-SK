@@ -7,9 +7,6 @@ export type BookingMethod = 'none' | 'call' | 'app';
 export type FareType = 'fixed' | 'distance-based' | 'free';
 export type FarePayment = 'cash' | 'ticket';
 
-export type EligibilityType = 'Disabled' | 'Senior' | 'Resident' | 'Veteran';
-export type EligibilityProof = 'ada-approved' | 'id-certified';
-
 export type ProviderType =
   | 'ADA Paratransit'
   | 'Fixed Route'
@@ -123,18 +120,6 @@ export const FARE_TYPE_OPTIONS: ReadonlyArray<{ value: FareType; label: string }
 export const FARE_PAYMENT_OPTIONS: ReadonlyArray<{ value: FarePayment; label: string }> = [
   { value: 'cash', label: 'Cash' },
   { value: 'ticket', label: 'Ticket' },
-];
-
-export const ELIGIBILITY_TYPE_OPTIONS: ReadonlyArray<{ value: EligibilityType; label: string }> = [
-  { value: 'Senior', label: 'Senior' },
-  { value: 'Disabled', label: 'Disabled' },
-  { value: 'Veteran', label: 'Veteran' },
-  { value: 'Resident', label: 'Resident' },
-];
-
-export const ELIGIBILITY_PROOF_OPTIONS: ReadonlyArray<{ value: EligibilityProof; label: string }> = [
-  { value: 'id-certified', label: 'ID certified' },
-  { value: 'ada-approved', label: 'ADA approved' },
 ];
 
 export function tryParseJson(value: unknown): unknown {

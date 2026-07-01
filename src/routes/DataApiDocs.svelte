@@ -30,8 +30,7 @@
     providersFilterBody: `{
   "source_address": "123 Main St, City",
   "destination_address": "456 Oak Ave, City",
-  "provider_type": "Dial-a-Ride",
-  "eligibility_type": "Senior"
+  "provider_type": "Dial-a-Ride"
 }`,
     providersFilterResponse: `{
   "data": [],

@@ -91,7 +91,6 @@ function normalizeProviderForUi(provider: Provider): Provider {
 export interface ProviderFilterRequest {
   source_address: string;
   destination_address: string;
-  eligibility_type?: string;
   schedule_type?: string;
   provider_type?: string;
 }

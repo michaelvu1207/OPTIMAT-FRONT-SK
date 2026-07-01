@@ -73,6 +73,7 @@ Provider management API with geographic filtering capabilities.
 | GET | `/providers/geocode?address=...` | Geocode an address |
 | GET | `/providers/:id` | Get single provider by provider_id |
 | GET | `/providers/:id/service-zone` | Get provider service zone GeoJSON |
+| POST | `/providers` | Create or upsert provider |
 | PUT | `/providers/:id` | Update provider |
 
 #### Filter Payload Example
@@ -82,8 +83,7 @@ Provider management API with geographic filtering capabilities.
   "source_address": "123 Main St, City, State",
   "destination_address": "456 Oak Ave, City, State",
   "provider_type": "Dial-a-Ride",
-  "has_service_zone": true,
-  "eligibility_type": "Senior"
+  "has_service_zone": true
 }
 ```
 

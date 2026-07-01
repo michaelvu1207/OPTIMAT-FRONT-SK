@@ -1,5 +1,5 @@
 export const DEFAULT_UPDATED_PROVIDERS_CSV =
-  '/Users/maikyon/Downloads/OPTIMAT Provider Validation Updated Providers.csv';
+  '/Users/maikyon/Downloads/OPTIMAT Provider Validation Updated Providers (3).csv';
 
 export const MANUAL_NAME_MAP = {
   'County Connection': 'County Connection',
@@ -75,74 +75,11 @@ export function resolveCanonicalProviderName(csvName) {
   return csvName;
 }
 
-function addUniqueRequirement(result, seen, requirement) {
-  const key = `${requirement.type}:${requirement.proof ?? ''}`;
-  if (seen.has(key)) return;
-  seen.add(key);
-  result.push(requirement);
-}
-
-function parseEligibilityTags(text) {
-  if (!text) return null;
-  const trimmed = text.trim().replace(/,+$/, '').trim();
-  if (!trimmed || /^(none|missing)$/i.test(trimmed)) return null;
-
-  const result = [];
-  const seen = new Set();
-
-  if (/senior/i.test(trimmed)) {
-    const proof = /id[-\s]certified/i.test(trimmed) ? 'id-certified' : undefined;
-    addUniqueRequirement(result, seen, proof ? { type: 'Senior', proof } : { type: 'Senior' });
-  }
-
-  if (/disabled/i.test(trimmed)) {
-    const proof = /ada-approved/i.test(trimmed)
-      ? 'ada-approved'
-      : /id[-\s]certified/i.test(trimmed)
-        ? 'id-certified'
-        : undefined;
-    addUniqueRequirement(result, seen, proof ? { type: 'Disabled', proof } : { type: 'Disabled' });
-  }
-
-  if (/veteran/i.test(trimmed)) {
-    const proof = /id[-\s]certified/i.test(trimmed) ? 'id-certified' : undefined;
-    addUniqueRequirement(result, seen, proof ? { type: 'Veteran', proof } : { type: 'Veteran' });
-  }
-
-  if (/resident|residency/i.test(trimmed)) {
-    addUniqueRequirement(result, seen, { type: 'Resident' });
-  }
-
-  return result.length > 0 ? result : null;
-}
-
-function stripEligibilityPrefix(text) {
-  return text
-    .replace(/^eligib(?:il|ili)?ity\s*:\s*/i, '')
-    .replace(/^eligibiliity\s*:\s*/i, '')
-    .trim();
-}
-
 export function parseEligibility(text) {
   if (!text) return null;
   const trimmed = text.trim().replace(/\s+/g, ' ').replace(/,+$/, '').trim();
-  if (!trimmed || /^(none|missing)$/i.test(trimmed)) return null;
-
-  const proofMatch = trimmed.match(/\bProof\s*:\s*/i);
-  const eligibilityText = proofMatch
-    ? stripEligibilityPrefix(trimmed.slice(0, proofMatch.index).trim())
-    : stripEligibilityPrefix(trimmed);
-  const proofText = proofMatch
-    ? trimmed.slice((proofMatch.index ?? 0) + proofMatch[0].length).trim()
-    : '';
-  const requirementTags = parseEligibilityTags(trimmed);
-
-  return {
-    eligibility: eligibilityText || trimmed,
-    ...(proofText ? { proof: proofText } : {}),
-    source_text: trimmed,
-    ...(requirementTags ? { eligibility_reqs: requirementTags } : {}),
-  };
+  if (!trimmed || /^missing$/i.test(trimmed)) return null;
+  return trimmed;
 }
 
 export function parseFare(text, existingFare) {

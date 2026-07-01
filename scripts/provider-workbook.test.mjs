@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   EXPECTED_UPDATED_PROVIDER_COLUMNS,
+  LEGACY_UPDATED_PROVIDER_COLUMNS,
   readProviderWorkbookRows,
 } from './provider-workbook.mjs';
 
@@ -12,7 +13,11 @@ const byName = new Map(rows.map((row) => [row['Provider Name'], row]));
 
 assert.equal(rows.length, 29);
 
-for (const column of EXPECTED_UPDATED_PROVIDER_COLUMNS) {
+const expectedColumns = EXPECTED_UPDATED_PROVIDER_COLUMNS.every((column) => column in rows[0])
+  ? EXPECTED_UPDATED_PROVIDER_COLUMNS
+  : LEGACY_UPDATED_PROVIDER_COLUMNS;
+
+for (const column of expectedColumns) {
   assert.ok(column in rows[0], `missing workbook column: ${column}`);
 }
 
