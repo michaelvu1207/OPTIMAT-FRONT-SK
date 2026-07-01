@@ -248,14 +248,6 @@
     '#D4A5A5', '#9B59B6', '#3498DB', '#E67E22', '#2ECC71'
   ];
 
-  // Function to generate random trip duration between 5-20 minutes
-  function generateTripDuration(providerId) {
-    // Use provider ID as seed for consistent random duration
-    const seed = parseInt(providerId.toString().slice(-3)) || 1;
-    const random = (seed * 9301 + 49297) % 233280 / 233280; // Simple seeded random
-    return Math.floor(5 + random * 16); // 5-20 minutes
-  }
-
   // Normalize provider list in case payload is nested or malformed
   $: normalizedProviders = (() => {
     if (!providerData) return [];
@@ -267,14 +259,9 @@
     return providers;
   })();
 
-  // Sort providers by trip duration (shortest to longest) if we have provider data
+  // Preserve provider order from the API/assistant.
   $: sortedProviders = normalizedProviders.length
     ? [...normalizedProviders]
-        .map(provider => ({
-          ...provider,
-          estimatedDuration: generateTripDuration(provider.provider_id)
-        }))
-        .sort((a, b) => a.estimatedDuration - b.estimatedDuration)
     : [];
 </script>
 
@@ -352,11 +339,6 @@
           <div class="space-y-3">
             {#each sortedProviders as provider, index}
               <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow relative">
-                <!-- Trip Duration Badge -->
-                <div class="absolute top-3 right-3 bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
-                  ~{provider.estimatedDuration} min
-                </div>
-                
                 <div class="flex items-start space-x-3">
                   <!-- Color indicator -->
                   <div 

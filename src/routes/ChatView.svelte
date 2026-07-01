@@ -791,12 +791,6 @@
     return null;
   }
 
-  function getEstimatedTime(providerId) {
-    // Generate consistent random time based on provider ID
-    const hash = String(providerId ?? '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) || 0;
-    return 25 + (hash % 21); // 25-45 minutes
-  }
-
   function buildConversationStates(messages, toolCalls) {
     const states = [];
     let currentProviders = null;
@@ -946,13 +940,12 @@
                             : 'bg-card border-border/60 hover:bg-muted/50 hover:border-border'
                         }"
                       >
-                        <!-- Provider Name & Type with Estimated Time -->
+                        <!-- Provider Name & Type -->
                         <div class="flex items-center justify-between gap-1 mb-1.5">
                           <div class="flex items-center gap-2 min-w-0">
                             <span class="text-base shrink-0">{getProviderTypeIcon(provider.provider_type)}</span>
                             <span class="font-semibold text-sm text-foreground truncate">{provider.provider_name}</span>
                           </div>
-                          <span class="text-xs text-green-600 font-medium shrink-0">~{getEstimatedTime(provider.provider_id)}min</span>
                         </div>
                         <button
                           type="button"
