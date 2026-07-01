@@ -116,7 +116,7 @@
           <code>push()</code> to update <code>window.location.hash</code>.
         </li>
         <li>
-          <strong>Views</strong>: <code>src/routes/MapView.svelte</code>, <code>src/routes/ChatView.svelte</code>, etc.
+          <strong>Views</strong>: <code>src/routes/ChatView.svelte</code>, <code>src/routes/TripPairs.svelte</code>, etc.
         </li>
         <li>
           <strong>Maps</strong>: Leaflet via <code>sveaflet</code>, with pings/service zones managed by stores in <code>src/lib</code>.

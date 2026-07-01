@@ -8,6 +8,7 @@
 	  import { buildDemandHeatPoints } from '$lib/utils/heatmap.js';
 	  import { Button } from '$lib/components/ui/button';
 	  import * as Resizable from '$lib/components/ui/resizable/index.js';
+	  import { providerPortalNavItems } from '$lib/providerPortalNav';
 
   type Provider = {
     id: string;
@@ -360,6 +361,7 @@
   title="Universal Service Dashboard"
   description="Mock origin and destination demand across providers for the last three months."
   appMode={true}
+  navItems={providerPortalNavItems}
 >
   <Resizable.PaneGroup direction="horizontal" class="flex-1 h-full">
     <Resizable.Pane defaultSize={65} minSize={40} class="relative">

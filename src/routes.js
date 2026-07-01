@@ -1,4 +1,3 @@
-import MapView from './routes/MapView.svelte';
 import ChatView from './routes/ChatView.svelte';
 import BetaSignup from './routes/BetaSignup.svelte';
 import TripPairs from './routes/TripPairs.svelte';
@@ -16,9 +15,6 @@ const routes = {
   // Chat interface (default)
   '/': ChatView,
 
-  // Map interface
-  '/map': MapView,
-
   // Paired trip records viewer
   '/trip-pairs': TripPairs,
   '/trip-records': TripPairs,
@@ -34,19 +30,19 @@ const routes = {
   '/provider-portal/info': ProviderPortalInfo,
   '/provider-portal/trip-records': ProviderPortalTripRecords,
   '/provider-portal/trip-upload': ProviderPortalTripUpload,
+  '/provider-portal/universal-service-dashboard': UniversalServiceDashboard,
   '/staff': ProviderPortal,
 
   // Architecture documentation
   '/architecture': ArchitectureDocs,
   '/api-docs': DataApiDocs,
-  '/universal-service-dashboard': UniversalServiceDashboard,
   '/what-is-optimat': WhatIsOptimat,
 
   // Beta signup page
   '/beta-signup': BetaSignup,
 
-  // Catch-all route (redirects to map)
-  '*': MapView
+  // Catch-all route
+  '*': ChatView
 };
 
 export default routes; 

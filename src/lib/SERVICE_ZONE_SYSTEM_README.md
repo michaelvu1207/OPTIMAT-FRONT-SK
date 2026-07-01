@@ -18,7 +18,7 @@ The Service Zone Management System extends the existing ping system to support d
    - Floating control panel with zone type filters
    - Focus and clearing functionality
 
-3. **MapView Integration** (`/src/routes/MapView.svelte`)
+3. **ChatView Integration** (`/src/routes/ChatView.svelte`)
    - Enhanced map rendering with service zones
    - Integrated popup system with provider information
    - Coordinated focus management with pings
@@ -307,7 +307,7 @@ serviceZoneManager.focusOnAllServiceZones();
 - GeoJSON parsing validation
 
 ### Integration Testing
-- MapView component integration
+- ChatView component integration
 - Ping system coordination
 - Store reactivity verification
 - Focus management testing
