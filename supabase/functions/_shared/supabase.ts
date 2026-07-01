@@ -141,7 +141,7 @@ export function getSupabaseUrl(): string {
  * This is the preferred method for OPTIMAT operations.
  * @returns SupabaseClient instance configured for optimat schema
  */
-export function createOptimatClient(): SupabaseClient {
+export function createOptimatClient(): SupabaseClient<any, any, any> {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error("Missing Supabase service role environment variables");
   }

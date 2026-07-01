@@ -61,6 +61,8 @@ export interface Provider {
   _zone_color?: string;
 }
 
+export type ProviderUpdate = Partial<Omit<Provider, 'id' | 'provider_id' | 'created_at' | 'updated_at' | '_zone_color'>>;
+
 function parseJsonIfString(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
@@ -355,6 +357,24 @@ export async function getProvider(
   providerId: string | number
 ): Promise<{ data: Provider | null; error: Error | null }> {
   const { data, error } = await fetchEdgeFunction<Provider>(`providers/${providerId}`);
+  return { data: data ? normalizeProviderForUi(data) : null, error };
+}
+
+/**
+ * Update a provider profile by provider_id.
+ *
+ * @param providerId - Provider ID
+ * @param update - Editable provider fields
+ * @returns Updated provider data
+ */
+export async function updateProvider(
+  providerId: string | number,
+  update: ProviderUpdate
+): Promise<{ data: Provider | null; error: Error | null }> {
+  const { data, error } = await fetchEdgeFunction<Provider>(`providers/${providerId}`, {
+    method: 'PUT',
+    body: update,
+  });
   return { data: data ? normalizeProviderForUi(data) : null, error };
 }
 

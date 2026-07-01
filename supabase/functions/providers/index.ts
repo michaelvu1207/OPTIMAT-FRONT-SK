@@ -71,6 +71,29 @@ interface ProviderRecord {
   provider_name?: string | null;
 }
 
+const PROVIDER_UPDATE_FIELDS = [
+  "provider_name",
+  "provider_type",
+  "routing_type",
+  "schedule_type",
+  "planning_type",
+  "eligibility_reqs",
+  "booking",
+  "fare",
+  "service_hours",
+  "service_zone",
+  "service_area_cities",
+  "service_area_source",
+  "service_area_notes",
+  "provider_software",
+  "website",
+  "provider_org",
+  "round_trip_booking",
+  "investigated",
+] as const;
+
+type ProviderUpdateField = typeof PROVIDER_UPDATE_FIELDS[number];
+
 // Google Places API configuration
 const PLACES_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
 const PLACES_FIELD_MASK = "places.location,places.displayName,places.formattedAddress";
@@ -181,6 +204,147 @@ async function getProviderById(
     return jsonResponse(normalizedData, 200, origin);
   } catch (err) {
     console.error("Unexpected error in getProviderById:", err);
+    return errorResponse("Internal server error", 500, origin);
+  }
+}
+
+function normalizeTextUpdate(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") return String(value);
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function normalizeBooleanUpdate(value: unknown): boolean | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "yes") return true;
+    if (normalized === "false" || normalized === "no") return false;
+  }
+  return Boolean(value);
+}
+
+function normalizeJsonUpdate(value: unknown): unknown {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const first = trimmed[0];
+  if (first === "{" || first === "[") {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed;
+}
+
+function normalizeCitiesUpdate(value: unknown): string[] | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (Array.isArray(value)) {
+    const cities = value
+      .map((city) => String(city ?? "").trim())
+      .filter(Boolean);
+    return cities.length ? cities : null;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return normalizeCitiesUpdate(parsed);
+    } catch {
+      // Fall through to comma/newline parsing.
+    }
+    const cities = trimmed
+      .split(/[,\n]/)
+      .map((city) => city.trim())
+      .filter(Boolean);
+    return cities.length ? cities : null;
+  }
+  return null;
+}
+
+function buildProviderUpdate(body: Record<string, unknown>): Record<ProviderUpdateField, unknown> {
+  const update: Partial<Record<ProviderUpdateField, unknown>> = {};
+
+  for (const field of PROVIDER_UPDATE_FIELDS) {
+    if (!(field in body)) continue;
+    const value = body[field];
+
+    if (
+      field === "schedule_type" ||
+      field === "eligibility_reqs" ||
+      field === "booking" ||
+      field === "fare" ||
+      field === "service_hours" ||
+      field === "service_zone"
+    ) {
+      update[field] = normalizeJsonUpdate(value);
+      continue;
+    }
+
+    if (field === "service_area_cities") {
+      update[field] = normalizeCitiesUpdate(value);
+      continue;
+    }
+
+    if (field === "round_trip_booking" || field === "investigated") {
+      update[field] = normalizeBooleanUpdate(value);
+      continue;
+    }
+
+    update[field] = normalizeTextUpdate(value);
+  }
+
+  return update as Record<ProviderUpdateField, unknown>;
+}
+
+/**
+ * Update known provider profile fields.
+ */
+async function updateProviderById(
+  providerId: string,
+  body: Record<string, unknown>,
+  origin?: string | null
+): Promise<Response> {
+  try {
+    const parsedProviderId = parseInt(providerId, 10);
+    if (!Number.isFinite(parsedProviderId)) {
+      return errorResponse("Provider id must be numeric", 400, origin);
+    }
+
+    const update = buildProviderUpdate(body);
+    if (Object.keys(update).length === 0) {
+      return errorResponse("No editable provider fields were supplied", 400, origin);
+    }
+
+    if ("provider_name" in update && !update.provider_name) {
+      return errorResponse("Provider name is required", 400, origin);
+    }
+
+    const supabase = createOptimatClient();
+    const { data, error } = await supabase
+      .from(TABLES.PROVIDERS)
+      .update(update)
+      .eq("provider_id", parsedProviderId)
+      .select(PROVIDER_SELECT_FIELDS)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        return errorResponse(`Provider with id ${providerId} not found`, 404, origin);
+      }
+      console.error("Error updating provider:", error);
+      return errorResponse(`Database error: ${error.message}`, 500, origin);
+    }
+
+    return jsonResponse(normalizeProvider(data as Record<string, unknown>), 200, origin);
+  } catch (err) {
+    console.error("Unexpected error in updateProviderById:", err);
     return errorResponse("Internal server error", 500, origin);
   }
 }
@@ -810,9 +974,14 @@ serve(async (req: Request): Promise<Response> => {
       return await getProviderById(id, origin);
     }
 
-    // PUT /providers/:id - Provider updates are restricted to backend import/admin workflows.
+    // PUT /providers/:id - Update known provider profile fields
     if (method === "PUT" && id && segments.length === 0) {
-      return errorResponse("Provider updates are disabled on the public API", 405, origin);
+      try {
+        const body = await req.json();
+        return await updateProviderById(id, body as Record<string, unknown>, origin);
+      } catch {
+        return errorResponse("Invalid JSON body", 400, origin);
+      }
     }
 
     // Route not found
