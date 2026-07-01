@@ -51,6 +51,10 @@
       providers.filter((provider) => group.matches(provider.provider_type)).length
     ])
   );
+  $: providerGroupTotal = providerGroups.reduce(
+    (total, group) => total + (providerGroupCounts[group.id] ?? 0),
+    0
+  );
   $: filteredProviders = providers.filter((provider) => activeProviderGroup.matches(provider.provider_type));
 
   onMount(async () => {
@@ -225,7 +229,7 @@
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="flex min-w-0 flex-wrap items-center gap-2">
                   <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Providers ({filteredProviders.length})
+                    Providers ({providerGroupTotal})
                   </span>
                   <div class="flex max-w-full flex-wrap items-center gap-1" role="tablist" aria-label="Provider service groups">
                     {#each providerGroups as group}
