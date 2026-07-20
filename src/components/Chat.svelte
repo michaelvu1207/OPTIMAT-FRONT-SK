@@ -438,11 +438,30 @@ How can I assist you today?`,
         return attachments ? attachments.map(att => att.type) : [];
     }
 
+    function getAttachmentToolName(attachment) {
+        const metadata = safeParseAttachmentData(attachment?.metadata);
+        return metadata && typeof metadata === 'object' ? metadata.tool_name : null;
+    }
+
+    function findProviderResultsAttachment(attachments) {
+        if (!Array.isArray(attachments)) return null;
+
+        return attachments.find(att => {
+            if (att.type !== 'provider_search') return false;
+            const toolName = getAttachmentToolName(att);
+            const data = safeParseAttachmentData(att.data);
+            if (!data || !Array.isArray(data.data)) return false;
+            if (toolName === 'check_trip_coverage') return false;
+            if (toolName === 'find_providers') return !data.status || data.status === 'complete';
+            return !toolName && data.status === 'complete';
+        }) || null;
+    }
+
     function getProviderSummary(messageId) {
         const attachments = messageAttachments.get(messageId);
         if (!attachments) return null;
         
-        const providerAttachment = attachments.find(att => att.type === 'provider_search');
+        const providerAttachment = findProviderResultsAttachment(attachments);
         if (!providerAttachment || !providerAttachment.data) return null;
         
         // Normalize provider attachment data (can arrive as JSON string)
@@ -474,7 +493,7 @@ How can I assist you today?`,
     // Provider bar functions
     function updateLatestProviderResults(attachments) {
         if (!attachments) return;
-        const providerAttachment = attachments.find(att => att.type === 'provider_search');
+        const providerAttachment = findProviderResultsAttachment(attachments);
         if (providerAttachment && providerAttachment.data) {
             let data = providerAttachment.data;
             if (typeof data === 'string') {
@@ -690,7 +709,7 @@ How can I assist you today?`,
         
         if (!isViewingExample) {
             // Handle provider attachments - always allow (original behavior)
-            const providerAttachment = attachments.find(att => att.type === 'provider_search');
+            const providerAttachment = findProviderResultsAttachment(attachments);
             if (providerAttachment && providerAttachment.data) {
                 // Normalize provider payload (may arrive as JSON string or nested data)
                 let providerPayload = providerAttachment.data;
