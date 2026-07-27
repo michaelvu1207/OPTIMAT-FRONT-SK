@@ -112,6 +112,20 @@ try {
     const providerCards = page.locator('article[data-provider-kind], [aria-label="Provider results count"]');
     await providerCards.first().waitFor({ state: 'visible', timeout: 30_000 });
     check('provider results are rendered in the panel', await providerCards.count() > 0, 'no provider cards visible');
+
+    // The headline count must account for every option the search returned. Counting only the
+    // confirmed ones showed "1 provider found" on a trip with three providers pending an
+    // eligibility check, which reads as a dead end.
+    const expected = (search?.data?.data || []).length +
+      (search?.data?.verification_required || []).length +
+      (search?.data?.public_transit ? 1 : 0);
+    const headline = await page.locator('[aria-label="Provider results count"]').first().innerText().catch(() => '');
+    const shown = Number((headline.match(/(\d+)\s+providers?\s+found/i) || [])[1] ?? NaN);
+    check(
+      'headline count includes providers pending eligibility checks',
+      shown === expected,
+      `panel says ${shown}, search returned ${expected} (${(search?.data?.data || []).length} eligible + ${(search?.data?.verification_required || []).length} to verify + transit)`,
+    );
     await page.screenshot({ path: `${SHOTS}/redesign-01-results.png`, fullPage: true });
 
     // The follow-up must be answerable from stored state alone.

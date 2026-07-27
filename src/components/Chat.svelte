@@ -630,7 +630,11 @@ How can I assist you today?`,
         const verificationProviders = Array.isArray(data?.verification_required) ? data.verification_required : [];
 
         return {
-            count: providers.length + (hasPublicTransit ? 1 : 0),
+            // Includes providers whose eligibility is still unconfirmed. They are real options —
+            // counting only the confirmed ones showed "Providers found: 1" on a trip that had
+            // three paratransit services pending an eligibility check. verificationCount below
+            // breaks out how many of these still need checking.
+            count: providers.length + verificationProviders.length + (hasPublicTransit ? 1 : 0),
             verificationCount: verificationProviders.length,
             sourceAddress: data.source_address,
             destinationAddress: data.destination_address,

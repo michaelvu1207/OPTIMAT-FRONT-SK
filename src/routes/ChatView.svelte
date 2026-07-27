@@ -37,11 +37,17 @@
   let transitRouteSegments = [];
 
   $: publicTransitProvider = createPublicTransitProvider(providerData?.public_transit);
-  $: providerResultCount = (Array.isArray(providerData?.data) ? providerData.data.length : 0) +
-    (publicTransitProvider ? 1 : 0);
   // Providers that matched location and schedule but whose eligibility could not be confirmed.
   // They are listed apart from recommendations instead of disappearing from the results.
   $: verificationProviders = normalizeProviderList(providerData?.verification_required);
+  // Every option the search actually found, including the ones whose eligibility still needs
+  // checking. Counting only the confirmed ones read as "1 provider found" on a trip where three
+  // paratransit services were available pending an eligibility check — the rider saw a single
+  // walking itinerary and no reason to look further. The breakdown beside it says how many are
+  // unconfirmed, so nothing is overstated.
+  $: providerResultCount = (Array.isArray(providerData?.data) ? providerData.data.length : 0) +
+    verificationProviders.length +
+    (publicTransitProvider ? 1 : 0);
   // Variations of the trip that would return providers when the trip as asked does not: another
   // day, a nearby time, one way instead of round trip, or a provider covering one end only.
   $: tripAlternatives = Array.isArray(providerData?.alternatives) ? providerData.alternatives : [];
