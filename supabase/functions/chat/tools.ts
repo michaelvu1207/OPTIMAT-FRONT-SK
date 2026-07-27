@@ -188,8 +188,16 @@ The result also carries:
               description:
                 'The rider\'s exact age in years, only if they stated it. Omit when they said something like "senior" or "elderly" without a number.',
             },
-            disabled: { type: "boolean", description: "Only from the rider's explicit answer; omit when unstated" },
-            ada_certified: { type: "boolean", description: "Only from the rider's explicit answer; omit when unstated" },
+            disabled: {
+              type: "boolean",
+              description:
+                "Only when the rider states they have a disability or a qualifying condition. Describing a difficulty is not a disability claim: \"my balance is bad\", \"I can't manage the stairs\", \"I gave up driving\", \"I use a walker\" all mean this is still UNKNOWN — omit it and let the search report that it needs confirming. Setting it from an inference makes the rider eligible for services that may turn them away.",
+            },
+            ada_certified: {
+              type: "boolean",
+              description:
+                "Only when the rider says they hold ADA paratransit certification. Having a disability is not certification — it requires a separate application. Omit when unstated.",
+            },
             veteran: { type: "boolean", description: "Only from the rider's explicit answer; omit when unstated" },
             residence_city: { type: "string", description: "Omit when unknown" },
             declined: {
