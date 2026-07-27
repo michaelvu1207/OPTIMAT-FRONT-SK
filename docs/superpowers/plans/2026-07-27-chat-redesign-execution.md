@@ -14,13 +14,16 @@ that changes the answer, and speaks in its own words.
 
 | # | Milestone | Size | Unblocks | Status |
 |---|---|---|---|---|
-| M0 | Opus 5 at medium effort | — | everything | **done 2026-07-27** |
-| M1 | Measurement baseline | ½ session | proof for M2–M6 | next |
-| M2 | Memory: durable trip state | 1 session | M3, M4, M5 | |
-| M3 | Voice: stop overwriting the model | ½ session | M4 | |
-| M4 | Explanation: relaxation search + alternatives | 1–2 sessions | | |
-| M5 | Questioning: information-value ordering | 1 session | | |
-| M6 | Prompt slim + cleanup | ½ session | | |
+| M0 | Opus 5 at medium effort | — | everything | **done 2026-07-27** (`12ade87`) |
+| M1 | Measurement baseline | ½ session | proof for M2–M6 | **done** (`9f28572`) |
+| M2 | Memory: durable trip state | 1 session | M3, M4, M5 | **done** (`e06ceb0`) |
+| M3 | Voice: stop overwriting the model | ½ session | M4 | **done** (`e06ceb0`) |
+| M4 | Explanation: relaxation search + alternatives | 1–2 sessions | | **done** (`e06ceb0`) |
+| M5 | Questioning: information-value ordering | 1 session | | **done** (`e06ceb0`) |
+| M6 | Prompt slim + cleanup | ½ session | | **done** (`e06ceb0`) |
+
+All milestones shipped to production on 2026-07-27. See "Outcome" at the end of this document
+for what the numbers actually did and what is still open.
 
 **Hard ordering constraints.** M2 before M4 and M5 (both need state to exist). M3 before M4 —
 adding richer diagnostics while a template still discards the model's explanation means building an

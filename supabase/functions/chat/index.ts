@@ -433,10 +433,16 @@ serve(async (req: Request) => {
         codes: problems.map((problem) => problem.code),
       });
       try {
+        // The assistant turn is always included, even when the model produced no text. Bedrock
+        // rejects two user turns in a row, and after a tool call the history already ends with
+        // one — so skipping it here would turn "no answer" into a hard 500.
         const retry = await callModel(
           [
             ...currentMessages,
-            ...(finalResponse ? [{ role: "assistant" as const, content: [{ text: finalResponse }] }] : []),
+            {
+              role: "assistant" as const,
+              content: [{ text: finalResponse || "(no answer produced)" }],
+            },
             { role: "user" as const, content: [{ text: buildCorrectionPrompt(problems) }] },
           ],
           tripState,
