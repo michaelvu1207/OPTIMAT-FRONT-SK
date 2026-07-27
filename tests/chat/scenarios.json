@@ -41,12 +41,12 @@
     },
     {
       "id": "s05-unconfirmed-hours",
-      "title": "Unusual hour with no service-hours data on file",
-      "comment": "No provider row in production has service_hours, so the schedule filter passes everything. A 5am Sunday pickup must therefore be presented as needing confirmation, never as available.",
+      "title": "Unusual hour, mixing providers with and without known hours",
+      "comment": "As of 2026-07-27, 23 of 30 providers have researched service hours and 7 do not. A 5am Sunday pickup must do two things at once: name the schedule constraint for providers whose hours are known, saying which day or time would work instead, and flag the time as unconfirmed for those whose hours are not on file.",
       "turns": [
         "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on Sunday, August 16, 2026 at 5:00 AM, one way. I'm 70, live in San Ramon, not disabled, not ADA-certified, not a veteran."
       ],
-      "checks": ["hedges_unconfirmed_hours"]
+      "checks": ["hedges_unconfirmed_hours", "names_schedule_constraint", "offers_alternative"]
     },
     {
       "id": "s06-ambiguous-place",

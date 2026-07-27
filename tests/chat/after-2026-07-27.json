@@ -1,21 +1,21 @@
 {
   "target": "https://htjohidcoyfuwfjecazu.supabase.co/functions/v1",
-  "recorded_at": "2026-07-27T19:30:27.161Z",
+  "recorded_at": "2026-07-27T19:53:20.930Z",
   "totals": {
     "scenarios": 10,
-    "passed": 8,
-    "failed": 2,
-    "assertion_failures": 3,
-    "questions_asked": 13,
+    "passed": 10,
+    "failed": 0,
+    "assertion_failures": 0,
+    "questions_asked": 10,
     "searches": 12,
-    "response_chars": 13323,
-    "slowest_turn_ms": 22443
+    "response_chars": 14268,
+    "slowest_turn_ms": 42440
   },
   "results": [
     {
       "id": "s01-senior-with-age",
       "title": "Senior gives an exact age (happy path)",
-      "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49",
+      "conversation_id": "aa40a9e1-c640-4929-9ec8-ae770a5beb62",
       "passed": true,
       "failures": [],
       "metrics": {
@@ -23,15 +23,15 @@
         "questions_asked": 4,
         "tool_calls": 4,
         "searches": 2,
-        "total_ms": 30002,
-        "max_turn_ms": 12112,
-        "response_chars": 1549
+        "total_ms": 31199,
+        "max_turn_ms": 12317,
+        "response_chars": 1404
       },
       "turns": [
         {
           "index": 0,
           "user": "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center.",
-          "message": "Good news — that trip is covered by several local services. What day do you need the ride, and what time do you need to be there? Also, will you need a ride back?",
+          "message": "Good news — that trip is covered by several providers. What day do you need the ride, and what time do you need to be there? Also, will you need a ride back afterward?",
           "attachments": [
             {
               "type": "provider_search",
@@ -51,12 +51,12 @@
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_IAOLvFc2f2B2A5zRCQvHoR",
-                "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49"
+                "tool_use_id": "tooluse_BykT75AFMVCeBYZNmv8c08",
+                "conversation_id": "aa40a9e1-c640-4929-9ec8-ae770a5beb62"
               }
             }
           ],
-          "latency_ms": 6934,
+          "latency_ms": 6378,
           "tools": [
             "check_trip_coverage"
           ]
@@ -64,7 +64,7 @@
         {
           "index": 1,
           "user": "I'd like to go on August 12, 2026, leaving at 10:00 AM. One way is fine.",
-          "message": "Four local door-to-door services cover that trip on Wednesday, August 12 — but each has an eligibility rule I can't check yet.\n\nThe one question that settles the most: how old are you? Two of them (Senior Express Van and Mobility Matters) depend on exact age. It also helps to know whether you have a disability, which decides the other two.\n\nIf you'd rather not go into that, there's also public transit: walk about 5 minutes to Bollinger Canyon Rd & Alcosta Blvd, take the Dublin/Pleasanton BART–San Ramon bus around 10:03 AM, then a 14-minute walk from Camino Ramon & Norris Canyon Rd — arriving about 10:31 AM.",
+          "message": "Four providers cover that trip on Wednesday, August 12 at 10:00 AM — but each one depends on who you are. Fastest way to narrow it down: how old are you? Two of the four (Senior Express Van and Mobility Matters) hinge on your exact age.\n\nIf a paratransit or wheelchair-accessible ride is what you need, it also helps to know whether you have a disability.",
           "attachments": [
             {
               "type": "tool_result",
@@ -78,8 +78,8 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_YRVN3TNzQln6MksWZErATa",
-                "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49"
+                "tool_use_id": "tooluse_O0sqRA32sgfzTZtvlug7Qk",
+                "conversation_id": "aa40a9e1-c640-4929-9ec8-ae770a5beb62"
               }
             },
             {
@@ -110,6 +110,7 @@
                     "missing_facts": [
                       "disabled"
                     ],
+                    "service_hours_known": true,
                     "booking": {
                       "method": "call",
                       "details": "(925)938-7433"
@@ -119,6 +120,7 @@
                       "type": "fixed",
                       "payment": "cash"
                     },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"2400\", \"start\": \"0500\"}, {\"day\": \"0000010\", \"end\": \"2400\", \"start\": \"0600\"}, {\"day\": \"0000001\", \"end\": \"2400\", \"start\": \"0700\"}]}",
                     "website": "https://countyconnection.com/paratransit/",
                     "contacts": [
                       {
@@ -143,7 +145,7 @@
                           "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
                         },
                         {
-                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
                         }
                       ]
@@ -165,6 +167,7 @@
                     "missing_facts": [
                       "age"
                     ],
+                    "service_hours_known": true,
                     "booking": {
                       "method": "call",
                       "details": "(925)938-7433"
@@ -174,6 +177,7 @@
                       "type": "fixed",
                       "payment": "cash"
                     },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1300\", \"start\": \"0830\"}]}",
                     "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
                     "contacts": [
                       {
@@ -194,7 +198,7 @@
                           "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
                         },
                         {
-                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
                         }
                       ]
@@ -379,7 +383,7 @@
                   "eligible_match_count": 0,
                   "verification_required_count": 4,
                   "ineligible_count": 0,
-                  "providers_without_service_hours": 4,
+                  "providers_without_service_hours": 2,
                   "alternatives_found": 4
                 },
                 "public_transit": {
@@ -451,12 +455,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_deiVP3SvKiJE6abQuxVrvZ",
-                "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49"
+                "tool_use_id": "tooluse_wUfgJ56eIYVQQ5Nh4M5kuc",
+                "conversation_id": "aa40a9e1-c640-4929-9ec8-ae770a5beb62"
               }
             }
           ],
-          "latency_ms": 10500,
+          "latency_ms": 12317,
           "tools": [
             "resolve_trip_date",
             "find_providers"
@@ -465,7 +469,7 @@
         {
           "index": 2,
           "user": "I'm 72 years old, I live in San Ramon, I'm not disabled, not ADA-certified, and not a veteran.",
-          "message": "Two services fit — and you qualify for both.\n\n**Senior Express Van (San Ramon)** — door-to-door, $5.00 each way, cash. Book at least a day ahead: **(925) 938-7433**.\n\n**Mobility Matters** — volunteer drivers, free, but it's meant as a last-resort option and needs **7 days' notice**, so you'd want to call by around August 5: **(925) 284-6161**.\n\nOne thing: neither provider's operating hours are on file with us, so please confirm 10:00 AM works when you call.\n\nIf neither pans out, public transit gets you there in about 29 minutes: short walk to Bollinger Canyon Rd & Alcosta Blvd, bus at 10:03 AM toward San Ramon, then a 14-minute walk from Camino Ramon & Norris Canyon Rd, arriving about 10:31 AM.\n\nI can't book for you, but would you like details on either provider?",
+          "message": "You qualify for two ride services on Wednesday, August 12:\n\n**Senior Express Van (San Ramon)** — door-to-door, $5.00 cash each way. They run 8:30 AM to 1:00 PM weekdays, so 10:00 AM works. Book at least one day ahead: **(925) 938-7433**.\n\n**Mobility Matters** — free volunteer drivers, but they need **7 days notice**, so call by about August 5: **(925) 284-6161**. Their operating hours aren't on file, so confirm the 10:00 AM pickup when you call. They describe themselves as a last-resort option.\n\nThere's also public transit: walk to Bollinger Canyon Rd & Alcosta Blvd, take the Dublin/Pleasanton BART–San Ramon bus, then about a half-mile walk — roughly 29 minutes total.\n\nTwo other paratransit services cover this route but require a documented disability, so they're not available to you.\n\nI can't book for you — you'll need to call directly. Want details on either provider?",
           "attachments": [
             {
               "type": "provider_search",
@@ -491,6 +495,7 @@
                     "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
                     "eligibility_status": "eligible",
                     "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "service_hours_known": true,
                     "booking": {
                       "method": "call",
                       "details": "(925)938-7433"
@@ -500,6 +505,7 @@
                       "type": "fixed",
                       "payment": "cash"
                     },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1300\", \"start\": \"0830\"}]}",
                     "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
                     "contacts": [
                       {
@@ -520,7 +526,7 @@
                           "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
                         },
                         {
-                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
                         },
                         {
@@ -630,7 +636,7 @@
                   "eligible_match_count": 2,
                   "verification_required_count": 0,
                   "ineligible_count": 2,
-                  "providers_without_service_hours": 2,
+                  "providers_without_service_hours": 1,
                   "alternatives_found": 0
                 },
                 "public_transit": {
@@ -702,12 +708,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_EfIq4F0JwQZ6fLySOa8qzV",
-                "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49"
+                "tool_use_id": "tooluse_iTbxQNjMhBT5TRAHoy1o5D",
+                "conversation_id": "aa40a9e1-c640-4929-9ec8-ae770a5beb62"
               }
             }
           ],
-          "latency_ms": 12112,
+          "latency_ms": 12185,
           "tools": [
             "find_providers"
           ]
@@ -717,51 +723,24 @@
     {
       "id": "s02-senior-withholds-age",
       "title": "Senior who will not give an age",
-      "conversation_id": "90169929-7125-437e-8981-ea16316b336c",
-      "passed": false,
-      "failures": [
-        {
-          "assertion": "grounded_provider_names",
-          "turn": 1,
-          "detail": "provider names not in data: San Ramon Transit Center"
-        },
-        {
-          "assertion": "mentions_verification_path",
-          "turn": null,
-          "detail": "never told the rider how to resolve eligibility"
-        }
-      ],
+      "conversation_id": "4c206567-86c8-4808-8875-302a975a17b1",
+      "passed": true,
+      "failures": [],
       "metrics": {
         "turns": 3,
         "questions_asked": 1,
-        "tool_calls": 5,
+        "tool_calls": 4,
         "searches": 2,
-        "total_ms": 41273,
-        "max_turn_ms": 16622,
-        "response_chars": 2788
+        "total_ms": 68439,
+        "max_turn_ms": 42440,
+        "response_chars": 3045
       },
       "turns": [
         {
           "index": 0,
           "user": "I'm a senior and I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on August 12, 2026 at 10:00 AM, one way.",
-          "message": "Four local services cover that trip on Wednesday, August 12 — but \"senior\" isn't enough to pin them down, since the age cutoffs run from 55 to 65. What's your exact age?\n\nHere's what's waiting on that answer:\n\n- **Senior Express Van (San Ramon)** — 55+, no proof needed, $5 each way, book at least a day ahead: (925) 938-7433\n- **Mobility Matters** — free volunteer drivers, but needs 60+ (or veteran) and Contra Costa County residency, and 7 days' notice: (925) 284-6161\n- **LINK Paratransit** ($5 each way) and **One-Seat Regional Ride** ($3) — these two go by disability rather than age, so let me know if you have a disability or ADA certification.\n\nTwo things to know: none of these have operating hours on file with us, so confirm 10:00 AM works when you call. And if you'd rather not deal with eligibility, County Connection bus route to Camino Ramon & Norris Canyon Rd gets you there in about 29 minutes with roughly a half-mile walk at the end.",
+          "message": "Four providers serve that trip on Wednesday, August 12 — but \"senior\" alone doesn't settle it, because they set different age cutoffs. What's your exact age?\n\nThat one answer decides two of them: Senior Express Van (San Ramon), which needs 55 or older, and Mobility Matters, which needs 60 or older (or veteran status) plus Contra Costa County residency.",
           "attachments": [
-            {
-              "type": "tool_result",
-              "data": {
-                "status": "resolved",
-                "travel_date_raw": "August 12, 2026",
-                "travel_date": "2026-08-12",
-                "travel_date_display": "Wednesday, August 12, 2026",
-                "timezone": "America/Los_Angeles",
-                "message": "Use Wednesday, August 12, 2026 (2026-08-12). Do not substitute another year or weekday."
-              },
-              "metadata": {
-                "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_qSxbwcpruEdilPRQfotohn",
-                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
-              }
-            },
             {
               "type": "provider_search",
               "data": {
@@ -780,8 +759,24 @@
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_rILLmIW1WKCLThf04mo39y",
-                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
+                "tool_use_id": "tooluse_Bi2NfrP7CqMnFRHOA0wlV1",
+                "conversation_id": "4c206567-86c8-4808-8875-302a975a17b1"
+              }
+            },
+            {
+              "type": "tool_result",
+              "data": {
+                "status": "resolved",
+                "travel_date_raw": "August 12, 2026",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "timezone": "America/Los_Angeles",
+                "message": "Use Wednesday, August 12, 2026 (2026-08-12). Do not substitute another year or weekday."
+              },
+              "metadata": {
+                "tool_name": "resolve_trip_date",
+                "tool_use_id": "tooluse_mwNFntJYlV8poJPMukzd7J",
+                "conversation_id": "4c206567-86c8-4808-8875-302a975a17b1"
               }
             },
             {
@@ -812,6 +807,7 @@
                     "missing_facts": [
                       "disabled"
                     ],
+                    "service_hours_known": true,
                     "booking": {
                       "method": "call",
                       "details": "(925)938-7433"
@@ -821,6 +817,7 @@
                       "type": "fixed",
                       "payment": "cash"
                     },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"2400\", \"start\": \"0500\"}, {\"day\": \"0000010\", \"end\": \"2400\", \"start\": \"0600\"}, {\"day\": \"0000001\", \"end\": \"2400\", \"start\": \"0700\"}]}",
                     "website": "https://countyconnection.com/paratransit/",
                     "contacts": [
                       {
@@ -845,7 +842,7 @@
                           "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
                         },
                         {
-                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
                         }
                       ]
@@ -867,6 +864,7 @@
                     "missing_facts": [
                       "age"
                     ],
+                    "service_hours_known": true,
                     "booking": {
                       "method": "call",
                       "details": "(925)938-7433"
@@ -876,6 +874,7 @@
                       "type": "fixed",
                       "payment": "cash"
                     },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1300\", \"start\": \"0830\"}]}",
                     "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
                     "contacts": [
                       {
@@ -896,7 +895,7 @@
                           "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
                         },
                         {
-                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
                         }
                       ]
@@ -1081,7 +1080,7 @@
                   "eligible_match_count": 0,
                   "verification_required_count": 4,
                   "ineligible_count": 0,
-                  "providers_without_service_hours": 4,
+                  "providers_without_service_hours": 2,
                   "alternatives_found": 4
                 },
                 "public_transit": {
@@ -1153,22 +1152,22 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_dwyKJZGvOrWRCx7QAOyj1T",
-                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
+                "tool_use_id": "tooluse_HKOA5BlO1py5rN7jO7KU3i",
+                "conversation_id": "4c206567-86c8-4808-8875-302a975a17b1"
               }
             }
           ],
-          "latency_ms": 16622,
+          "latency_ms": 42440,
           "tools": [
-            "resolve_trip_date",
             "check_trip_coverage",
+            "resolve_trip_date",
             "find_providers"
           ]
         },
         {
           "index": 1,
           "user": "I'd rather not say my exact age.",
-          "message": "That's fine — you don't have to tell me. Your best bet then is **Senior Express Van (San Ramon)**: it's for riders 55 and up and requires no proof of age, so you can sort it out directly with them on the phone.\n\n- Call **(925) 938-7433**, at least one day before August 12 — sooner is safer\n- $5 each way, cash, door-to-door\n- Confirm 10:00 AM works, since we don't have their operating hours on file\n\nThe other three (LINK Paratransit, One-Seat Regional Ride, Mobility Matters) also serve this trip, but each has an eligibility rule you'd need to confirm with them — disability or ADA certification for the two paratransit ones, and age 60+ or veteran status plus 7 days' notice for Mobility Matters.\n\nAnd with no eligibility at all: the County Connection bus from Bollinger Canyon & Alcosta toward San Ramon Transit Center, off at Camino Ramon & Norris Canyon — about 29 minutes, including a half-mile walk at the end.\n\nI can't book any of these for you, but the phone number above is all you need.",
+          "message": "That's fine — you can sort out eligibility directly with the provider. Here are the four services that cover San Ramon City Hall to San Ramon Regional Medical Center on Wednesday, August 12. Each will need to confirm you qualify when you call:\n\n- **Senior Express Van (San Ramon)** — (925) 938-7433. $5 each way, door-to-door, seniors 55+, no proof required. Book at least a day ahead. Runs weekdays 8:30 AM–1:00 PM, so 10:00 AM works.\n- **LINK Paratransit** — (925) 938-7433. $5 each way, cash, door-to-door. For riders 18+ with a disability; requires a County Connection LINK ADA application. Book 1–7 days ahead. 10:00 AM is within their hours.\n- **One-Seat Regional Ride** — (925) 680-2134. $3, door-to-door, for riders 18+ with a disability. Book 1–3 days ahead. Their operating hours aren't on file, so ask whether 10:00 AM works.\n- **Mobility Matters** — (925) 284-6161. Free volunteer drivers, for seniors 60+ or veterans who live in Contra Costa County. Needs 7 days' notice and is meant as a last resort. Hours aren't on file — confirm the time when you call.\n\nOf these, Senior Express Van is the simplest starting point since it asks for no proof and the time is confirmed available.\n\nThere's also public transit: walk about 4 minutes to Bollinger Canyon Rd & Alcosta Blvd, take the Dublin/Pleasanton BART–San Ramon bus at 10:03 AM, then a 14-minute walk from Camino Ramon & Norris Canyon Rd — arriving around 10:31 AM.\n\nOPTIMAT can't book for you, so call whichever you prefer — and note the notice requirements, especially Mobility Matters' 7 days.",
           "attachments": [
             {
               "type": "provider_search",
@@ -1195,6 +1194,7 @@
                     "eligibility_reqs": "Eligibility: Disabled (18+). Proof: Complete County Connection LINK ADA application.",
                     "eligibility_status": "verification_required",
                     "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "service_hours_known": true,
                     "booking": {
                       "method": "call",
                       "details": "(925)938-7433"
@@ -1204,6 +1204,7 @@
                       "type": "fixed",
                       "payment": "cash"
                     },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"2400\", \"start\": \"0500\"}, {\"day\": \"0000010\", \"end\": \"2400\", \"start\": \"0600\"}, {\"day\": \"0000001\", \"end\": \"2400\", \"start\": \"0700\"}]}",
                     "website": "https://countyconnection.com/paratransit/",
                     "contacts": [
                       {
@@ -1228,7 +1229,7 @@
                           "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
                         },
                         {
-                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
                         }
                       ]
@@ -1247,6 +1248,7 @@
                     "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
                     "eligibility_status": "verification_required",
                     "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "service_hours_known": true,
                     "booking": {
                       "method": "call",
                       "details": "(925)938-7433"
@@ -1256,6 +1258,7 @@
                       "type": "fixed",
                       "payment": "cash"
                     },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1300\", \"start\": \"0830\"}]}",
                     "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
                     "contacts": [
                       {
@@ -1276,7 +1279,7 @@
                           "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
                         },
                         {
-                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
                         }
                       ]
@@ -1424,12 +1427,12 @@
                 "source_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583",
                 "destination_address": "6001 Norris Canyon Rd, San Ramon, CA 94583",
                 "source_coordinates": {
-                  "lat": 37.7651203,
-                  "lng": -121.95417239999999
+                  "lat": 37.7647094,
+                  "lng": -121.95460969999999
                 },
                 "destination_coordinates": {
-                  "lat": 37.775719599999995,
-                  "lng": -121.9583315
+                  "lat": 37.7761012,
+                  "lng": -121.95874649999999
                 },
                 "total_found": 0,
                 "direct_provider_count": 0,
@@ -1446,7 +1449,7 @@
                   "eligible_match_count": 0,
                   "verification_required_count": 4,
                   "ineligible_count": 0,
-                  "providers_without_service_hours": 4,
+                  "providers_without_service_hours": 2,
                   "alternatives_found": 4
                 },
                 "public_transit": {
@@ -1518,60 +1521,22 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_qMqRQPn5uXySrOCccRlleL",
-                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
-              }
-            },
-            {
-              "type": "provider_info",
-              "data": {
-                "id": "e89680bd-9aac-4f05-8b45-f557459ba0ed",
-                "provider_id": 3017,
-                "provider_name": "Senior Express Van (San Ramon)",
-                "provider_type": "Non-ADA Paratransit",
-                "routing_type": "door-to-door",
-                "schedule_type": {
-                  "type": "in-advance-book",
-                  "advance_notice": "at least 1 day"
-                },
-                "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
-                "booking": {
-                  "method": "call",
-                  "details": "(925)938-7433"
-                },
-                "fare": {
-                  "cost": "$5.00 each way",
-                  "type": "fixed",
-                  "payment": "cash"
-                },
-                "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
-                "contacts": [
-                  {
-                    "name": "Chris Weeks",
-                    "email": "cweeks@sanramon.ca.gov"
-                  }
-                ],
-                "round_trip_booking": true
-              },
-              "metadata": {
-                "tool_name": "get_provider_info",
-                "tool_use_id": "tooluse_ye3MfkyvJTgj2fUSt8A6mX",
-                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
+                "tool_use_id": "tooluse_DqXvXWWespIrzFElOW9Fnz",
+                "conversation_id": "4c206567-86c8-4808-8875-302a975a17b1"
               }
             }
           ],
-          "latency_ms": 14079,
+          "latency_ms": 16687,
           "tools": [
-            "find_providers",
-            "get_provider_info"
+            "find_providers"
           ]
         },
         {
           "index": 2,
           "user": "No, I really don't want to give my age. What can you tell me?",
-          "message": "Understood — I won't ask again.\n\nFour services cover this trip, and since you'd rather not answer eligibility questions, each one will need to confirm that with you directly when you call:\n\n- **Senior Express Van (San Ramon)** — likely your easiest start; no proof of age required. $5 each way. **(925) 938-7433**, at least a day before August 12\n- **LINK Paratransit** — $5 each way, goes by disability/ADA status\n- **One-Seat Regional Ride** — $3, also disability-based\n- **Mobility Matters** — free volunteer drivers, needs 7 days' notice. **(925) 284-6161**\n\nNone of these have operating hours on file with us, so confirm 10:00 AM when you call rather than assuming it's open.\n\nAnd if you'd rather skip eligibility entirely: the County Connection bus makes the trip in about 29 minutes, with a walk of about half a mile at the end.",
+          "message": "No problem — you don't have to tell me, and I've already got everything I can look up. Nothing more is needed from you here.\n\nThe same four services cover your trip on Wednesday, August 12, and each will verify eligibility with you directly when you call:\n\n- **Senior Express Van (San Ramon)** — (925) 938-7433. $5, door-to-door, seniors 55+, no proof required, book a day ahead. 10:00 AM is within their weekday hours — the easiest place to start.\n- **LINK Paratransit** — (925) 938-7433. $5 cash, door-to-door, for riders with a disability, needs a County Connection LINK ADA application. Book 1–7 days ahead. 10:00 AM works.\n- **One-Seat Regional Ride** — (925) 680-2134. $3, door-to-door, for riders with a disability. Book 1–3 days ahead. Ask whether 10:00 AM works — their hours aren't on file.\n- **Mobility Matters** — (925) 284-6161. Free volunteer driver, seniors 60+ or veterans in Contra Costa County, 7 days' notice. Also confirm the time when you call.\n\nAnd if you'd rather skip eligibility entirely, the bus at 10:03 AM from Bollinger Canyon Rd & Alcosta Blvd gets you there around 10:31 AM, no qualification needed.",
           "attachments": [],
-          "latency_ms": 10223,
+          "latency_ms": 9004,
           "tools": []
         }
       ]
@@ -1579,29 +1544,23 @@
     {
       "id": "s03-declines-eligibility",
       "title": "Rider declines every eligibility question",
-      "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3",
-      "passed": false,
-      "failures": [
-        {
-          "assertion": "mentions_verification_path",
-          "turn": null,
-          "detail": "never told the rider how to resolve eligibility"
-        }
-      ],
+      "conversation_id": "91559c8f-2bb7-4a9b-9fa9-c42ffa30de51",
+      "passed": true,
+      "failures": [],
       "metrics": {
         "turns": 3,
-        "questions_asked": 2,
+        "questions_asked": 1,
         "tool_calls": 4,
         "searches": 2,
-        "total_ms": 36517,
-        "max_turn_ms": 18183,
-        "response_chars": 2110
+        "total_ms": 35079,
+        "max_turn_ms": 18550,
+        "response_chars": 2265
       },
       "turns": [
         {
           "index": 0,
           "user": "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026 at 1:00 PM, one way.",
-          "message": "Three providers serve that trip — Richmond City Hall to Kaiser Richmond on Nevin Ave, Wednesday, August 12, 2026 — but each needs an eligibility check before I can say you qualify:\n\n- **R-Transit (Richmond)** — door-to-door, $3.00 each way, book 7 days ahead: (510) 307-8026. Requires 55+ or disabled, and residence in Richmond, North Richmond, El Sobrante or Kensington.\n- **East Bay Paratransit** — door-to-door, $4–$7 in the East Bay, book 1–7 days ahead: (510) 287-5000. Requires ADA certification.\n- **Mobility Matters** — volunteer drivers, free, book 7 days ahead: (925) 284-6161. Requires 60+ or veteran, and Contra Costa County residence.\n\nNone of these have operating hours on file, so please confirm the 1:00 PM pickup when you call. Also worth noting: it's only about a mile, roughly 24 minutes walking.\n\nTo narrow this down — how old are you? That decides both R-Transit and Mobility Matters.",
+          "message": "Good news: three door-to-door services cover that trip — Richmond City Hall to Kaiser Richmond on Wednesday, August 12 — but each one has eligibility rules I can't confirm yet.\n\n- **R-Transit (Richmond)** — $3 each way, book 7 days ahead: (510) 307-8026. For Richmond-area residents who are 55+ or have a disability. Their hours do cover 1:00 PM.\n- **Mobility Matters** — free volunteer drivers, book 7 days ahead: (925) 284-6161. For Contra Costa County residents 60+ or veterans. Confirm the 1:00 PM time when you call — their hours aren't on file with us.\n- **East Bay Paratransit** — $4–$7, book 1–7 days ahead: (510) 287-5000. Requires ADA certification. Also confirm the time when you call.\n\nOne thing that would narrow this down fast: how old are you? That decides both R-Transit and Mobility Matters.\n\nAlso worth knowing — it's only about a mile, so it's walkable or a short local trip if you'd rather not book ahead.",
           "attachments": [
             {
               "type": "provider_search",
@@ -1612,16 +1571,16 @@
                 "geography_match_count": 3,
                 "fixed_route_fallback_count": 6,
                 "provider_names": [
-                  "R-Transit (Richmond)",
                   "East Bay Paratransit",
-                  "Mobility Matters"
+                  "Mobility Matters",
+                  "R-Transit (Richmond)"
                 ],
                 "message": "3 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_B7aXaZFBuxAWpQlehRwWqg",
-                "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3"
+                "tool_use_id": "tooluse_SUDqxnVijM6iUUIzf4HbO0",
+                "conversation_id": "91559c8f-2bb7-4a9b-9fa9-c42ffa30de51"
               }
             },
             {
@@ -1636,8 +1595,8 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_irChsf8Ap4tLAHLpXNOfeh",
-                "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3"
+                "tool_use_id": "tooluse_DBkmliqrfmLzSFOQX96UtT",
+                "conversation_id": "91559c8f-2bb7-4a9b-9fa9-c42ffa30de51"
               }
             },
             {
@@ -1652,59 +1611,6 @@
                 "return_time": null,
                 "data": [],
                 "verification_required": [
-                  {
-                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
-                    "provider_id": 3014,
-                    "provider_name": "R-Transit (Richmond)",
-                    "provider_type": "Non-ADA Paratransit",
-                    "routing_type": "door-to-door",
-                    "schedule_type": {
-                      "type": "in-advance-book",
-                      "advance_notice": "7 days"
-                    },
-                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
-                    "eligibility_status": "verification_required",
-                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
-                    "missing_facts": [
-                      "age",
-                      "disabled",
-                      "residence_city"
-                    ],
-                    "booking": {
-                      "method": "call",
-                      "details": "(510)307-8026"
-                    },
-                    "fare": {
-                      "cost": "$3.00 each way",
-                      "type": "fixed",
-                      "payment": "ticket"
-                    },
-                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
-                    "contacts": [
-                      {
-                        "name": "LaShonda White",
-                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
-                      }
-                    ],
-                    "round_trip_booking": true,
-                    "match_criteria": {
-                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
-                      "passed": [
-                        {
-                          "label": "Origin inside service area",
-                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
-                        },
-                        {
-                          "label": "Destination inside service area",
-                          "detail": "901 Nevin Ave, Richmond, CA 94801"
-                        },
-                        {
-                          "label": "Service hours are not on file — confirm the time with the provider",
-                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
-                        }
-                      ]
-                    }
-                  },
                   {
                     "id": "fe07d31f-4a10-43ec-95f6-a4a25da1f03b",
                     "provider_id": 2009,
@@ -1809,6 +1715,61 @@
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age",
+                      "disabled",
+                      "residence_city"
+                    ],
+                    "service_hours_known": true,
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1615\", \"start\": \"0845\"}]}",
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours include requested trip window",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
+                        }
+                      ]
+                    }
                   }
                 ],
                 "excluded_providers": [],
@@ -1825,11 +1786,11 @@
                 "next_question": {
                   "field": "age",
                   "question": "the rider's exact age in years",
-                  "why": "2 providers on this trip (R-Transit (Richmond), Mobility Matters) can only be decided once this is known",
+                  "why": "2 providers on this trip (Mobility Matters, R-Transit (Richmond)) can only be decided once this is known",
                   "candidates_if_known": 2,
                   "provider_names": [
-                    "R-Transit (Richmond)",
-                    "Mobility Matters"
+                    "Mobility Matters",
+                    "R-Transit (Richmond)"
                   ]
                 },
                 "rider_eligibility": {},
@@ -1858,7 +1819,7 @@
                   "eligible_match_count": 0,
                   "verification_required_count": 3,
                   "ineligible_count": 0,
-                  "providers_without_service_hours": 3,
+                  "providers_without_service_hours": 2,
                   "alternatives_found": 1
                 },
                 "public_transit": {
@@ -1901,12 +1862,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_auwuy1ZFvmTUBwMKLY1968",
-                "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3"
+                "tool_use_id": "tooluse_KOWfqZR3IIal68Xy4wUxjK",
+                "conversation_id": "91559c8f-2bb7-4a9b-9fa9-c42ffa30de51"
               }
             }
           ],
-          "latency_ms": 18183,
+          "latency_ms": 18550,
           "tools": [
             "check_trip_coverage",
             "resolve_trip_date",
@@ -1916,7 +1877,7 @@
         {
           "index": 1,
           "user": "I'd prefer not to answer any personal questions about my age, disability, or veteran status.",
-          "message": "Understood — I won't ask again. Here's where that leaves you: the same three providers serve this trip, but each has an eligibility rule, so you'd confirm that directly with them when you call. None of them requires answering anything to me.\n\n- **R-Transit (Richmond)** — $3.00 each way, door-to-door. Book 7 days ahead: **(510) 307-8026**. For your August 12 trip, that means calling by **August 5**.\n- **Mobility Matters** — free volunteer drivers, door-to-door. Also 7 days ahead: **(925) 284-6161**.\n- **East Bay Paratransit** — $4–$7, door-to-door, 1–7 days ahead: **(510) 287-5000**. This one needs ADA certification, which takes an application and interview, so it's only realistic if you already have it.\n\nTwo things to keep in mind: I don't have operating hours on file for any of them, so confirm 1:00 PM works when you call. And the trip is only about a mile — roughly 24 minutes on foot — if that's an option for you.\n\nWant me to pull up more detail on any one of these?",
+          "message": "That's completely fine — I won't ask again. Here's where that leaves you.\n\nAll three services cover this trip, but each has its own eligibility rules, so you'd confirm those directly with them when you call:\n\n- **R-Transit (Richmond)** — $3 each way, book 7 days ahead: **(510) 307-8026**. Their hours do include 1:00 PM. Since your trip is entirely within Richmond, this is likely your best first call.\n- **Mobility Matters** — free volunteer drivers, book 7 days ahead: **(925) 284-6161**. Ask them to confirm 1:00 PM works; their hours aren't on file with us.\n- **East Bay Paratransit** — $4–$7, book 1–7 days ahead: **(510) 287-5000**. This one requires ADA certification, which takes an application and an interview, so it's the slower route. Confirm the time with them too.\n\nTiming matters: the 7-day services need you to call by **Wednesday, August 5** at the latest — sooner is better, and applications can take longer than that.\n\nAnd no booking needed at all if you'd rather skip it: Kaiser Richmond is only about a mile from City Hall, roughly a 24-minute walk straight down Nevin Ave.",
           "attachments": [
             {
               "type": "provider_search",
@@ -1930,54 +1891,6 @@
                 "return_time": null,
                 "data": [],
                 "verification_required": [
-                  {
-                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
-                    "provider_id": 3014,
-                    "provider_name": "R-Transit (Richmond)",
-                    "provider_type": "Non-ADA Paratransit",
-                    "routing_type": "door-to-door",
-                    "schedule_type": {
-                      "type": "in-advance-book",
-                      "advance_notice": "7 days"
-                    },
-                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
-                    "eligibility_status": "verification_required",
-                    "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
-                    "booking": {
-                      "method": "call",
-                      "details": "(510)307-8026"
-                    },
-                    "fare": {
-                      "cost": "$3.00 each way",
-                      "type": "fixed",
-                      "payment": "ticket"
-                    },
-                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
-                    "contacts": [
-                      {
-                        "name": "LaShonda White",
-                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
-                      }
-                    ],
-                    "round_trip_booking": true,
-                    "match_criteria": {
-                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
-                      "passed": [
-                        {
-                          "label": "Origin inside service area",
-                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
-                        },
-                        {
-                          "label": "Destination inside service area",
-                          "detail": "901 Nevin Ave, Richmond, CA 94801"
-                        },
-                        {
-                          "label": "Service hours are not on file — confirm the time with the provider",
-                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
-                        }
-                      ]
-                    }
-                  },
                   {
                     "id": "fe07d31f-4a10-43ec-95f6-a4a25da1f03b",
                     "provider_id": 2009,
@@ -2074,6 +1987,56 @@
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "service_hours_known": true,
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1615\", \"start\": \"0845\"}]}",
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours include requested trip window",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
+                        }
+                      ]
+                    }
                   }
                 ],
                 "excluded_providers": [],
@@ -2116,7 +2079,7 @@
                   "eligible_match_count": 0,
                   "verification_required_count": 3,
                   "ineligible_count": 0,
-                  "providers_without_service_hours": 3,
+                  "providers_without_service_hours": 2,
                   "alternatives_found": 1
                 },
                 "public_transit": {
@@ -2159,12 +2122,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_erR2vsqj9zVamJVeJVnNoB",
-                "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3"
+                "tool_use_id": "tooluse_3s167PIikxfx86QhvBQFTz",
+                "conversation_id": "91559c8f-2bb7-4a9b-9fa9-c42ffa30de51"
               }
             }
           ],
-          "latency_ms": 13576,
+          "latency_ms": 12983,
           "tools": [
             "find_providers"
           ]
@@ -2172,9 +2135,9 @@
         {
           "index": 2,
           "user": "Just tell me who might be able to take me.",
-          "message": "Three: **R-Transit** at (510) 307-8026, **Mobility Matters** at (925) 284-6161, and **East Bay Paratransit** at (510) 287-5000.\n\nCall by **August 5** — all three want about a week's notice — and confirm 1:00 PM when you do.",
+          "message": "Three services:\n\n- **R-Transit (Richmond)** — (510) 307-8026\n- **Mobility Matters** — (925) 284-6161\n- **East Bay Paratransit** — (510) 287-5000\n\nEach will check your eligibility when you call. Call by **August 5** for the 7-day booking windows.",
           "attachments": [],
-          "latency_ms": 4197,
+          "latency_ms": 3233,
           "tools": []
         }
       ]
@@ -2182,23 +2145,23 @@
     {
       "id": "s04-zero-coverage",
       "title": "No provider covers both ends (DVC to San Francisco)",
-      "conversation_id": "d68651ae-9996-45b0-8caa-60e213e8c1fb",
+      "conversation_id": "27686679-0aa6-4fa2-aec9-b6ea7a7e358d",
       "passed": true,
       "failures": [],
       "metrics": {
         "turns": 1,
-        "questions_asked": 1,
+        "questions_asked": 0,
         "tool_calls": 3,
         "searches": 1,
-        "total_ms": 20036,
-        "max_turn_ms": 19723,
-        "response_chars": 1036
+        "total_ms": 18290,
+        "max_turn_ms": 17970,
+        "response_chars": 1210
       },
       "turns": [
         {
           "index": 0,
           "user": "I need a ride from Diablo Valley College to San Francisco City Hall on August 12, 2026 at 9:00 AM, one way. I'm 70, live in Pleasant Hill, not disabled, not ADA-certified, not a veteran.",
-          "message": "There's no door-to-door provider that can do this trip — no service area in our data covers both Pleasant Hill and San Francisco City Hall, so a different date or time won't help.\n\nWhat will get you there: public transit, about 1 hour 29 minutes. Leaving Diablo Valley College around 9:14 AM, you'd take the County Connection bus from Viking Dr at the college to Pleasant Hill BART, then the yellow Antioch–SFO line to Civic Center/UN Plaza, with about a 3-block walk to City Hall. Arrival around 10:42 AM. At 70 you qualify for BART and bus senior discount fares — ask about a Clipper senior card.\n\nIf you'd rather have a ride part of the way, a few programs cover the Pleasant Hill/Walnut Creek end and could get you to BART: the Walnut Creek Lyft passes, LINK Paratransit, One-Seat Regional Ride, and Lamorinda Spirit. Want me to pull up contact details and eligibility for any of those?\n\nNote that OPTIMAT doesn't book rides — you'd call the provider directly, and most advance-booking programs want at least a day or two of notice.",
+          "message": "Short answer: no OPTIMAT provider can take you all the way from Diablo Valley College to San Francisco City Hall — no provider's service area covers both Pleasant Hill and downtown San Francisco. Changing the date or time won't help, since it's a coverage limit, not a scheduling one.\n\nWhat does work that day is public transit, about 1 hour 29 minutes door to door:\n- Walk about 3 minutes to Viking Dr & Diablo Valley College, catch the bus toward Pleasant Hill BART at 9:14 AM (about 27 minutes).\n- Short walk to the Pleasant Hill/Contra Costa Centre BART platform, then the yellow line toward SFO/Millbrae, getting off at Civic Center/UN Plaza (about 43 minutes).\n- About an 8-minute walk to City Hall, arriving around 10:42 AM.\n\nIf you'd rather not do the whole trip on your own, a few services cover the Pleasant Hill end and could get you part of the way — for example to BART: Walnut Creek Lyft Concierge Pass, LINK Paratransit, One-Seat Regional Ride, Lamorinda Spirit, or Mobility Matters. On the San Francisco side, East Bay Paratransit serves the destination area but can't reach your pickup point. I can pull up eligibility and phone details for any of those if you'd like to combine one with BART.",
           "attachments": [
             {
               "type": "provider_search",
@@ -2213,8 +2176,8 @@
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_zjYI4Pt2iZVi6yOtVk7B9Y",
-                "conversation_id": "d68651ae-9996-45b0-8caa-60e213e8c1fb"
+                "tool_use_id": "tooluse_sTNZoStnw9scHRFI6URxWL",
+                "conversation_id": "27686679-0aa6-4fa2-aec9-b6ea7a7e358d"
               }
             },
             {
@@ -2229,8 +2192,8 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_JgHZhVkjXlFmN6G7uU7HRU",
-                "conversation_id": "d68651ae-9996-45b0-8caa-60e213e8c1fb"
+                "tool_use_id": "tooluse_jKiWPB0kslQKmu5Q0UY9Yi",
+                "conversation_id": "27686679-0aa6-4fa2-aec9-b6ea7a7e358d"
               }
             },
             {
@@ -2251,11 +2214,11 @@
                     "change": "partial_coverage_origin",
                     "description": "covers the pickup area but not the destination — could take the rider part of the way",
                     "providers": [
-                      "Walnut Creek Lyft Self Access Pass",
                       "Walnut Creek Lyft Concierge Pass",
                       "LINK Paratransit",
                       "One-Seat Regional Ride",
-                      "Lamorinda Spirit"
+                      "Lamorinda Spirit",
+                      "Mobility Matters"
                     ],
                     "count": 7
                   },
@@ -2276,11 +2239,11 @@
                   "ada_certified": false,
                   "veteran": false
                 },
-                "source_address": "Engineering Technology Building, 321 Golf Club Rd, Pleasant Hill, CA 94523",
+                "source_address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
                 "destination_address": "1 Dr Carlton B Goodlett Pl, San Francisco, CA 94102",
                 "source_coordinates": {
-                  "lat": 37.9670835,
-                  "lng": -122.0711704
+                  "lat": 37.9686774,
+                  "lng": -122.07115370000001
                 },
                 "destination_coordinates": {
                   "lat": 37.7792891,
@@ -2402,12 +2365,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_CAuxKWnRX9aVlQulc5chs8",
-                "conversation_id": "d68651ae-9996-45b0-8caa-60e213e8c1fb"
+                "tool_use_id": "tooluse_v6XhY0CJ49HP9UIjP4XRhg",
+                "conversation_id": "27686679-0aa6-4fa2-aec9-b6ea7a7e358d"
               }
             }
           ],
-          "latency_ms": 19723,
+          "latency_ms": 17970,
           "tools": [
             "check_trip_coverage",
             "resolve_trip_date",
@@ -2418,8 +2381,8 @@
     },
     {
       "id": "s05-unconfirmed-hours",
-      "title": "Unusual hour with no service-hours data on file",
-      "conversation_id": "ad1ba1e1-12cf-4160-8c5b-b412b3fdb344",
+      "title": "Unusual hour, mixing providers with and without known hours",
+      "conversation_id": "f3a31e58-0be2-49bd-be79-568d02ee619e",
       "passed": true,
       "failures": [],
       "metrics": {
@@ -2427,15 +2390,15 @@
         "questions_asked": 1,
         "tool_calls": 3,
         "searches": 1,
-        "total_ms": 22786,
-        "max_turn_ms": 22443,
-        "response_chars": 970
+        "total_ms": 16280,
+        "max_turn_ms": 15980,
+        "response_chars": 1172
       },
       "turns": [
         {
           "index": 0,
           "user": "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on Sunday, August 16, 2026 at 5:00 AM, one way. I'm 70, live in San Ramon, not disabled, not ADA-certified, not a veteran.",
-          "message": "You have two options for Sunday, August 16 from San Ramon City Hall to San Ramon Regional Medical Center. Neither provider has operating hours on file, so confirm the 5:00 AM pickup when you call — that early on a Sunday is the main question mark.\n\n**Senior Express Van (San Ramon)** — door-to-door, $5.00 cash one way. You qualify (seniors 55+, no proof needed). Book at least a day ahead: **(925) 938-7433**.\n\n**Mobility Matters** — volunteer drivers, free, door-to-door. You qualify as a 60+ Contra Costa County resident. Needs 7 days notice, so call by about August 9: **(925) 284-6161**. They're meant as a last-resort option.\n\nTwo other services in the area, LINK Paratransit and One-Seat Regional Ride, are ruled out for you — both require a disability certification.\n\nPublic transit shows about 27 minutes, but it's mostly walking and early Sunday service may be limited.\n\nOPTIMAT doesn't book rides, so please call directly. Want more detail on either provider?",
+          "message": "**Mobility Matters is your one option for that Sunday 5:00 AM ride** — but you'll need to book it well ahead.\n\n- **Mobility Matters** (volunteer drivers, door-to-door, free): call **(925) 284-6161**. You qualify as a Contra Costa resident 60+. They require **7 days advance notice**, so call by **August 9** at the latest — earlier is better since they're a last-resort service. Their operating hours aren't on file with us, so **confirm they can do 5:00 AM on a Sunday** when you call.\n\nTwo things worth knowing:\n\n- **LINK Paratransit** covers this trip but doesn't start until **7:00 AM on Sundays** (it runs from 5:00 AM Monday–Friday). If you could leave at 7:00 AM, or shift to a weekday, that opens up.\n- **Senior Express Van (San Ramon)** also serves this route, but weekdays only, 8:30 AM–1:00 PM.\n\nOne-Seat Regional Ride is out — it requires a disability certification.\n\nThere's also a public transit path, but it's essentially a 27-minute walk of about a mile, which probably isn't what you want at 5 AM.\n\nI can't book any of these — you'll need to call Mobility Matters directly. Want me to pull up details on LINK Paratransit in case a 7:00 AM departure works?",
           "attachments": [
             {
               "type": "tool_result",
@@ -2449,8 +2412,8 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_mwujCSw6iwvqaXnLiEr63K",
-                "conversation_id": "ad1ba1e1-12cf-4160-8c5b-b412b3fdb344"
+                "tool_use_id": "tooluse_8wkFMx2nsPFU4oesTnU8ID",
+                "conversation_id": "f3a31e58-0be2-49bd-be79-568d02ee619e"
               }
             },
             {
@@ -2471,8 +2434,8 @@
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_cB5o8syT1MRIKp96vO5lDu",
-                "conversation_id": "ad1ba1e1-12cf-4160-8c5b-b412b3fdb344"
+                "tool_use_id": "tooluse_DSPtbtDWwmCUvr1vW2sd5w",
+                "conversation_id": "f3a31e58-0be2-49bd-be79-568d02ee619e"
               }
             },
             {
@@ -2486,58 +2449,6 @@
                 "outbound_time_intent": "depart_at",
                 "return_time": null,
                 "data": [
-                  {
-                    "id": "e89680bd-9aac-4f05-8b45-f557459ba0ed",
-                    "provider_id": 3017,
-                    "provider_name": "Senior Express Van (San Ramon)",
-                    "provider_type": "Non-ADA Paratransit",
-                    "routing_type": "door-to-door",
-                    "schedule_type": {
-                      "type": "in-advance-book",
-                      "advance_notice": "at least 1 day"
-                    },
-                    "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
-                    "eligibility_status": "eligible",
-                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
-                    "booking": {
-                      "method": "call",
-                      "details": "(925)938-7433"
-                    },
-                    "fare": {
-                      "cost": "$5.00 each way",
-                      "type": "fixed",
-                      "payment": "cash"
-                    },
-                    "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
-                    "contacts": [
-                      {
-                        "name": "Chris Weeks",
-                        "email": "cweeks@sanramon.ca.gov"
-                      }
-                    ],
-                    "round_trip_booking": true,
-                    "match_criteria": {
-                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
-                      "passed": [
-                        {
-                          "label": "Origin inside service area",
-                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
-                        },
-                        {
-                          "label": "Destination inside service area",
-                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
-                        },
-                        {
-                          "label": "Service hours are not on file — confirm the time with the provider",
-                          "detail": "Sunday, August 16, 2026; one-way outbound 5:00 AM"
-                        },
-                        {
-                          "label": "Eligibility matched",
-                          "detail": "The rider information matches the stated eligibility requirements."
-                        }
-                      ]
-                    }
-                  },
                   {
                     "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
                     "provider_id": 4021,
@@ -2592,19 +2503,46 @@
                 "verification_required": [],
                 "excluded_providers": [
                   {
-                    "provider_name": "LINK Paratransit",
-                    "stage": "eligibility",
-                    "reason": "The rider does not match the provider's disability requirement.",
-                    "requirement": "Eligibility: Disabled (18+). Proof: Complete County Connection LINK ADA application."
-                  },
-                  {
                     "provider_name": "One-Seat Regional Ride",
                     "stage": "eligibility",
                     "reason": "The rider does not match the provider's disability requirement.",
                     "requirement": "Eligibility: Disabled (18+). Proof: No proof mentioned on website."
                   }
                 ],
-                "alternatives": [],
+                "alternatives": [
+                  {
+                    "change": "other_day",
+                    "description": "the same trip is inside service hours on Monday, Tuesday, Wednesday, Thursday, Friday",
+                    "providers": [
+                      "LINK Paratransit"
+                    ],
+                    "count": 1
+                  },
+                  {
+                    "change": "shift_time",
+                    "description": "leaving at 7:00 AM instead is inside service hours",
+                    "providers": [
+                      "LINK Paratransit"
+                    ],
+                    "count": 1
+                  },
+                  {
+                    "change": "provider_schedule",
+                    "description": "LINK Paratransit serves this trip, but only Monday-Friday 5 AM-12 AM; Saturday 6 AM-12 AM; Sunday 7 AM-12 AM",
+                    "providers": [
+                      "LINK Paratransit"
+                    ],
+                    "count": 1
+                  },
+                  {
+                    "change": "provider_schedule",
+                    "description": "Senior Express Van (San Ramon) serves this trip, but only Monday-Friday 8:30 AM-1 PM",
+                    "providers": [
+                      "Senior Express Van (San Ramon)"
+                    ],
+                    "count": 1
+                  }
+                ],
                 "next_question": null,
                 "rider_eligibility": {
                   "age": 70,
@@ -2623,23 +2561,23 @@
                   "lat": 37.775719599999995,
                   "lng": -121.9583315
                 },
-                "total_found": 2,
-                "direct_provider_count": 2,
+                "total_found": 1,
+                "direct_provider_count": 1,
                 "public_transit_available": true,
-                "total_options_found": 3,
-                "filtered_out_count": 22,
+                "total_options_found": 2,
+                "filtered_out_count": 23,
                 "diagnostics": {
                   "provider_count": 24,
                   "fixed_route_fallback_count": 6,
                   "geography_match_count": 4,
                   "geography_origin_only_count": 0,
                   "geography_destination_only_count": 1,
-                  "schedule_match_count": 4,
-                  "eligible_match_count": 2,
+                  "schedule_match_count": 2,
+                  "eligible_match_count": 1,
                   "verification_required_count": 0,
-                  "ineligible_count": 2,
-                  "providers_without_service_hours": 2,
-                  "alternatives_found": 0
+                  "ineligible_count": 1,
+                  "providers_without_service_hours": 1,
+                  "alternatives_found": 4
                 },
                 "public_transit": {
                   "summary": "Alcosta Blvd",
@@ -2681,12 +2619,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_JSxKzgXlvWiR5VQ4o4M1Rw",
-                "conversation_id": "ad1ba1e1-12cf-4160-8c5b-b412b3fdb344"
+                "tool_use_id": "tooluse_f1JKnpiTlvkjcBNFnTPO0w",
+                "conversation_id": "f3a31e58-0be2-49bd-be79-568d02ee619e"
               }
             }
           ],
-          "latency_ms": 22443,
+          "latency_ms": 15980,
           "tools": [
             "resolve_trip_date",
             "check_trip_coverage",
@@ -2698,41 +2636,24 @@
     {
       "id": "s06-ambiguous-place",
       "title": "Named place resolves to a different city",
-      "conversation_id": "3cc7a0ac-c514-44e1-a94e-421d7117102c",
+      "conversation_id": "85bd8938-d20d-4003-b77f-508c4e6c2411",
       "passed": true,
       "failures": [],
       "metrics": {
         "turns": 1,
-        "questions_asked": 2,
+        "questions_asked": 1,
         "tool_calls": 2,
         "searches": 0,
-        "total_ms": 9443,
-        "max_turn_ms": 9131,
-        "response_chars": 301
+        "total_ms": 8880,
+        "max_turn_ms": 8560,
+        "response_chars": 249
       },
       "turns": [
         {
           "index": 0,
           "user": "I need a ride from my house in Antioch to DVC in Antioch.",
-          "message": "Quick check on the destination: Diablo Valley College isn't in Antioch — the main campus is at 321 Golf Club Rd in Pleasant Hill, and the other campus is in San Ramon.\n\nDid you mean the Pleasant Hill campus? Or were you thinking of Los Medanos College in Pittsburg, which is the closer one to Antioch?",
+          "message": "Quick check on the destination: DVC (Diablo Valley College) isn't in Antioch — the main campus is at 321 Golf Club Rd in Pleasant Hill, and there's another campus in San Ramon.\n\nDid you mean the Pleasant Hill campus, or a different place in Antioch?",
           "attachments": [
-            {
-              "type": "provider_search",
-              "data": {
-                "status": "clarification_required",
-                "reason_code": "location_city_mismatch",
-                "message": "“DVC (Diablo Valley College), Antioch” resolved to 321 Golf Club Rd, Pleasant Hill, CA 94523, which is in Pleasant Hill, not Antioch. Please confirm the destination before I search providers.",
-                "requested_source": "Antioch",
-                "requested_destination": "DVC (Diablo Valley College), Antioch",
-                "resolved_source": "Antioch, CA",
-                "resolved_destination": "321 Golf Club Rd, Pleasant Hill, CA 94523"
-              },
-              "metadata": {
-                "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_y8yWrJszDTBfdyRu3wbhip",
-                "conversation_id": "3cc7a0ac-c514-44e1-a94e-421d7117102c"
-              }
-            },
             {
               "type": "address_search",
               "data": {
@@ -2752,141 +2673,38 @@
                       "lat": 37.7549069,
                       "lng": -121.90982220000001
                     }
-                  },
-                  {
-                    "name": "Diablo Valley College Library",
-                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
-                    "location": {
-                      "lat": 37.9683765,
-                      "lng": -122.07242850000002
-                    }
-                  },
-                  {
-                    "name": "DVC International Student Office",
-                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
-                    "location": {
-                      "lat": 37.9693328,
-                      "lng": -122.0712832
-                    }
-                  },
-                  {
-                    "name": "Diablo Valley College Book Center",
-                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
-                    "location": {
-                      "lat": 37.9684896,
-                      "lng": -122.0712889
-                    }
-                  },
-                  {
-                    "name": "Contra Costa Medical Career College",
-                    "address": "4041 Lone Tree Wy #101, Antioch, CA 94531",
-                    "location": {
-                      "lat": 37.9768028,
-                      "lng": -121.80149839999999
-                    }
-                  },
-                  {
-                    "name": "Los Medanos College",
-                    "address": "2700 E Leland Rd, Pittsburg, CA 94565",
-                    "location": {
-                      "lat": 38.005794699999996,
-                      "lng": -121.8608721
-                    }
-                  },
-                  {
-                    "name": "Diablo Valley College Pool",
-                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
-                    "location": {
-                      "lat": 37.9688002,
-                      "lng": -122.068786
-                    }
-                  },
-                  {
-                    "name": "Diablo Valley College",
-                    "address": "Pleasant Hill, CA 94523, USA",
-                    "location": {
-                      "lat": 37.971029099999996,
-                      "lng": -122.0689484
-                    }
-                  },
-                  {
-                    "name": "Deer Valley High School",
-                    "address": "4700 Lone Tree Wy, Antioch, CA 94531",
-                    "location": {
-                      "lat": 37.9637451,
-                      "lng": -121.77527230000001
-                    }
-                  },
-                  {
-                    "name": "Diablo Valley School",
-                    "address": "2924 Clayton Rd, Concord, CA 94519",
-                    "location": {
-                      "lat": 37.974080099999995,
-                      "lng": -122.02464889999997
-                    }
-                  },
-                  {
-                    "name": "Diablo Valley College Library -- San Ramon Campus",
-                    "address": "Admissions and Records Office, 1690 Watermill Rd, San Ramon, CA 94582",
-                    "location": {
-                      "lat": 37.7547547,
-                      "lng": -121.9097087
-                    }
-                  },
-                  {
-                    "name": "Diablo Valley College Lot 1",
-                    "address": "Viking Dr, Pleasant Hill, CA 94523",
-                    "location": {
-                      "lat": 37.965917,
-                      "lng": -122.0697359
-                    }
-                  },
-                  {
-                    "name": "Diablo Valley",
-                    "address": "2910 Camino Diablo, Walnut Creek, CA 94597",
-                    "location": {
-                      "lat": 37.898836599999996,
-                      "lng": -122.0838776
-                    }
-                  },
-                  {
-                    "name": "DVC Cafeteria",
-                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
-                    "location": {
-                      "lat": 37.969265299999996,
-                      "lng": -122.0712157
-                    }
-                  },
-                  {
-                    "name": "Diablo Valley College",
-                    "address": "Pleasant Hill, CA 94523, USA",
-                    "location": {
-                      "lat": 37.971019999999996,
-                      "lng": -122.06923
-                    }
-                  },
-                  {
-                    "name": "Year Up United Bay Area - Diablo Valley College",
-                    "address": "321 Golf Club Rd L100, Pleasant Hill, CA 94523",
-                    "location": {
-                      "lat": 37.9685658,
-                      "lng": -122.07127179999999
-                    }
                   }
                 ],
-                "query": "Diablo Valley College Antioch"
+                "query": "DVC Diablo Valley College Antioch"
               },
               "metadata": {
                 "tool_name": "search_addresses_from_user_query",
-                "tool_use_id": "tooluse_kQ9EQnE9Zc6e4T4CIHnBP2",
-                "conversation_id": "3cc7a0ac-c514-44e1-a94e-421d7117102c"
+                "tool_use_id": "tooluse_QvPTfWI8h88sGgwrmzyYcp",
+                "conversation_id": "85bd8938-d20d-4003-b77f-508c4e6c2411"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "clarification_required",
+                "reason_code": "location_city_mismatch",
+                "message": "“DVC, Antioch” resolved to 321 Golf Club Rd, Pleasant Hill, CA 94523, which is in Pleasant Hill, not Antioch. Please confirm the destination before I search providers.",
+                "requested_source": "Antioch",
+                "requested_destination": "DVC, Antioch",
+                "resolved_source": "Antioch, CA",
+                "resolved_destination": "321 Golf Club Rd, Pleasant Hill, CA 94523"
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_RCsTm1Ea0Odn14x2UB3HTS",
+                "conversation_id": "85bd8938-d20d-4003-b77f-508c4e6c2411"
               }
             }
           ],
-          "latency_ms": 9131,
+          "latency_ms": 8560,
           "tools": [
-            "check_trip_coverage",
-            "search_addresses_from_user_query"
+            "search_addresses_from_user_query",
+            "check_trip_coverage"
           ]
         }
       ]
@@ -2894,7 +2712,7 @@
     {
       "id": "s07-richmond-multi-provider",
       "title": "Multi-provider Richmond search (payload size)",
-      "conversation_id": "43743402-1b0e-4895-8d23-961fbd0d2db4",
+      "conversation_id": "c039db4d-adbe-4105-a4b1-67d5cb815ef8",
       "passed": true,
       "failures": [],
       "metrics": {
@@ -2902,15 +2720,15 @@
         "questions_asked": 0,
         "tool_calls": 3,
         "searches": 1,
-        "total_ms": 17219,
-        "max_turn_ms": 16936,
-        "response_chars": 949
+        "total_ms": 15867,
+        "max_turn_ms": 15556,
+        "response_chars": 1135
       },
       "turns": [
         {
           "index": 0,
           "user": "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026, departing at noon, round trip returning at 3:00 PM. I'm 68, I live in Richmond, I'm not disabled, not ADA-certified, and not a veteran.",
-          "message": "Two providers can take you door-to-door on Wednesday, August 12 — and one of them is free.\n\n**Mobility Matters** — volunteer drivers, free. You qualify (60+, Contra Costa County resident). Call **(925) 284-6161**. Note they describe themselves as a last-resort option, so call early.\n\n**R-Transit (Richmond)** — city paratransit for Richmond seniors 55+, $3.00 each way by ticket. Call **(510) 307-8026**. You'll need to complete an R-Transit application with photo ID and a piece of mail showing your Richmond address.\n\nBoth need booking at least **7 days ahead** — so call by **Wednesday, August 5** at the latest. Neither has operating hours on file with us, so confirm the noon departure and 3:00 PM return when you call.\n\nOne note: East Bay Paratransit serves this route but requires ADA certification, so it's not an option for you.\n\nAlso worth knowing — it's only about a mile, roughly a 24-minute walk, if that's ever easier than scheduling.",
+          "message": "Good news — you qualify for two options for Wednesday, August 12.\n\n**R-Transit (Richmond)** — city paratransit, door-to-door. Your noon pickup and 3:00 PM return both fall inside their service hours (8:45 AM–4:15 PM, weekdays). Fare is $3.00 each way, paid by ticket. Book at least 7 days ahead: **(510) 307-8026**. First-time riders need to complete an R-Transit application, so call soon — they'll ask for photo ID and a piece of mail showing your Richmond address.\n\n**Mobility Matters** — free volunteer driver service, door-to-door, for Contra Costa seniors 60+. Also needs 7 days' notice: **(925) 284-6161**. Their operating hours aren't on file with us, so confirm noon and 3:00 PM work when you call. They describe themselves as a last-resort option, so R-Transit is the better first call.\n\nEither way, your booking deadline is **Wednesday, August 5** — 7 days before the trip.\n\nOne that won't work: East Bay Paratransit requires ADA certification, which you don't have.\n\nIf you'd rather not book ahead, it's a short trip — about 1 mile, roughly 24 minutes walking. I can't book any of these for you, but the numbers above will.",
           "attachments": [
             {
               "type": "provider_search",
@@ -2921,16 +2739,16 @@
                 "geography_match_count": 3,
                 "fixed_route_fallback_count": 6,
                 "provider_names": [
-                  "R-Transit (Richmond)",
                   "East Bay Paratransit",
-                  "Mobility Matters"
+                  "Mobility Matters",
+                  "R-Transit (Richmond)"
                 ],
                 "message": "3 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_tgGDrqsRbpIoRYO2GoSqXE",
-                "conversation_id": "43743402-1b0e-4895-8d23-961fbd0d2db4"
+                "tool_use_id": "tooluse_zILjSQTunOUCiybPo97sBU",
+                "conversation_id": "c039db4d-adbe-4105-a4b1-67d5cb815ef8"
               }
             },
             {
@@ -2945,8 +2763,8 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_uGXJqJvh5wHcc2oNeUd6Ee",
-                "conversation_id": "43743402-1b0e-4895-8d23-961fbd0d2db4"
+                "tool_use_id": "tooluse_M8pLvEDfX0rc7id30UEIfg",
+                "conversation_id": "c039db4d-adbe-4105-a4b1-67d5cb815ef8"
               }
             },
             {
@@ -2960,58 +2778,6 @@
                 "outbound_time_intent": "depart_at",
                 "return_time": "3:00 PM",
                 "data": [
-                  {
-                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
-                    "provider_id": 3014,
-                    "provider_name": "R-Transit (Richmond)",
-                    "provider_type": "Non-ADA Paratransit",
-                    "routing_type": "door-to-door",
-                    "schedule_type": {
-                      "type": "in-advance-book",
-                      "advance_notice": "7 days"
-                    },
-                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
-                    "eligibility_status": "eligible",
-                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
-                    "booking": {
-                      "method": "call",
-                      "details": "(510)307-8026"
-                    },
-                    "fare": {
-                      "cost": "$3.00 each way",
-                      "type": "fixed",
-                      "payment": "ticket"
-                    },
-                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
-                    "contacts": [
-                      {
-                        "name": "LaShonda White",
-                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
-                      }
-                    ],
-                    "round_trip_booking": true,
-                    "match_criteria": {
-                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
-                      "passed": [
-                        {
-                          "label": "Origin inside service area",
-                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
-                        },
-                        {
-                          "label": "Destination inside service area",
-                          "detail": "901 Nevin Ave, Richmond, CA 94801"
-                        },
-                        {
-                          "label": "Service hours are not on file — confirm the time with the provider",
-                          "detail": "Wednesday, August 12, 2026; outbound 12:00 PM; return 3:00 PM"
-                        },
-                        {
-                          "label": "Eligibility matched",
-                          "detail": "The rider information matches the stated eligibility requirements."
-                        }
-                      ]
-                    }
-                  },
                   {
                     "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
                     "provider_id": 4021,
@@ -3053,6 +2819,60 @@
                         },
                         {
                           "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; outbound 12:00 PM; return 3:00 PM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "service_hours_known": true,
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1615\", \"start\": \"0845\"}]}",
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; outbound 12:00 PM; return 3:00 PM"
                         },
                         {
@@ -3106,7 +2926,7 @@
                   "eligible_match_count": 2,
                   "verification_required_count": 0,
                   "ineligible_count": 1,
-                  "providers_without_service_hours": 2,
+                  "providers_without_service_hours": 1,
                   "alternatives_found": 0
                 },
                 "public_transit": {
@@ -3149,12 +2969,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_llLEf3g5GSyG6yN53LNjKE",
-                "conversation_id": "43743402-1b0e-4895-8d23-961fbd0d2db4"
+                "tool_use_id": "tooluse_YhiCf1sktqGZTPE8XPZgXM",
+                "conversation_id": "c039db4d-adbe-4105-a4b1-67d5cb815ef8"
               }
             }
           ],
-          "latency_ms": 16936,
+          "latency_ms": 15556,
           "tools": [
             "check_trip_coverage",
             "resolve_trip_date",
@@ -3166,7 +2986,7 @@
     {
       "id": "s08-one-way-no-return",
       "title": "One-way trip is never asked for a return time",
-      "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1",
+      "conversation_id": "09849aed-cae0-4107-a9aa-fbef0fc4bd1f",
       "passed": true,
       "failures": [],
       "metrics": {
@@ -3174,15 +2994,15 @@
         "questions_asked": 1,
         "tool_calls": 4,
         "searches": 2,
-        "total_ms": 30707,
-        "max_turn_ms": 16793,
-        "response_chars": 1585
+        "total_ms": 27224,
+        "max_turn_ms": 14756,
+        "response_chars": 1884
       },
       "turns": [
         {
           "index": 0,
           "user": "One way only: Richmond City Hall to Kaiser Permanente Richmond Medical Center, August 12, 2026 at 2:00 PM.",
-          "message": "Here's what I found for Wednesday, August 12, 2026, one way from Richmond City Hall to Kaiser Permanente Richmond (901 Nevin Ave) — a short trip, about a mile.\n\nThree providers serve this route, but each needs an eligibility check first:\n\n- **R-Transit (Richmond)** — door-to-door, $3.00 each way, book 7 days ahead: (510) 307-8026. For Richmond-area residents 55+ or adults with a disability.\n- **East Bay Paratransit** — door-to-door, $4–$7, book 1–7 days ahead: (510) 287-5000. Requires ADA certification.\n- **Mobility Matters** — volunteer drivers, free, 7 days notice: (925) 284-6161. For Contra Costa County residents 60+ or veterans.\n\nNone of them have operating hours on file, so please confirm the 2:00 PM pickup when you call.\n\nOne thing that would narrow this down fast: how old is the rider? That decides both R-Transit and Mobility Matters.",
+          "message": "Three door-to-door services cover Richmond City Hall to Kaiser Richmond on Wednesday, August 12 — but each one depends on eligibility I can't confirm yet:\n\n- **R-Transit (Richmond)** — $3 each way, seniors 55+ or adults with a disability who live in Richmond, North Richmond, El Sobrante or Kensington. Book 7 days ahead: (510) 307-8026.\n- **Mobility Matters** — free volunteer drivers, for Contra Costa County residents 60+ or veterans. Book 7 days ahead: (925) 284-6161.\n- **East Bay Paratransit** — $4–$7, requires ADA certification. Book 1–7 days ahead: (510) 287-5000.\n\nFor Mobility Matters and East Bay Paratransit their operating hours aren't on file, so please confirm 2:00 PM works when you call.\n\nTo narrow this down: how old are you? That decides two of the three.\n\nIf none fit, it's also about a 1-mile trip — AC Transit's fixed-route service covers it in roughly 24 minutes.",
           "attachments": [
             {
               "type": "provider_search",
@@ -3193,16 +3013,16 @@
                 "geography_match_count": 3,
                 "fixed_route_fallback_count": 6,
                 "provider_names": [
-                  "R-Transit (Richmond)",
                   "East Bay Paratransit",
-                  "Mobility Matters"
+                  "Mobility Matters",
+                  "R-Transit (Richmond)"
                 ],
                 "message": "3 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_KokARhfWMpcBQgV0GPuVc2",
-                "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1"
+                "tool_use_id": "tooluse_orJGvPBIu2LxXfgILKo19J",
+                "conversation_id": "09849aed-cae0-4107-a9aa-fbef0fc4bd1f"
               }
             },
             {
@@ -3217,8 +3037,8 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_Ei3yQ8aiOtTWmcGWfCYwuH",
-                "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1"
+                "tool_use_id": "tooluse_LnsfrOfr82U4xJWC1hbUL1",
+                "conversation_id": "09849aed-cae0-4107-a9aa-fbef0fc4bd1f"
               }
             },
             {
@@ -3233,59 +3053,6 @@
                 "return_time": null,
                 "data": [],
                 "verification_required": [
-                  {
-                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
-                    "provider_id": 3014,
-                    "provider_name": "R-Transit (Richmond)",
-                    "provider_type": "Non-ADA Paratransit",
-                    "routing_type": "door-to-door",
-                    "schedule_type": {
-                      "type": "in-advance-book",
-                      "advance_notice": "7 days"
-                    },
-                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
-                    "eligibility_status": "verification_required",
-                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
-                    "missing_facts": [
-                      "age",
-                      "disabled",
-                      "residence_city"
-                    ],
-                    "booking": {
-                      "method": "call",
-                      "details": "(510)307-8026"
-                    },
-                    "fare": {
-                      "cost": "$3.00 each way",
-                      "type": "fixed",
-                      "payment": "ticket"
-                    },
-                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
-                    "contacts": [
-                      {
-                        "name": "LaShonda White",
-                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
-                      }
-                    ],
-                    "round_trip_booking": true,
-                    "match_criteria": {
-                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
-                      "passed": [
-                        {
-                          "label": "Origin inside service area",
-                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
-                        },
-                        {
-                          "label": "Destination inside service area",
-                          "detail": "901 Nevin Ave, Richmond, CA 94801"
-                        },
-                        {
-                          "label": "Service hours are not on file — confirm the time with the provider",
-                          "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
-                        }
-                      ]
-                    }
-                  },
                   {
                     "id": "fe07d31f-4a10-43ec-95f6-a4a25da1f03b",
                     "provider_id": 2009,
@@ -3390,6 +3157,61 @@
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age",
+                      "disabled",
+                      "residence_city"
+                    ],
+                    "service_hours_known": true,
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1615\", \"start\": \"0845\"}]}",
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours include requested trip window",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
+                        }
+                      ]
+                    }
                   }
                 ],
                 "excluded_providers": [],
@@ -3406,11 +3228,11 @@
                 "next_question": {
                   "field": "age",
                   "question": "the rider's exact age in years",
-                  "why": "2 providers on this trip (R-Transit (Richmond), Mobility Matters) can only be decided once this is known",
+                  "why": "2 providers on this trip (Mobility Matters, R-Transit (Richmond)) can only be decided once this is known",
                   "candidates_if_known": 2,
                   "provider_names": [
-                    "R-Transit (Richmond)",
-                    "Mobility Matters"
+                    "Mobility Matters",
+                    "R-Transit (Richmond)"
                   ]
                 },
                 "rider_eligibility": {},
@@ -3439,7 +3261,7 @@
                   "eligible_match_count": 0,
                   "verification_required_count": 3,
                   "ineligible_count": 0,
-                  "providers_without_service_hours": 3,
+                  "providers_without_service_hours": 2,
                   "alternatives_found": 1
                 },
                 "public_transit": {
@@ -3482,12 +3304,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_C1IFocLQpBep0FvqWhSjKr",
-                "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1"
+                "tool_use_id": "tooluse_wWaOBucmwPHmNpSEJ1XHmc",
+                "conversation_id": "09849aed-cae0-4107-a9aa-fbef0fc4bd1f"
               }
             }
           ],
-          "latency_ms": 16793,
+          "latency_ms": 14756,
           "tools": [
             "check_trip_coverage",
             "resolve_trip_date",
@@ -3497,7 +3319,7 @@
         {
           "index": 1,
           "user": "I'm 68, live in Richmond, not disabled, not ADA-certified, not a veteran.",
-          "message": "You qualify for two providers for Wednesday, August 12 at 2:00 PM:\n\n- **R-Transit (Richmond)** — door-to-door, $3.00, pay by ticket. Call **(510) 307-8026**. They need 7 days' notice and a one-time application (ID, proof of Richmond address), so call by **August 5** — sooner is better so the application clears.\n- **Mobility Matters** — volunteer driver, free, also 7 days' notice. Call **(925) 284-6161**. They're a last-resort option, so treat them as your backup.\n\nNeither has operating hours on file, so confirm 2:00 PM works when you call.\n\nEast Bay Paratransit is out — it requires ADA certification.\n\nOne more option: it's only a mile, and public transit/walking covers it in about 24 minutes if you'd rather not book ahead.",
+          "message": "You're set for two options on Wednesday, August 12:\n\n**R-Transit (Richmond)** — you qualify as a Richmond resident 55+. $3 each way, paid by ticket, door-to-door. 2:00 PM is within their service hours. Call **(510) 307-8026** — they need 7 days' notice, so call by **Wednesday, August 5**. First-time riders complete an R-Transit application, and you'll need photo ID plus a piece of mail showing your Richmond address.\n\n**Mobility Matters** — free volunteer drivers, and you qualify at 68 as a Contra Costa County resident. Their operating hours aren't on file, so ask whether 2:00 PM works when you call **(925) 284-6161**. Also 7 days' notice, and they describe themselves as a last-resort option, so R-Transit is the better first call.\n\nEast Bay Paratransit won't work — it requires ADA certification.\n\nIf you'd rather not book ahead, it's only a 1-mile trip, about 24 minutes on foot or by AC Transit.\n\nJust so you know, OPTIMAT doesn't book rides — you'll need to call the provider directly.",
           "attachments": [
             {
               "type": "provider_search",
@@ -3510,58 +3332,6 @@
                 "outbound_time_intent": "depart_at",
                 "return_time": null,
                 "data": [
-                  {
-                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
-                    "provider_id": 3014,
-                    "provider_name": "R-Transit (Richmond)",
-                    "provider_type": "Non-ADA Paratransit",
-                    "routing_type": "door-to-door",
-                    "schedule_type": {
-                      "type": "in-advance-book",
-                      "advance_notice": "7 days"
-                    },
-                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
-                    "eligibility_status": "eligible",
-                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
-                    "booking": {
-                      "method": "call",
-                      "details": "(510)307-8026"
-                    },
-                    "fare": {
-                      "cost": "$3.00 each way",
-                      "type": "fixed",
-                      "payment": "ticket"
-                    },
-                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
-                    "contacts": [
-                      {
-                        "name": "LaShonda White",
-                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
-                      }
-                    ],
-                    "round_trip_booking": true,
-                    "match_criteria": {
-                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
-                      "passed": [
-                        {
-                          "label": "Origin inside service area",
-                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
-                        },
-                        {
-                          "label": "Destination inside service area",
-                          "detail": "901 Nevin Ave, Richmond, CA 94801"
-                        },
-                        {
-                          "label": "Service hours are not on file — confirm the time with the provider",
-                          "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
-                        },
-                        {
-                          "label": "Eligibility matched",
-                          "detail": "The rider information matches the stated eligibility requirements."
-                        }
-                      ]
-                    }
-                  },
                   {
                     "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
                     "provider_id": 4021,
@@ -3603,6 +3373,60 @@
                         },
                         {
                           "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "service_hours_known": true,
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1615\", \"start\": \"0845\"}]}",
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
                         },
                         {
@@ -3656,7 +3480,7 @@
                   "eligible_match_count": 2,
                   "verification_required_count": 0,
                   "ineligible_count": 1,
-                  "providers_without_service_hours": 2,
+                  "providers_without_service_hours": 1,
                   "alternatives_found": 0
                 },
                 "public_transit": {
@@ -3699,12 +3523,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_d8X7hX6xKPnR6IgTQ9zyOz",
-                "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1"
+                "tool_use_id": "tooluse_QnZltqcLTNiNDj6UMoAR8J",
+                "conversation_id": "09849aed-cae0-4107-a9aa-fbef0fc4bd1f"
               }
             }
           ],
-          "latency_ms": 13581,
+          "latency_ms": 12147,
           "tools": [
             "find_providers"
           ]
@@ -3714,7 +3538,7 @@
     {
       "id": "s09-followup-from-memory",
       "title": "Follow-up about a provider from an earlier turn",
-      "conversation_id": "972118f6-7784-4c38-a0ae-1272ba3b8753",
+      "conversation_id": "78147f69-f68e-4945-a52e-e32163de2af4",
       "passed": true,
       "failures": [],
       "metrics": {
@@ -3722,15 +3546,15 @@
         "questions_asked": 1,
         "tool_calls": 3,
         "searches": 1,
-        "total_ms": 21008,
-        "max_turn_ms": 15916,
-        "response_chars": 1505
+        "total_ms": 20971,
+        "max_turn_ms": 16356,
+        "response_chars": 1320
       },
       "turns": [
         {
           "index": 0,
           "user": "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026 at noon, one way. I'm 68, live in Richmond, not disabled, not ADA-certified, not a veteran.",
-          "message": "Good news — you qualify for two door-to-door options for Wednesday, August 12 at noon, Richmond City Hall to Kaiser Richmond on Nevin Ave.\n\n**R-Transit (Richmond)** — call (510) 307-8026. $3.00 each way, paid by ticket. Book at least 7 days ahead, so call by about August 5. First-time riders complete an R-Transit application with photo ID and a piece of mail showing your Richmond address.\n\n**Mobility Matters** — call (925) 284-6161. Free volunteer drivers, also 7 days' advance notice. They describe themselves as a last-resort option, so R-Transit is the better first call.\n\nTwo notes: neither provider has operating hours on file with us, so confirm noon works when you call. And East Bay Paratransit isn't an option for you — it requires ADA certification.\n\nThis trip is also short — about a mile — so regular AC Transit service or a walk of roughly 24 minutes is a fallback.\n\nI can't book for you, but those numbers will get it done. Want details on either provider?",
+          "message": "Good news — you have two options for that trip, and you qualify for both.\n\n**R-Transit (Richmond)** — (510) 307-8026. Door-to-door, $3.00 each way by ticket. Their hours (8:45 AM–4:15 PM weekdays) cover your noon pickup. You'll need to complete an R-Transit application first, with a photo ID and a piece of mail showing your Richmond address. Book at least 7 days ahead — so call by about August 5.\n\n**Mobility Matters** — (925) 284-6161. Volunteer driver, free, also door-to-door, 7 days advance notice. They don't have operating hours on file, so ask them to confirm noon works. They describe themselves as a last-resort option, so R-Transit is likely your better bet.\n\nAlso worth knowing: it's only about a mile, roughly 24 minutes walking, if that's ever an option for you.\n\nOne that won't work: East Bay Paratransit requires ADA certification, which you don't have.\n\nOPTIMAT doesn't book rides — you'll need to call the provider directly. Want details on either one?",
           "attachments": [
             {
               "type": "provider_search",
@@ -3741,16 +3565,16 @@
                 "geography_match_count": 3,
                 "fixed_route_fallback_count": 6,
                 "provider_names": [
-                  "R-Transit (Richmond)",
                   "East Bay Paratransit",
-                  "Mobility Matters"
+                  "Mobility Matters",
+                  "R-Transit (Richmond)"
                 ],
                 "message": "3 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_OPUHN7PT7DGkDGgxwzzyoP",
-                "conversation_id": "972118f6-7784-4c38-a0ae-1272ba3b8753"
+                "tool_use_id": "tooluse_lHgB1nxqlchzpJjPN3yzXX",
+                "conversation_id": "78147f69-f68e-4945-a52e-e32163de2af4"
               }
             },
             {
@@ -3765,8 +3589,8 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_Hcta8LMy4aw9g0kQIJDFjv",
-                "conversation_id": "972118f6-7784-4c38-a0ae-1272ba3b8753"
+                "tool_use_id": "tooluse_O5v90gTfUhqSetWZtI0TDr",
+                "conversation_id": "78147f69-f68e-4945-a52e-e32163de2af4"
               }
             },
             {
@@ -3780,58 +3604,6 @@
                 "outbound_time_intent": "depart_at",
                 "return_time": null,
                 "data": [
-                  {
-                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
-                    "provider_id": 3014,
-                    "provider_name": "R-Transit (Richmond)",
-                    "provider_type": "Non-ADA Paratransit",
-                    "routing_type": "door-to-door",
-                    "schedule_type": {
-                      "type": "in-advance-book",
-                      "advance_notice": "7 days"
-                    },
-                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
-                    "eligibility_status": "eligible",
-                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
-                    "booking": {
-                      "method": "call",
-                      "details": "(510)307-8026"
-                    },
-                    "fare": {
-                      "cost": "$3.00 each way",
-                      "type": "fixed",
-                      "payment": "ticket"
-                    },
-                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
-                    "contacts": [
-                      {
-                        "name": "LaShonda White",
-                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
-                      }
-                    ],
-                    "round_trip_booking": true,
-                    "match_criteria": {
-                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
-                      "passed": [
-                        {
-                          "label": "Origin inside service area",
-                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
-                        },
-                        {
-                          "label": "Destination inside service area",
-                          "detail": "901 Nevin Ave, Richmond, CA 94801"
-                        },
-                        {
-                          "label": "Service hours are not on file — confirm the time with the provider",
-                          "detail": "Wednesday, August 12, 2026; one-way outbound noon"
-                        },
-                        {
-                          "label": "Eligibility matched",
-                          "detail": "The rider information matches the stated eligibility requirements."
-                        }
-                      ]
-                    }
-                  },
                   {
                     "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
                     "provider_id": 4021,
@@ -3873,6 +3645,60 @@
                         },
                         {
                           "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound noon"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "service_hours_known": true,
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "service_hours": "{\"hours\": [{\"day\": \"1111100\", \"end\": \"1615\", \"start\": \"0845\"}]}",
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours include requested trip window",
                           "detail": "Wednesday, August 12, 2026; one-way outbound noon"
                         },
                         {
@@ -3926,7 +3752,7 @@
                   "eligible_match_count": 2,
                   "verification_required_count": 0,
                   "ineligible_count": 1,
-                  "providers_without_service_hours": 2,
+                  "providers_without_service_hours": 1,
                   "alternatives_found": 0
                 },
                 "public_transit": {
@@ -3969,12 +3795,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_KgStzVs0tB5OrpEmLupFRx",
-                "conversation_id": "972118f6-7784-4c38-a0ae-1272ba3b8753"
+                "tool_use_id": "tooluse_wYYw9Y5D6CwgXa1MjCN3oz",
+                "conversation_id": "78147f69-f68e-4945-a52e-e32163de2af4"
               }
             }
           ],
-          "latency_ms": 15916,
+          "latency_ms": 16356,
           "tools": [
             "check_trip_coverage",
             "resolve_trip_date",
@@ -3984,9 +3810,9 @@
         {
           "index": 1,
           "user": "Which of those did you say I still need to check eligibility for, and why?",
-          "message": "Neither one — both R-Transit and Mobility Matters came back as matching your eligibility, based on your age of 68, living in Richmond, and the rest of what you told me.\n\nWhat I flagged as unverified was different: the **time**, not your eligibility. Neither provider has operating hours on file with us, so I couldn't confirm that a noon pickup on August 12 is within their service hours. Ask about that when you call.\n\nThe only eligibility ruling was East Bay Paratransit, which is ruled out because it requires ADA certification.",
+          "message": "Neither one — you qualify for both R-Transit and Mobility Matters based on what you've told me. Nothing about your eligibility is still open.\n\nWhat's unconfirmed is the *time*, not eligibility. Mobility Matters doesn't have operating hours on file, so I couldn't verify that noon works for them — ask when you call. R-Transit's hours do cover noon.",
           "attachments": [],
-          "latency_ms": 4753,
+          "latency_ms": 4308,
           "tools": []
         }
       ]
@@ -3994,7 +3820,7 @@
     {
       "id": "s10-off-trip-question",
       "title": "General accessibility question, not a trip request",
-      "conversation_id": "43ad22dd-b692-4d10-9f76-0525291a8a4c",
+      "conversation_id": "3263a33f-a253-4edd-91c9-cc675e6b79fb",
       "passed": true,
       "failures": [],
       "metrics": {
@@ -4002,21 +3828,21 @@
         "questions_asked": 0,
         "tool_calls": 1,
         "searches": 0,
-        "total_ms": 13178,
-        "max_turn_ms": 12854,
-        "response_chars": 530
+        "total_ms": 11777,
+        "max_turn_ms": 11485,
+        "response_chars": 584
       },
       "turns": [
         {
           "index": 0,
           "user": "Does BART have wheelchair access at every station?",
-          "message": "Yes — every BART station is wheelchair accessible. All stations have elevators and wider accessible fare gates (usually located nearest the elevators), and all trains have level boarding with designated wheelchair areas and priority seating.\n\nOne practical note: at a few stations the elevator doesn't let out at a staffed fare gate, so if you can't process your ticket there, see a ticket agent for help.\n\nIf you'd like, tell me where you're starting from and where you're headed, and I can look at door-to-door ride options too.",
+          "message": "Yes — every BART station has wheelchair access. All stations have elevators, wider fare gates near the elevators, and BART trains have level boarding with designated wheelchair areas.\n\nTwo practical notes: at some stations you'll need to take two elevators to get from street level to the platform, and if an elevator is out of service, the station agent (there's a courtesy phone by the elevator entrance) will help you get in or out.\n\nIf you'd like, I can also look for door-to-door ride options for a specific trip — just tell me where you're starting from and where you're headed.",
           "attachments": [
             {
               "type": "web_search",
               "data": {
-                "query": "Does BART have wheelchair accessibility at every station? Are all BART stations wheelchair accessible with elevators?",
-                "answer": "BART stations in the California Bay Area are fully wheelchair accessible with elevators at every station and level boarding on all trains. All stations have accessible fare gates and designated spaces for wheelchairs on trains.",
+                "query": "Does BART have wheelchair accessible access at every station? Are all BART stations accessible with elevators?",
+                "answer": "All BART stations have accessible elevators and wheelchair access at every station. BART trains feature level boarding. Paratransit service is available for those unable to use BART trains.",
                 "sources": [
                   {
                     "title": "Accessibility Overview | Bay Area Rapid Transit",
@@ -4024,35 +3850,35 @@
                     "content": "Elevators/escalators:All BART stations have escalatorsand accessible elevators.\n Accessible fare gates:All BART stations have wider fare gates to accommodate those in wheelchairs. These fare gates are typically located nearest to the elevators.\n Level boarding:All BART trains have level boarding. Please be mindful of the gap between the train and the platform.\n Priority seats and wheelchair area:All train cars have green priority seats to the left of the door on all train cars. Designated wheelc"
                   },
                   {
-                    "title": "Bay Area Rapid Transit (BART) | WheelchairTraveling.com",
-                    "url": "https://wheelchairtraveling.com/bay-area-rapid-transit-bart-wheelchair-travel",
-                    "content": "# Bay Area Rapid Transit (BART)\n\nAvatar photo\n\nWheelchairTraveling.com\n\nThe Bay Area Rapid is a great public transportation option for those traveling in the San Francisco or Berkeley area as well many places in the greater Bay Area.\n\n### BART Stations\n\nAll stations have elevators to reach the loading docks and getting onto the train is easy with the flat platform. However, some stations do not have a fare gate available to process your ticket if when using the elevator. If this is the case, the"
-                  },
-                  {
-                    "title": "Bay Area Rapid Transit (BART) | WheelchairTraveling.com",
-                    "url": "https://wheelchairtraveling.com/bay-area-rapid-transit-bart-wheelchair-travel/amp",
-                    "content": "# Bay Area Rapid Transit (BART)\n\nThe Bay Area Rapid Transit (BART) is a great public transportation option for those traveling in the San Francisco or Berkeley area as well many places in the greater Bay Area.\n\n### BART Stations\n\nAll stations have elevators to reach the loading docks and getting onto the train is easy with the flat platform. However, some stations do not have a fare gate available to process your ticket if when using the elevator. If this is the case, then see a ticket agent to "
-                  },
-                  {
                     "title": "BART Accessibility Guide",
                     "url": "https://www.bart.gov/sites/default/files/2024-10/Accessibility%20guide%20FINAL4.pdf",
                     "content": "BART Accessibility Guide For Seniors and People with Disabilities Welcome to BART The San Francisco Bay Area Rapid Transit District (BART) provides rail transportation among San Francisco, Alameda, Contra Costa, Santa Clara, and San Mateo counties. For detailed train schedules, visit the BART Trip Planner (bart.gov/planner) or download schedules in PDF format (bart.gov/schedules/pdfs). Accessibility Features The following is a partial list of the features that make it simpler for seniors and peo"
                   },
                   {
-                    "title": "San Francisco, California Wheelchair Accessible Travel Guide",
-                    "url": "https://wheelchairtravel.org/san-francisco",
-                    "content": "The BART is fully wheelchair accessible, with elevators or ramps at all stations and barrier free boarding. Wheelchair users are able to roll on and off of the trains without assistance from BART staff or station personnel. Tickets can be purchased with cash or credit/debit card at automated kiosks available at each station. The fare breakdown to the downtown San Francisco stations from SFO airport is $8.65 each way, or $3.20 for seniors.\n\nAdditional information on the BART is available via thes"
+                    "title": "Elevator Status | Bay Area Rapid Transit",
+                    "url": "https://www.bart.gov/stations/elevators",
+                    "content": "## Using Elevators\n\nAll BART stations have accessible elevators. In some stations, you may need to use two different elevators to get from the street to the train platform. \n\nIf you need assistance finding or using the elevator visit the Station Agent in the booth or contact them by pressing the button on the courtesy phone call box beside the elevator entrance. If you are unable to enter or exit the station because the elevator is not working, contact the Station Agent. They will help you enter"
+                  },
+                  {
+                    "title": "BART Accessibility Guide",
+                    "url": "https://www.bart.gov/sites/default/files/docs/AccessGuide_6_11.pdf",
+                    "content": "Seniors and disabled persons entering or exiting a station using a discount ticket may be asked to verify their eligibility by showing valid identification.\nValid ID includes: • RTC Discount Card • Medicare card (not Medi-Cal) • Disabled person placard or license plate from California DMV • Valid transit discount card from another California transit agency • For seniors, a photo ID with proof of age At the BART Station Using Elevators All BART stations have accessible elevators. In some stations"
+                  },
+                  {
+                    "title": "Paratransit Services | Bay Area Rapid Transit",
+                    "url": "https://www.bart.gov/guide/accessibility/paratransit",
+                    "content": "Paratransit operations information (San Mateo County):\n\n Redi-Wheels/RediCoast under SamTrans phone number: (800) 660-4287, samtrans.com/accessibility/paratransit\n Redi-Wheels/RediCoast: (650) 366-4856\n\nParatransit operations information (Santa Clara County):\n\n Valley Transportation Authority (VTA) Access: (408) 321-2380, vta.org/programs/access\n\nPlease contact Customer Access and Accessibility Department at (510) 874-7366 to speak to, Elena Van Loo or email, (/cdn-cgi/l/email-protection#2742514"
                   }
                 ]
               },
               "metadata": {
                 "tool_name": "general_provider_question",
-                "tool_use_id": "tooluse_KQOm3A7ChZ7NTxvFTr0Cwf",
-                "conversation_id": "43ad22dd-b692-4d10-9f76-0525291a8a4c"
+                "tool_use_id": "tooluse_jBuDxba5WqYHTgSXep7DLJ",
+                "conversation_id": "3263a33f-a253-4edd-91c9-cc675e6b79fb"
               }
             }
           ],
-          "latency_ms": 12854,
+          "latency_ms": 11485,
           "tools": [
             "general_provider_question"
           ]

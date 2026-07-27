@@ -261,3 +261,50 @@ implementation.
 | Facts block grows until it crowds the conversation | cap it; it is a digest, and M1 latency numbers will show regression |
 | Removing the template safety net (M3) lets a bad response through | `verifyResponse` + one re-prompt + template fallback, in that order |
 | SDK `$unknown` handling breaks on a future model change | `sanitizeAssistantContent` is defensive by shape, not by model |
+
+---
+
+## Outcome (2026-07-27)
+
+All milestones shipped. Eval against production, 10 scripted conversations:
+
+| | baseline (pre-redesign) | after |
+|---|---|---|
+| scenarios passing | 6/10 | **10/10** |
+| assertion failures | 9 | **0** |
+| prompt size | 765 tokens | **293 tokens** |
+| unit tests | 31 | **58** |
+
+Every baseline failure class is gone: contradictory provider counts, the template that
+repeated the previous reply verbatim for three turns, the follow-up that re-ran a search
+instead of remembering it, and the unusual hour presented as available.
+
+**Harness corrections.** The assertions were fixed four times during verification. Each
+change was made only after reading the transcript it failed on, and each was a checker
+defect rather than a moved goalpost — `mentions_verification_path` inspected only the final
+turn; provider-name grounding flagged "San Ramon Transit Center" (a bus stop) and a
+reordering of a real provider's name; `no_return_time_question` fired on the opening turn
+where the trip type was still unknown; `offers_alternative` missed the plural "weekdays".
+The three intermediate scores were 8/10, 8/10 and 9/10; the 10/10 is a fresh run, not a
+re-score.
+
+## What this surfaced beyond the plan
+
+1. **`service_hours` was null for all 30 providers**, so the schedule filter was a no-op and
+   time filtering did nothing. Now researched and populated for 23 of 30, with provenance
+   columns. The remaining 7 are deliberate nulls (no published span) and the assistant tells
+   riders their time is unconfirmed rather than available.
+2. **Bedrock throttles the Opus 5 profile under concurrency.** The M3 correction retry adds a
+   second model call on a failed verification. The eval retries with backoff; worth watching
+   if real traffic gets bursty.
+3. **pg_cron was not installed**, so the retention job in the M2 migration silently did
+   nothing. Now installed and scheduled daily at 04:17.
+
+## Still open
+
+- 7 providers have no service hours; some genuinely publish none (East Bay Paratransit,
+  Mobility Matters), so this will not reach 30/30 from public sources alone.
+- Hours drift. `service_hours_verified_at` exists so re-verification can be scheduled, but
+  nothing schedules it yet.
+- `infra/lambda/chat/` is untracked, diverged, and unreferenced by the deployed frontend.
+  Delete or sync — it should not stay as a second chat implementation.

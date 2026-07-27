@@ -248,6 +248,15 @@ const GLOBAL_ASSERTIONS = {
       const phrase = match[1].trim();
       if (!/\b(Shuttle|Transit|Transport|Paratransit|Van|Ride|Rides|Express|Mobility|Taxi|Link|Connection|Wheels)\b/.test(phrase)) continue;
       if (known.some((name) => name.includes(phrase) || phrase.includes(name))) continue;
+      // A real provider's name reordered ("San Ramon Senior Express Van" for "Senior Express Van
+      // (San Ramon)") is a wording choice, not an invented operator. Compare word sets.
+      const tokens = (value) => new Set(value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean));
+      const phraseTokens = tokens(phrase);
+      if (known.some((name) => {
+        const nameTokens = tokens(name);
+        const shared = [...phraseTokens].filter((token) => nameTokens.has(token)).length;
+        return shared >= Math.min(phraseTokens.size, nameTokens.size);
+      })) continue;
       if (/^(Public Transit|Transit|Public)$/i.test(phrase)) continue;
       // Places, not providers. Naming the stop a bus route uses ("San Ramon Transit Center",
       // "Richmond BART Station") is giving directions, not inventing an operator.
@@ -274,9 +283,18 @@ const SCENARIO_ASSERTIONS = {
     return asks > 1 ? `asked for age ${asks} times` : null;
   },
 
+  /**
+   * Only wrong once the rider has said the trip is one-way. Before that the trip type is genuinely
+   * unknown and "do you need a return trip?" is the right question — the first version of this
+   * check flagged exactly that, on the opening turn.
+   */
   no_return_time_question: (turns) => {
-    const offender = turns.find((turn) => RETURN_TIME_QUESTION.test(turn.message));
-    return offender ? `asked for a return time on a one-way trip: "${offender.message.match(RETURN_TIME_QUESTION)[0]}"` : null;
+    const declaredOneWay = turns.findIndex((turn) => /\bone[- ]way\b/i.test(turn.user));
+    if (declaredOneWay === -1) return null;
+    const offender = turns.slice(declaredOneWay).find((turn) => RETURN_TIME_QUESTION.test(turn.message));
+    return offender
+      ? `asked for a return time after the rider said one-way: "${offender.message.match(RETURN_TIME_QUESTION)[0]}"`
+      : null;
   },
 
   ends_with_usable_answer: (turns) => {
@@ -317,13 +335,15 @@ const SCENARIO_ASSERTIONS = {
    */
   hedges_unconfirmed_hours: (turns) => {
     const last = turns[turns.length - 1];
-    const hedges = /\b(confirm|check|verify|not (?:listed|on file|available)|unknown|don'?t have .{0,25}hours|may not|might not|unusual|early)\b/i.test(last.message);
+    const hedges = /\b(confirm|check|verify|unknown|may not|might not|unusual)\b|\b(?:are ?n[o']t|is ?n[o']t|not|don'?t have)\s+(?:\w+\s+){0,3}(?:on file|listed|available|published)|don'?t have .{0,25}hours/i
+      .test(last.message);
     return hedges ? null : 'presented an unusual hour as available without flagging that service hours are unconfirmed';
   },
 
   offers_alternative: (turns) => {
     const last = turns[turns.length - 1];
-    const offersChange = /\b(instead|another day|different day|weekday|monday|tuesday|wednesday|thursday|friday|earlier|later|public transit|BART|one[- ]way|part of the way|as far as)\b/i.test(last.message);
+    const offersChange = /\b(instead|another day|different day|weekdays?|mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|earlier|later|public transit|BART|taxi|rideshare|one[- ]way|part of the way|as far as)\b/i
+      .test(last.message);
     return offersChange ? null : 'no alternative or fallback offered when the trip could not be served';
   },
 
