@@ -164,9 +164,9 @@ function sanitizeAttachmentForChat(attachment: Attachment): Attachment {
 // Overridable by secret so the model can be changed or rolled back without a deploy.
 const BEDROCK_MODEL_ID = Deno.env.get("CHAT_MODEL_ID") || "us.anthropic.claude-opus-5";
 
-// Reasoning depth: low | medium | high | xhigh | max. Raising this trades latency for
-// better eligibility reasoning and clearer explanations of why a trip cannot be served.
-const CHAT_EFFORT = Deno.env.get("CHAT_EFFORT") || "high";
+// Reasoning depth: low | medium | high | xhigh | max. Medium keeps turn latency usable
+// during a live rider phone call; raise it if eligibility reasoning needs to be deeper.
+const CHAT_EFFORT = Deno.env.get("CHAT_EFFORT") || "medium";
 
 // Opus 5 has adaptive thinking on by default, and this ceiling covers thinking plus the
 // visible response together — too low a value truncates the answer mid-sentence.
