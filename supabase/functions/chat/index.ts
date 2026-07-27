@@ -55,7 +55,12 @@ Provider handoff rules:
 - Do not say a booking is complete or that OPTIMAT will send information to a provider.
 
 For provider facts not in internal data, use general_provider_question and keep the query in California Bay Area context.
-Call tools directly when needed. Keep responses concise and clear.`;
+Call tools directly when needed.
+
+Writing for riders:
+- Lead with the answer. The first sentence says what you found or what you need, not what you are about to do.
+- Keep it short enough to read aloud over the phone. Include the details that change the rider's next step (who to call, when to book by, whether they qualify) and drop the rest.
+- Give a fact once. Do not restate a provider count, a date, or an eligibility rule you have already stated in the same message.`;
 
 // Types
 interface ChatRequest {
@@ -155,11 +160,30 @@ function sanitizeAttachmentForChat(attachment: Attachment): Attachment {
   };
 }
 
-// Bedrock model ID for Claude Haiku 4.5
-const BEDROCK_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0";
+// Claude Opus 5 on Bedrock, as a us-west-1 cross-region inference profile.
+// Overridable by secret so the model can be changed or rolled back without a deploy.
+const BEDROCK_MODEL_ID = Deno.env.get("CHAT_MODEL_ID") || "us.anthropic.claude-opus-5";
+
+// Reasoning depth: low | medium | high | xhigh | max. Raising this trades latency for
+// better eligibility reasoning and clearer explanations of why a trip cannot be served.
+const CHAT_EFFORT = Deno.env.get("CHAT_EFFORT") || "high";
+
+// Opus 5 has adaptive thinking on by default, and this ceiling covers thinking plus the
+// visible response together — too low a value truncates the answer mid-sentence.
+const MAX_RESPONSE_TOKENS = Number(Deno.env.get("CHAT_MAX_TOKENS") || 8000);
 
 // Maximum number of tool call iterations to prevent infinite loops
 const MAX_TOOL_ITERATIONS = 6;
+
+/**
+ * Opus 5 returns a reasoningContent block that the pinned AWS SDK cannot deserialize; it
+ * arrives as {"$unknown": [...]} and Bedrock rejects it when echoed back, failing the turn.
+ * The block carries no readable text (Opus 5 never returns raw thinking), so dropping it
+ * loses nothing. Verified against Bedrock: a stripped assistant turn is accepted.
+ */
+function sanitizeAssistantContent(content: any[]): any[] {
+  return content.filter((block) => block && !("$unknown" in block));
+}
 
 // Convert tool definitions to Bedrock format
 function convertToolsToBedrockFormat(tools: typeof toolDefinitions): any[] {
@@ -315,7 +339,10 @@ serve(async (req: Request) => {
           tools: bedrockTools,
         },
         inferenceConfig: {
-          maxTokens: 1500,
+          maxTokens: MAX_RESPONSE_TOKENS,
+        },
+        additionalModelRequestFields: {
+          output_config: { effort: CHAT_EFFORT },
         },
       });
 
@@ -399,11 +426,19 @@ serve(async (req: Request) => {
       }
 
       // Add assistant response and tool results to message history
+      const assistantContent = sanitizeAssistantContent(outputContent);
+      if (assistantContent.length === 0) {
+        console.error("Assistant turn had no serializable content; ending tool loop", {
+          block_keys: outputContent.map((block) => Object.keys(block)[0]),
+        });
+        break;
+      }
+
       currentMessages = [
         ...currentMessages,
         {
           role: "assistant" as const,
-          content: outputContent,
+          content: assistantContent,
         },
         {
           role: "user" as const,
