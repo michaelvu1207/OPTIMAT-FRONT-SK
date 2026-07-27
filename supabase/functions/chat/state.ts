@@ -392,6 +392,26 @@ export function buildFactsBlock(state: TripState): string {
   return lines.join("\n");
 }
 
+/**
+ * Drop digests older than 30 days so stale rider eligibility answers cannot linger.
+ *
+ * pg_cron is not installed on this project, so the scheduled job in the migration was skipped and
+ * this is the only thing enforcing retention. Deliberately not awaited: it must never add latency
+ * to a rider's turn, and a missed run is corrected by the next new conversation.
+ */
+function purgeStaleStateInBackground(supabase: DatabaseClient): void {
+  try {
+    const result = supabase.rpc("purge_stale_chat_trip_state");
+    Promise.resolve(result)
+      .then(({ error }: { error: unknown }) => {
+        if (error) console.warn("Chat trip state purge failed:", error);
+      })
+      .catch((error: unknown) => console.warn("Chat trip state purge failed:", error));
+  } catch (error) {
+    console.warn("Chat trip state purge could not start:", error);
+  }
+}
+
 export async function loadTripState(supabase: DatabaseClient, conversationId: string): Promise<TripState> {
   try {
     const { data, error } = await supabase
@@ -400,7 +420,11 @@ export async function loadTripState(supabase: DatabaseClient, conversationId: st
       .eq("conversation_id", conversationId)
       .maybeSingle();
 
-    if (error || !data) return emptyTripState();
+    if (error || !data) {
+      // First turn of this conversation: a cheap, infrequent moment to run retention.
+      purgeStaleStateInBackground(supabase);
+      return emptyTripState();
+    }
     return {
       trip: asRecord(data.trip) as TripFacts || {},
       last_search: asRecord(data.last_search) as SearchDigest | null,

@@ -1031,6 +1031,49 @@ function providerNames(providers: Provider[]): string[] {
     .map((provider) => String(provider.provider_name || "Unnamed provider"));
 }
 
+function formatClock(hhmm: string): string {
+  const minutes = parseTimeToMinutes(hhmm);
+  if (minutes === null) return hhmm;
+  const hours = Math.floor(minutes / 60);
+  const suffix = hours < 12 || hours === 24 ? "AM" : "PM";
+  const display = hours % 12 === 0 ? 12 : hours % 12;
+  const mins = minutes % 60;
+  return `${display}${mins ? `:${String(mins).padStart(2, "0")}` : ""} ${suffix}`;
+}
+
+/** "Monday-Thursday 9:30 AM-3 PM", from the provider's own service_hours entries. */
+function describeServiceHours(provider: Provider): string | null {
+  let serviceHours = provider.service_hours;
+  if (typeof serviceHours === "string") {
+    try {
+      serviceHours = JSON.parse(serviceHours);
+    } catch {
+      return null;
+    }
+  }
+  const entries = (serviceHours as { hours?: Array<{ day?: string; start?: string; end?: string }> })?.hours;
+  if (!Array.isArray(entries) || entries.length === 0) return null;
+
+  const parts: string[] = [];
+  for (const entry of entries.slice(0, 3)) {
+    const mask = entry.day || "1111111";
+    const days: string[] = [];
+    let runStart = -1;
+    for (let index = 0; index <= 7; index++) {
+      const active = index < 7 && mask[index] === "1";
+      if (active && runStart === -1) runStart = index;
+      if (!active && runStart !== -1) {
+        const end = index - 1;
+        days.push(runStart === end ? DAY_NAMES[runStart] : `${DAY_NAMES[runStart]}-${DAY_NAMES[end]}`);
+        runStart = -1;
+      }
+    }
+    if (days.length === 0) continue;
+    parts.push(`${days.join(", ")} ${formatClock(entry.start || "0000")}-${formatClock(entry.end || "2400")}`);
+  }
+  return parts.length > 0 ? parts.join("; ") : null;
+}
+
 function shiftTime(time: string, deltaMinutes: number): string | null {
   const minutes = parseTimeToMinutes(time);
   if (minutes === null) return null;
@@ -1097,8 +1140,14 @@ export function relaxSearch(
     return alternatives;
   }
 
-  // A different day, when the requested one is outside every provider's hours.
-  if (primary.schedule.length === 0) {
+  // Providers that could serve the trip geographically but were dropped on the requested day or
+  // time. Reported even when other providers did match: a rider offered one option is still owed
+  // "this other service would work on Monday" rather than silence about why it vanished.
+  const scheduleExcluded = primary.geography.both.filter(
+    (provider) => !primary.schedule.includes(provider),
+  );
+
+  if (scheduleExcluded.length > 0) {
     const requestedDayIndex = getDayIndexFromDate(params.travel_date);
     const workingDays: string[] = [];
     const dayProviders = new Set<string>();
@@ -1106,7 +1155,7 @@ export function relaxSearch(
       if (dayIndex === requestedDayIndex) continue;
       const candidateDate = dateForWeekday(params.travel_date, dayIndex);
       if (!candidateDate) continue;
-      const matches = filterBySchedule(primary.geography.both, { ...params, travel_date: candidateDate });
+      const matches = filterBySchedule(scheduleExcluded, { ...params, travel_date: candidateDate });
       if (matches.length > 0) {
         workingDays.push(DAY_NAMES[dayIndex]);
         for (const name of providerNames(matches)) dayProviders.add(name);
@@ -1124,7 +1173,7 @@ export function relaxSearch(
     for (const delta of [-120, -60, 60, 120]) {
       const shifted = shiftTime(params.departure_time, delta);
       if (!shifted) continue;
-      const matches = filterBySchedule(primary.geography.both, { ...params, departure_time: shifted });
+      const matches = filterBySchedule(scheduleExcluded, { ...params, departure_time: shifted });
       if (matches.length > 0) {
         add({
           change: "shift_time",
@@ -1138,7 +1187,7 @@ export function relaxSearch(
 
     // A round trip can fail purely on the return leg; the outbound may be servable on its own.
     if (params.trip_type === "round_trip" && params.return_time) {
-      const outboundOnly = filterBySchedule(primary.geography.both, { ...params, trip_type: "one_way" });
+      const outboundOnly = filterBySchedule(scheduleExcluded, { ...params, trip_type: "one_way" });
       if (outboundOnly.length > 0) {
         add({
           change: "one_way_instead",
@@ -1147,6 +1196,21 @@ export function relaxSearch(
           count: outboundOnly.length,
         });
       }
+    }
+
+    // Whatever the variants above did or did not find, a provider excluded on schedule can always
+    // be explained by stating its own hours. Searching a grid of nearby days and times misses the
+    // common case where both need to change at once: a 7am Sunday request against a service that
+    // runs Monday-Thursday from 9:30am is outside every variant, yet trivially explainable.
+    for (const provider of scheduleExcluded) {
+      const window = describeServiceHours(provider);
+      if (!window) continue;
+      add({
+        change: "provider_schedule",
+        description: `${provider.provider_name} serves this trip, but only ${window}`,
+        providers: [String(provider.provider_name || "Unnamed provider")],
+        count: 1,
+      });
     }
   }
 

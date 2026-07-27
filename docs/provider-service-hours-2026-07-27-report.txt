@@ -1,0 +1,151 @@
+
+23 accepted · 5 no hours found · 2 rejected
+
+Accepted:
+  ✓ County Connection (1001) [medium]
+      Mon,Tue,Wed,Thu,Fri 0434-2218
+      Sat,Sun 0641-2121
+      source: https://files.mobilitydatabase.org/mdb-2421/latest.zip
+      quote:  "Summer_WKDY,1,1,1,1,1,0,0,20260607,20260808; Summer_SAT,0,0,0,0,0,1,0,20260607,20260808; Summer_SUN,0,0,0,0,0,0,1,20260607,20260808; 607306,4:34:00,4:"
+      notes:  Current summer schedule through Aug 8, 2026. Jul 3 uses Saturday service; no service Jul 4. Span inferred from first departures and last arrivals in GTFS.
+  ✓ Tri Delta Transit (1002) [medium]
+      Mon,Tue,Wed,Thu,Fri 0400-2400
+      Sat,Sun 0632-2348
+      source: https://files.mobilitydatabase.org/mdb-1974/latest.zip
+      quote:  "72969,1,1,1,1,1,0,0,20251116,20271231; 72970,1,1,1,1,1,0,0,20251116,20260808; 82802,0,0,0,0,0,1,0,20251116,20260808; 82805,0,0,0,0,0,0,1,20251116,2026"
+      notes:  Current schedule through Aug 8, 2026; weekday trips continue to 00:50 but end is capped at 2400. Published schedule changes take effect Aug 9.
+  ✓ WestCAT (1003) [medium]
+      Mon,Tue,Wed,Thu,Fri 0415-2400
+      Sat,Sun 0706-2206
+      source: https://data.trilliumtransit.com/gtfs/westcat-ca-us/westcat-ca-us.zip
+      quote:  "c_71697_b_86042_d_31,Route J (February 2026) (Weekday),1,1,1,1,1,0,0,20260207,20260831; 6129809860420,04:15:00,04:15:00,791571,1,,0,0,0,0; 61298348604"
+      notes:  Weekday Route J continues to 00:45; end is capped at 2400. Holiday service varies between Saturday and Sunday schedules by holiday.
+  ✓ AC Transit (1004) [medium]
+      Mon,Tue,Wed,Thu,Fri,Sat,Sun 0000-2400
+      source: https://www.actransit.org/all-nighter
+      quote:  "AC Transit provides reliable late-night and early-morning buses across the East Bay and into San Francisco, operating from midnight to 7 a.m. With sev"
+      notes:  All Nighter routes cover midnight-7 a.m.; regular daytime routes cover the remainder. Sunday schedules operate on listed holidays.
+  ✓ BART (1005) [high]
+      Mon,Tue,Wed,Thu,Fri 0500-2400
+      Sat 0600-2400
+      Sun 0800-2400
+      source: https://www.bart.gov/schedules
+      quote:  "BART service hours: Weekdays (5:00 am- Midnight) Saturday (6:00 am - Midnight) Sunday (8:00 am - Midnight)"
+      notes:  Holiday schedules may differ; BART directs riders to its holiday schedule and trip planner.
+  ✓ LINK Paratransit (2006) [high]
+      Mon,Tue,Wed,Thu,Fri 0500-2400
+      Sat 0600-2400
+      Sun 0700-2400
+      source: https://countyconnection.com/paratransit/service-area/
+      quote:  "Weekday LINK Service Area Monday – Friday: 5:00am–12:00am Weekend LINK Service Area Saturday: 6:00am–12:00am Sunday: 7:00am–12:00am"
+      notes:  Hours vary with fixed-route schedules. On listed holidays, both trip ends must be within 3/4 mile of an operating BART station; subscriptions are canceled.
+  ✓ WestCAT Paratransit (2007) [high]
+      Mon,Tue,Wed,Thu,Fri 0444-2400
+      Sat 0550-2303
+      Sun 0710-2204
+      source: https://www.westcat.org/Content/pdf/ADA-Paratransit-Guide-English-6-2026.pdf
+      quote:  "WestCAT Provides ADA Paratransit Service Directly on the Following Days and Hours: Monday-Friday 6:00 a.m. to 8:00 p.m. Saturdays 9:00 a.m. to 7:00 p."
+      notes:  WestCAT runs 6am–8pm weekdays and 9am–7pm Saturday; East Bay Paratransit covers early/late/Sunday. Weekday end was capped from 12:14am to 2400.
+  ✓ WestCAT Senior Dial-A-Ride (2008) [high]
+      Mon,Tue,Wed,Thu,Fri 0600-2000
+      Sat 0900-1900
+      source: https://www.westcat.org/Content/pdf/Senior-Dial-A-Ride-Guide-English-6-2026.pdf
+      quote:  "Monday-Friday 6:00 a.m. to 8:00 p.m. Saturdays 9:00 a.m. to 7:00 p.m. Sundays No Service Available"
+      notes:  No Sunday or holiday service. Modified schedules may operate on Christmas Eve and New Year's Eve.
+  ✓ TDT Senior Paratransit (2010) [high]
+      Mon,Tue,Wed,Thu,Fri 0630-1730
+      Sat 1000-1730
+      source: https://trideltatransit.com/paratransit/senior-riders-guide/
+      quote:  "Senior Paratransit Transportation Hours Monday – Friday: 6:30 a.m. to 5:30 p.m. Saturday: 10:00 a.m. to 5:30 p.m. Sunday/Holidays: No service availabl"
+      notes:  Rides are shared and subject to availability; no Sunday or holiday service.
+  ✓ Wheels Dial-a-Ride (2011) [high]
+      Mon,Tue,Wed,Thu,Fri 0430-2400
+      Sat,Sun 0500-2330
+      source: https://www.wheelsbus.com/dial-a-ride/
+      quote:  "Service hours: Weekdays: 4:30 am to midnight Weekends: 5:00 am to 11:30 pm"
+      notes:  Operates during the same days and hours as Wheels fixed-route service; reservations are 8:30 a.m.–5:00 p.m.
+  ✓ TDT ADA Paratransit (2029) [high]
+      Mon,Tue,Wed,Thu,Fri 0400-2400
+      Sat 0600-2400
+      Sun 0700-2400
+      source: https://trideltatransit.com/paratransit/ada-paratransit/
+      quote:  "Hours of operation for ADA paratransit services are: Monday – Friday 4:00 a.m. to midnight Saturday 6:00 a.m. to 1:00 a.m. Sunday/Holidays 7:00 a.m. t"
+      notes:  Saturday, Sunday, and holiday service continues to 1:00 a.m.; output is capped at 2400 as required.
+  ✓ Rossmoor Dial-A-Bus (3013) [high]
+      Mon,Tue,Wed,Thu,Fri 0720-1800
+      source: https://myrossmoor.com/community-services-programs/transportation/
+      quote:  "Service Mon - Fri Downtown Sat - Sun Holidays Hours 7:20am - 6pm On the Hour, 8am - 6pm Temporarily Suspended Limited Service (Call day before)"
+      notes:  Weekend service is temporarily suspended. Holidays have limited service by prior-day call; valid Rossmoor ID required.
+  ✓ R-Transit (Richmond) (3014) [high]
+      Mon,Tue,Wed,Thu,Fri 0845-1615
+      source: https://www.ci.richmond.ca.us/DocumentCenter/View/78983
+      quote:  "Operating Hours M-F, 8:30 am -5 pm, excluding city holidays ... The first pick up is at 8:45 am, and last pick up is at 4:15 pm."
+      notes:  Van service only; no city holidays. RAPID ride-hailing is separately listed as 24/7 for registered clients.
+  ✓ Easy Ride Paratransit Services (El Cerrito) (3015) [high]
+      Mon,Tue,Wed,Thu 0930-1500
+      source: https://www.elcerrito.gov/285/Easy-Ride-Paratransit-Service-Ages-65
+      quote:  "Service hours Monday - Thursday: 9:30AM-3PM"
+      notes:  Trips require scheduling at least one business day ahead; reservations depend on driver availability.
+  ✓ San Pablo Senior & Disabled Transportation (3016) [high]
+      Mon,Tue,Wed,Thu,Fri 0900-1530
+      source: https://www.sanpabloca.gov/DocumentCenter/View/18760/April-2026-Bellringer
+      quote:  "Monday - Friday First Ride 9:00AM | Last ride 3:30PM"
+      notes:  Enrollment is required; riders must renew eligibility each July.
+  ✓ Senior Express Van (San Ramon) (3017) [medium]
+      Mon,Tue,Wed,Thu,Fri 0830-1300
+      source: https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation
+      quote:  "The Senior Express Van operates Monday through Friday. ... Tuesday 8:30am 1:00pm ... Friday 8:30am 1:00pm"
+      notes:  Reserve 24 hours ahead. The 1 PM center departure is later for special events; the page lists 2:45 PM for Monday Movie Matinee.
+  ✓ Pleasant Hill Van Service (4023) [high]
+      Mon,Tue,Wed,Thu 0900-1200
+      Mon,Tue,Wed,Thu 1300-1600
+      Fri 0900-1200
+      source: https://www.phillca.gov/402/Senior-Van-Information
+      quote:  "The Senior Van operates anywhere in Pleasant Hill from 9:00 a.m. - 12:00 p.m. and 1:00 p.m. - 4:00 p.m. Monday - Thursday, as well as 9:00 a.m. - 12:0"
+      notes:  Closed on City holidays. Reservations are required one business day ahead and are taken weekdays 9:00-11:00 a.m.
+  ✓ Seniors Around Town (Orinda) (4024) [high]
+      Mon,Tue,Wed,Thu,Fri 0900-1400
+      source: https://orindaassociation.org/seniors-around-town
+      quote:  "Orinda volunteer drivers using their own personal vehicles provide rides to doctors’ appointments, errands and social events in the Lamorinda, Berkele"
+      notes:  Volunteer-driver service; one week notice is required, and a ride depends on staff finding an available driver.
+  ✓ Walnut Creek Mini Bus (4025) [high]
+      Tue,Wed,Thu 0900-1400
+      source: https://r.jina.ai/http://www.walnutcreekartsrec.org/programs-activities/transportation-program
+      quote:  "Mini Bus drivers provide rides to locations only in Walnut Creek on Tuesdays, Wednesdays and Thursdays from our first pick up starting at 9 am and our"
+      notes:  Last pickup is scheduled at 2:00 p.m.; rides stay within Walnut Creek. Reserve 2-7 business days ahead.
+  ✓ Go San Ramon! (5028) [high]
+      Mon,Tue,Wed,Thu,Fri 0430-2300
+      Sat,Sun 0700-2230
+      source: https://countyconnection.com/routes/gosanramon/?output=1
+      quote:  "Go San Ramon is valid for trips on any day of the week during County Connection’s regular fixed-route service hours: Weekdays, 4:30 am – 11:00 pm Week"
+      notes:  Qualifying Uber/Lyft shared rides must follow the published zone rules; actual driver availability may vary.
+  ✓ Richmond Moves (5029) [high]
+      Mon,Tue,Wed,Thu,Fri 0700-1900
+      source: https://city.ridewithvia.com/richmond-moves
+      quote:  "Service hours Monday to Friday 7am - 7pm"
+      notes:  On-demand corner-to-corner service; wheelchair users can request WAV and door-to-door service. No weekend service is published.
+  ✓ Walnut Creek Lyft Self Access Pass (5031) [high]
+      Mon,Tue,Wed,Thu,Fri,Sat,Sun 0800-2100
+      source: https://r.jina.ai/http://www.walnutcreekartsrec.org/programs-activities/transportation-program
+      quote:  "Schedule trips daily between 8:00am and 9:00pm within Walnut Creek, Concord, Clayton, Pleasant Hill and Martinez."
+      notes:  10 one-way rides per month; current waitlist. Membership term shown is July 1, 2026–June 30, 2027.
+  ✓ Concord Senior Center Shuttle (5033) [high]
+      Mon,Tue,Wed,Thu 0900-1530
+      source: https://www.cityofconcord.org/952/Senior-Center-Transportation-Program
+      quote:  "The Senior Center Shuttle is a free, curb-to-curb van service from your home to the Concord Senior Center Monday through Thursday. Hours of operation "
+      notes:  Home–Senior Center only; reserve 2–7 business days ahead. Reservation hours are Monday–Thursday, 9–10am.
+
+No service hours established (left NULL):
+  · East Bay Paratransit (2009) [service] No single span is published; availability depends on the operating route or station near both origin and destination.
+  · One-Seat Regional Ride (2012) [unknown] Official home, How To Ride, FAQ, and partner pages explain reservations but publish no vehicle service span.
+  · Mobility Matters (4021) [unknown] Volunteer drivers choose weekly ride requests based on their availability; no fixed service span is published.
+  · Lamorinda Spirit (4022) [booking_only] Rides are described Monday-Friday with morning and afternoon drivers, but no numeric ride span is published; 1:00-4:30 is dispatch only.
+  · Walnut Creek Lyft Concierge Pass (5032) [booking_only] Current waitlist; reserve 2–7 business days ahead. The page references weekend rides but gives no pickup/service span.
+
+Rejected:
+  ✗ Wheels Go Tri-Valley (1018)
+      - evidence_quote describes a promotion/discount window rather than when service operates
+  ✗ GoGo Concord (5027)
+      - evidence_quote contains no clock time — hours cannot be derived from prose like "day or night"
+
+Wrote 23 validated providers to /tmp/hours/accepted-all.json

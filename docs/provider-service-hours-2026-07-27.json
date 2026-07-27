@@ -1,0 +1,455 @@
+[
+  {
+    "provider_id": 1001,
+    "provider_name": "County Connection",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0434",
+        "end": "2218"
+      },
+      {
+        "day": "0000011",
+        "start": "0641",
+        "end": "2121"
+      }
+    ],
+    "source_url": "https://files.mobilitydatabase.org/mdb-2421/latest.zip",
+    "evidence_quote": "Summer_WKDY,1,1,1,1,1,0,0,20260607,20260808; Summer_SAT,0,0,0,0,0,1,0,20260607,20260808; Summer_SUN,0,0,0,0,0,0,1,20260607,20260808; 607306,4:34:00,4:34:00,2193,1,WC BART,0,1,,1; 606157,22:18:00,22:18:00,883,13,CONCORD BART,1,0,,1; 606674,6:41:00,6:41:00,2250,1,SAN RAMON TC,0,1,,1; 606701,21:21:00,21:21:00,2250,45,WC BART,1,0,,1",
+    "hours_kind": "service",
+    "confidence": "medium",
+    "notes": "Current summer schedule through Aug 8, 2026. Jul 3 uses Saturday service; no service Jul 4. Span inferred from first departures and last arrivals in GTFS."
+  },
+  {
+    "provider_id": 1002,
+    "provider_name": "Tri Delta Transit",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0400",
+        "end": "2400"
+      },
+      {
+        "day": "0000011",
+        "start": "0632",
+        "end": "2348"
+      }
+    ],
+    "source_url": "https://files.mobilitydatabase.org/mdb-1974/latest.zip",
+    "evidence_quote": "72969,1,1,1,1,1,0,0,20251116,20271231; 72970,1,1,1,1,1,0,0,20251116,20260808; 82802,0,0,0,0,0,1,0,20251116,20260808; 82805,0,0,0,0,0,0,1,20251116,20260808; 21,4:00:00,4:00:00,817754,1,,0,0,,1; 1039,24:50:00,24:50:00,817754,37,,0,0,,1; 1067,6:32:00,6:32:00,817754,1,,0,0,,1; 1282,23:48:00,23:48:00,817754,37,,0,0,,1",
+    "hours_kind": "service",
+    "confidence": "medium",
+    "notes": "Current schedule through Aug 8, 2026; weekday trips continue to 00:50 but end is capped at 2400. Published schedule changes take effect Aug 9."
+  },
+  {
+    "provider_id": 1003,
+    "provider_name": "WestCAT",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0415",
+        "end": "2400"
+      },
+      {
+        "day": "0000011",
+        "start": "0706",
+        "end": "2206"
+      }
+    ],
+    "source_url": "https://data.trilliumtransit.com/gtfs/westcat-ca-us/westcat-ca-us.zip",
+    "evidence_quote": "c_71697_b_86042_d_31,Route J (February 2026) (Weekday),1,1,1,1,1,0,0,20260207,20260831; 6129809860420,04:15:00,04:15:00,791571,1,,0,0,0,0; 6129834860420,24:45:00,24:45:00,791638,29,,0,0,23314.492271140014,1; c_71697_b_86042_d_96,Route J (February 2026) (Weekend),0,0,0,0,0,1,1,20260207,20260831; 6129762860420,07:06:00,07:06:00,791638,1,,0,0,0,1; 6129843860420,22:06:00,22:06:00,791638,29,,0,0,23314.492271140014,1",
+    "hours_kind": "service",
+    "confidence": "medium",
+    "notes": "Weekday Route J continues to 00:45; end is capped at 2400. Holiday service varies between Saturday and Sunday schedules by holiday."
+  },
+  {
+    "provider_id": 1004,
+    "provider_name": "AC Transit",
+    "hours": [
+      {
+        "day": "1111111",
+        "start": "0000",
+        "end": "2400"
+      }
+    ],
+    "source_url": "https://www.actransit.org/all-nighter",
+    "evidence_quote": "AC Transit provides reliable late-night and early-morning buses across the East Bay and into San Francisco, operating from midnight to 7 a.m. With seven routes stopping at many BART stations, we've got your late-night travel covered.",
+    "hours_kind": "service",
+    "confidence": "medium",
+    "notes": "All Nighter routes cover midnight-7 a.m.; regular daytime routes cover the remainder. Sunday schedules operate on listed holidays."
+  },
+  {
+    "provider_id": 1005,
+    "provider_name": "BART",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0500",
+        "end": "2400"
+      },
+      {
+        "day": "0000010",
+        "start": "0600",
+        "end": "2400"
+      },
+      {
+        "day": "0000001",
+        "start": "0800",
+        "end": "2400"
+      }
+    ],
+    "source_url": "https://www.bart.gov/schedules",
+    "evidence_quote": "BART service hours: Weekdays (5:00 am- Midnight) Saturday (6:00 am - Midnight) Sunday (8:00 am - Midnight)",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Holiday schedules may differ; BART directs riders to its holiday schedule and trip planner."
+  },
+  {
+    "provider_id": 2006,
+    "provider_name": "LINK Paratransit",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0500",
+        "end": "2400"
+      },
+      {
+        "day": "0000010",
+        "start": "0600",
+        "end": "2400"
+      },
+      {
+        "day": "0000001",
+        "start": "0700",
+        "end": "2400"
+      }
+    ],
+    "source_url": "https://countyconnection.com/paratransit/service-area/",
+    "evidence_quote": "Weekday LINK Service Area Monday – Friday: 5:00am–12:00am Weekend LINK Service Area Saturday: 6:00am–12:00am Sunday: 7:00am–12:00am",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Hours vary with fixed-route schedules. On listed holidays, both trip ends must be within 3/4 mile of an operating BART station; subscriptions are canceled."
+  },
+  {
+    "provider_id": 2007,
+    "provider_name": "WestCAT Paratransit",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0444",
+        "end": "2400"
+      },
+      {
+        "day": "0000010",
+        "start": "0550",
+        "end": "2303"
+      },
+      {
+        "day": "0000001",
+        "start": "0710",
+        "end": "2204"
+      }
+    ],
+    "source_url": "https://www.westcat.org/Content/pdf/ADA-Paratransit-Guide-English-6-2026.pdf",
+    "evidence_quote": "WestCAT Provides ADA Paratransit Service Directly on the Following Days and Hours: Monday-Friday 6:00 a.m. to 8:00 p.m. Saturdays 9:00 a.m. to 7:00 p.m. Sundays Service is provided by East Bay Paratransit. WestCAT Coordinates with East Bay Paratransit to Provide Early Morning, Late Night, and Sunday ADA Paratransit Service as Follows: Monday-Friday 4:44 a.m. to 6:00 a.m. 8:00 p.m. to 12:14 a.m. Saturday 5:50 a.m. to 9:00 a.m. 7:00 p.m. to 11:03 p.m. Sunday 7:10 a.m. to 10:04 p.m.",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "WestCAT runs 6am–8pm weekdays and 9am–7pm Saturday; East Bay Paratransit covers early/late/Sunday. Weekday end was capped from 12:14am to 2400."
+  },
+  {
+    "provider_id": 2008,
+    "provider_name": "WestCAT Senior Dial-A-Ride",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0600",
+        "end": "2000"
+      },
+      {
+        "day": "0000010",
+        "start": "0900",
+        "end": "1900"
+      }
+    ],
+    "source_url": "https://www.westcat.org/Content/pdf/Senior-Dial-A-Ride-Guide-English-6-2026.pdf",
+    "evidence_quote": "Monday-Friday 6:00 a.m. to 8:00 p.m. Saturdays 9:00 a.m. to 7:00 p.m. Sundays No Service Available",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "No Sunday or holiday service. Modified schedules may operate on Christmas Eve and New Year's Eve."
+  },
+  {
+    "provider_id": 2010,
+    "provider_name": "TDT Senior Paratransit",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0630",
+        "end": "1730"
+      },
+      {
+        "day": "0000010",
+        "start": "1000",
+        "end": "1730"
+      }
+    ],
+    "source_url": "https://trideltatransit.com/paratransit/senior-riders-guide/",
+    "evidence_quote": "Senior Paratransit Transportation Hours Monday – Friday: 6:30 a.m. to 5:30 p.m. Saturday: 10:00 a.m. to 5:30 p.m. Sunday/Holidays: No service available",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Rides are shared and subject to availability; no Sunday or holiday service."
+  },
+  {
+    "provider_id": 2011,
+    "provider_name": "Wheels Dial-a-Ride",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0430",
+        "end": "2400"
+      },
+      {
+        "day": "0000011",
+        "start": "0500",
+        "end": "2330"
+      }
+    ],
+    "source_url": "https://www.wheelsbus.com/dial-a-ride/",
+    "evidence_quote": "Service hours: Weekdays: 4:30 am to midnight Weekends: 5:00 am to 11:30 pm",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Operates during the same days and hours as Wheels fixed-route service; reservations are 8:30 a.m.–5:00 p.m."
+  },
+  {
+    "provider_id": 2029,
+    "provider_name": "TDT ADA Paratransit",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0400",
+        "end": "2400"
+      },
+      {
+        "day": "0000010",
+        "start": "0600",
+        "end": "2400"
+      },
+      {
+        "day": "0000001",
+        "start": "0700",
+        "end": "2400"
+      }
+    ],
+    "source_url": "https://trideltatransit.com/paratransit/ada-paratransit/",
+    "evidence_quote": "Hours of operation for ADA paratransit services are: Monday – Friday 4:00 a.m. to midnight Saturday 6:00 a.m. to 1:00 a.m. Sunday/Holidays 7:00 a.m. to 1:00 a.m.",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Saturday, Sunday, and holiday service continues to 1:00 a.m.; output is capped at 2400 as required."
+  },
+  {
+    "provider_id": 3013,
+    "provider_name": "Rossmoor Dial-A-Bus",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0720",
+        "end": "1800"
+      }
+    ],
+    "source_url": "https://myrossmoor.com/community-services-programs/transportation/",
+    "evidence_quote": "Service Mon - Fri Downtown Sat - Sun Holidays Hours 7:20am - 6pm On the Hour, 8am - 6pm Temporarily Suspended Limited Service (Call day before)",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Weekend service is temporarily suspended. Holidays have limited service by prior-day call; valid Rossmoor ID required."
+  },
+  {
+    "provider_id": 3014,
+    "provider_name": "R-Transit (Richmond)",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0845",
+        "end": "1615"
+      }
+    ],
+    "source_url": "https://www.ci.richmond.ca.us/DocumentCenter/View/78983",
+    "evidence_quote": "Operating Hours M-F, 8:30 am -5 pm, excluding city holidays ... The first pick up is at 8:45 am, and last pick up is at 4:15 pm.",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Van service only; no city holidays. RAPID ride-hailing is separately listed as 24/7 for registered clients."
+  },
+  {
+    "provider_id": 3015,
+    "provider_name": "Easy Ride Paratransit Services (El Cerrito)",
+    "hours": [
+      {
+        "day": "1111000",
+        "start": "0930",
+        "end": "1500"
+      }
+    ],
+    "source_url": "https://www.elcerrito.gov/285/Easy-Ride-Paratransit-Service-Ages-65",
+    "evidence_quote": "Service hours Monday - Thursday: 9:30AM-3PM",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Trips require scheduling at least one business day ahead; reservations depend on driver availability."
+  },
+  {
+    "provider_id": 3016,
+    "provider_name": "San Pablo Senior & Disabled Transportation",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0900",
+        "end": "1530"
+      }
+    ],
+    "source_url": "https://www.sanpabloca.gov/DocumentCenter/View/18760/April-2026-Bellringer",
+    "evidence_quote": "Monday - Friday First Ride 9:00AM | Last ride 3:30PM",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Enrollment is required; riders must renew eligibility each July."
+  },
+  {
+    "provider_id": 3017,
+    "provider_name": "Senior Express Van (San Ramon)",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0830",
+        "end": "1300"
+      }
+    ],
+    "source_url": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
+    "evidence_quote": "The Senior Express Van operates Monday through Friday. ... Tuesday 8:30am 1:00pm ... Friday 8:30am 1:00pm",
+    "hours_kind": "service",
+    "confidence": "medium",
+    "notes": "Reserve 24 hours ahead. The 1 PM center departure is later for special events; the page lists 2:45 PM for Monday Movie Matinee."
+  },
+  {
+    "provider_id": 4023,
+    "provider_name": "Pleasant Hill Van Service",
+    "hours": [
+      {
+        "day": "1111000",
+        "start": "0900",
+        "end": "1200"
+      },
+      {
+        "day": "1111000",
+        "start": "1300",
+        "end": "1600"
+      },
+      {
+        "day": "0000100",
+        "start": "0900",
+        "end": "1200"
+      }
+    ],
+    "source_url": "https://www.phillca.gov/402/Senior-Van-Information",
+    "evidence_quote": "The Senior Van operates anywhere in Pleasant Hill from 9:00 a.m. - 12:00 p.m. and 1:00 p.m. - 4:00 p.m. Monday - Thursday, as well as 9:00 a.m. - 12:00 p.m. on Fridays. The van service is closed on City holidays.",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Closed on City holidays. Reservations are required one business day ahead and are taken weekdays 9:00-11:00 a.m."
+  },
+  {
+    "provider_id": 4024,
+    "provider_name": "Seniors Around Town (Orinda)",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0900",
+        "end": "1400"
+      }
+    ],
+    "source_url": "https://orindaassociation.org/seniors-around-town",
+    "evidence_quote": "Orinda volunteer drivers using their own personal vehicles provide rides to doctors’ appointments, errands and social events in the Lamorinda, Berkeley and Walnut Creek areas, Monday through Friday, between the hours of 9am and 2pm.",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Volunteer-driver service; one week notice is required, and a ride depends on staff finding an available driver."
+  },
+  {
+    "provider_id": 4025,
+    "provider_name": "Walnut Creek Mini Bus",
+    "hours": [
+      {
+        "day": "0111000",
+        "start": "0900",
+        "end": "1400"
+      }
+    ],
+    "source_url": "https://r.jina.ai/http://www.walnutcreekartsrec.org/programs-activities/transportation-program",
+    "evidence_quote": "Mini Bus drivers provide rides to locations only in Walnut Creek on Tuesdays, Wednesdays and Thursdays from our first pick up starting at 9 am and our last pick up scheduled at 2 pm (see below for how to schedule a Mini Bus ride).",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Last pickup is scheduled at 2:00 p.m.; rides stay within Walnut Creek. Reserve 2-7 business days ahead."
+  },
+  {
+    "provider_id": 5028,
+    "provider_name": "Go San Ramon!",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0430",
+        "end": "2300"
+      },
+      {
+        "day": "0000011",
+        "start": "0700",
+        "end": "2230"
+      }
+    ],
+    "source_url": "https://countyconnection.com/routes/gosanramon/?output=1",
+    "evidence_quote": "Go San Ramon is valid for trips on any day of the week during County Connection’s regular fixed-route service hours: Weekdays, 4:30 am – 11:00 pm Weekends, 7:00 am – 10:30 pm",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Qualifying Uber/Lyft shared rides must follow the published zone rules; actual driver availability may vary."
+  },
+  {
+    "provider_id": 5029,
+    "provider_name": "Richmond Moves",
+    "hours": [
+      {
+        "day": "1111100",
+        "start": "0700",
+        "end": "1900"
+      }
+    ],
+    "source_url": "https://city.ridewithvia.com/richmond-moves",
+    "evidence_quote": "Service hours Monday to Friday 7am - 7pm",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "On-demand corner-to-corner service; wheelchair users can request WAV and door-to-door service. No weekend service is published."
+  },
+  {
+    "provider_id": 5031,
+    "provider_name": "Walnut Creek Lyft Self Access Pass",
+    "hours": [
+      {
+        "day": "1111111",
+        "start": "0800",
+        "end": "2100"
+      }
+    ],
+    "source_url": "https://r.jina.ai/http://www.walnutcreekartsrec.org/programs-activities/transportation-program",
+    "evidence_quote": "Schedule trips daily between 8:00am and 9:00pm within Walnut Creek, Concord, Clayton, Pleasant Hill and Martinez.",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "10 one-way rides per month; current waitlist. Membership term shown is July 1, 2026–June 30, 2027."
+  },
+  {
+    "provider_id": 5033,
+    "provider_name": "Concord Senior Center Shuttle",
+    "hours": [
+      {
+        "day": "1111000",
+        "start": "0900",
+        "end": "1530"
+      }
+    ],
+    "source_url": "https://www.cityofconcord.org/952/Senior-Center-Transportation-Program",
+    "evidence_quote": "The Senior Center Shuttle is a free, curb-to-curb van service from your home to the Concord Senior Center Monday through Thursday. Hours of operation begin at 9:00 a.m., with the last ride home at 3:30 p.m.",
+    "hours_kind": "service",
+    "confidence": "high",
+    "notes": "Home–Senior Center only; reserve 2–7 business days ahead. Reservation hours are Monday–Thursday, 9–10am."
+  }
+]

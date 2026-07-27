@@ -104,6 +104,21 @@ for (const file of files) {
       problems.push('confidence is low — needs a human decision before it reaches riders');
     }
 
+    // An hours claim has to be backed by a quote containing actual clock times. Marketing copy
+    // ("gets seniors where they need to go, anytime, day or night") was otherwise being encoded
+    // as a 24/7 span, which tells a rider a 3am pickup is confirmed.
+    const quoteText = String(row.evidence_quote || '');
+    const hasClockTime = /\d{1,2}\s*(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)|\d{1,2}:\d{2}|\bmidnight\b|\bnoon\b/i.test(quoteText);
+    if (!hasClockTime) {
+      problems.push('evidence_quote contains no clock time — hours cannot be derived from prose like "day or night"');
+    }
+
+    // A discount or promotion window is not a service window. The underlying ride may run all day
+    // while only the subsidy is time-limited, so storing it would hide a real option.
+    if (/\b(promotion|promotional|discount(?:ed)?|coupon|subsid(?:y|ised|ized)|fare deal|off peak deal)\b/i.test(quoteText)) {
+      problems.push('evidence_quote describes a promotion/discount window rather than when service operates');
+    }
+
     if (problems.length > 0) {
       rejected.push({ label, problems, row });
     } else {

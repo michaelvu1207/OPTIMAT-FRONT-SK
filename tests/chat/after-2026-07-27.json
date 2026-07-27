@@ -1,97 +1,37 @@
 {
   "target": "https://htjohidcoyfuwfjecazu.supabase.co/functions/v1",
-  "recorded_at": "2026-07-27T17:30:37.346Z",
+  "recorded_at": "2026-07-27T19:30:27.161Z",
   "totals": {
     "scenarios": 10,
-    "passed": 3,
-    "failed": 7,
-    "assertion_failures": 7,
-    "questions_asked": 3,
-    "searches": 4,
-    "response_chars": 3702,
-    "slowest_turn_ms": 29442
+    "passed": 8,
+    "failed": 2,
+    "assertion_failures": 3,
+    "questions_asked": 13,
+    "searches": 12,
+    "response_chars": 13323,
+    "slowest_turn_ms": 22443
   },
   "results": [
     {
       "id": "s01-senior-with-age",
       "title": "Senior gives an exact age (happy path)",
-      "passed": false,
-      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:25.552Z\"}",
-      "failures": [
-        {
-          "assertion": "transport",
-          "turn": null,
-          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:25.552Z\"}"
-        }
-      ],
-      "metrics": {},
-      "turns": []
-    },
-    {
-      "id": "s02-senior-withholds-age",
-      "title": "Senior who will not give an age",
-      "passed": false,
-      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:26.187Z\"}",
-      "failures": [
-        {
-          "assertion": "transport",
-          "turn": null,
-          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:26.187Z\"}"
-        }
-      ],
-      "metrics": {},
-      "turns": []
-    },
-    {
-      "id": "s03-declines-eligibility",
-      "title": "Rider declines every eligibility question",
-      "passed": false,
-      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:29.950Z\"}",
-      "failures": [
-        {
-          "assertion": "transport",
-          "turn": null,
-          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:29.950Z\"}"
-        }
-      ],
-      "metrics": {},
-      "turns": []
-    },
-    {
-      "id": "s04-zero-coverage",
-      "title": "No provider covers both ends (DVC to San Francisco)",
-      "passed": false,
-      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:31.900Z\"}",
-      "failures": [
-        {
-          "assertion": "transport",
-          "turn": null,
-          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:31.900Z\"}"
-        }
-      ],
-      "metrics": {},
-      "turns": []
-    },
-    {
-      "id": "s05-unconfirmed-hours",
-      "title": "Unusual hour with no service-hours data on file",
-      "conversation_id": "95a7a0f9-024a-4e5d-95c2-46470ce6d05a",
+      "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49",
       "passed": true,
       "failures": [],
       "metrics": {
-        "turns": 1,
-        "questions_asked": 1,
-        "tool_calls": 3,
-        "searches": 1,
-        "total_ms": 29764,
-        "max_turn_ms": 29442,
-        "response_chars": 860
+        "turns": 3,
+        "questions_asked": 4,
+        "tool_calls": 4,
+        "searches": 2,
+        "total_ms": 30002,
+        "max_turn_ms": 12112,
+        "response_chars": 1549
       },
       "turns": [
         {
           "index": 0,
-          "user": "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on Sunday, August 16, 2026 at 5:00 AM, one way. I'm 70, live in San Ramon, not disabled, not ADA-certified, not a veteran.",
-          "message": "You have two options for that 5:00 AM Sunday trip, and you'll need to confirm the time with whoever you call — neither provider's operating hours are on file, so a 5 AM Sunday pickup isn't verified.\n\n**Senior Express Van (San Ramon)** — door-to-door, $5.00 each way, cash. You qualify as a senior 55+, no proof needed. Book at least one day ahead: **(925) 938-7433**.\n\n**Mobility Matters** — volunteer drivers, free, door-to-door. You qualify as a Contra Costa resident 60+. They need 7 days' notice, so call by about August 9: **(925) 284-6161**. They describe themselves as a last-resort option.\n\nTwo other services covering your area, **LINK Paratransit** and **One-Seat Regional Ride**, are ruled out for you — both require a disability certification you don't have.\n\nOPTIMAT can't book the ride, so please call directly. Want more detail on either option?",
+          "user": "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center.",
+          "message": "Good news — that trip is covered by several local services. What day do you need the ride, and what time do you need to be there? Also, will you need a ride back?",
           "attachments": [
             {
               "type": "provider_search",
@@ -111,10 +51,2392 @@
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_LaxbyPJveCX4NIuutY011E",
-                "conversation_id": "95a7a0f9-024a-4e5d-95c2-46470ce6d05a"
+                "tool_use_id": "tooluse_IAOLvFc2f2B2A5zRCQvHoR",
+                "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49"
+              }
+            }
+          ],
+          "latency_ms": 6934,
+          "tools": [
+            "check_trip_coverage"
+          ]
+        },
+        {
+          "index": 1,
+          "user": "I'd like to go on August 12, 2026, leaving at 10:00 AM. One way is fine.",
+          "message": "Four local door-to-door services cover that trip on Wednesday, August 12 — but each has an eligibility rule I can't check yet.\n\nThe one question that settles the most: how old are you? Two of them (Senior Express Van and Mobility Matters) depend on exact age. It also helps to know whether you have a disability, which decides the other two.\n\nIf you'd rather not go into that, there's also public transit: walk about 5 minutes to Bollinger Canyon Rd & Alcosta Blvd, take the Dublin/Pleasanton BART–San Ramon bus around 10:03 AM, then a 14-minute walk from Camino Ramon & Norris Canyon Rd — arriving about 10:31 AM.",
+          "attachments": [
+            {
+              "type": "tool_result",
+              "data": {
+                "status": "resolved",
+                "travel_date_raw": "August 12, 2026",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "timezone": "America/Los_Angeles",
+                "message": "Use Wednesday, August 12, 2026 (2026-08-12). Do not substitute another year or weekday."
+              },
+              "metadata": {
+                "tool_name": "resolve_trip_date",
+                "tool_use_id": "tooluse_YRVN3TNzQln6MksWZErATa",
+                "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49"
               }
             },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "10:00 AM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [],
+                "verification_required": [
+                  {
+                    "id": "3c2475eb-70b7-4e2e-87a7-d2a6807c9ea5",
+                    "provider_id": 2006,
+                    "provider_name": "LINK Paratransit",
+                    "provider_type": "ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "1-7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Disabled (18+). Proof: Complete County Connection LINK ADA application.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "disabled"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)938-7433"
+                    },
+                    "fare": {
+                      "cost": "$5 each way",
+                      "type": "fixed",
+                      "payment": "cash"
+                    },
+                    "website": "https://countyconnection.com/paratransit/",
+                    "contacts": [
+                      {
+                        "name": "John Sanderson",
+                        "email": "jsanderson@cccta.org"
+                      },
+                      {
+                        "name": "Rosa Noya",
+                        "email": "noya@cccta.org"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "e89680bd-9aac-4f05-8b45-f557459ba0ed",
+                    "provider_id": 3017,
+                    "provider_name": "Senior Express Van (San Ramon)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "at least 1 day"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)938-7433"
+                    },
+                    "fare": {
+                      "cost": "$5.00 each way",
+                      "type": "fixed",
+                      "payment": "cash"
+                    },
+                    "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
+                    "contacts": [
+                      {
+                        "name": "Chris Weeks",
+                        "email": "cweeks@sanramon.ca.gov"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "75f2e6fe-3270-4f63-9b04-3722d1e3ecd2",
+                    "provider_id": 2012,
+                    "provider_name": "One-Seat Regional Ride",
+                    "provider_type": "ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "1-3 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Disabled (18+). Proof: No proof mentioned on website.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "disabled"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)680-2134"
+                    },
+                    "fare": {
+                      "cost": "$3.00",
+                      "type": "fixed"
+                    },
+                    "website": "https://oneseatride.org/",
+                    "contacts": [
+                      {
+                        "name": "John Sanderson",
+                        "email": "jsanderson@cccta.org"
+                      },
+                      {
+                        "name": "Rosa Noya",
+                        "email": "noya@cccta.org"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age",
+                      "veteran",
+                      "residence_city"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "excluded_providers": [],
+                "alternatives": [
+                  {
+                    "change": "eligibility_category",
+                    "description": "a rider aged 60 or older would qualify for these",
+                    "providers": [
+                      "Senior Express Van (San Ramon)"
+                    ],
+                    "count": 1
+                  },
+                  {
+                    "change": "eligibility_category",
+                    "description": "a rider aged 65 or older would qualify for these",
+                    "providers": [
+                      "Senior Express Van (San Ramon)"
+                    ],
+                    "count": 1
+                  },
+                  {
+                    "change": "eligibility_category",
+                    "description": "a rider with a disability would qualify for these",
+                    "providers": [
+                      "LINK Paratransit",
+                      "One-Seat Regional Ride"
+                    ],
+                    "count": 2
+                  },
+                  {
+                    "change": "eligibility_category",
+                    "description": "an ADA-certified rider would qualify for these",
+                    "providers": [
+                      "LINK Paratransit",
+                      "One-Seat Regional Ride"
+                    ],
+                    "count": 2
+                  }
+                ],
+                "next_question": {
+                  "field": "age",
+                  "question": "the rider's exact age in years",
+                  "why": "2 providers on this trip (Senior Express Van (San Ramon), Mobility Matters) can only be decided once this is known",
+                  "candidates_if_known": 2,
+                  "provider_names": [
+                    "Senior Express Van (San Ramon)",
+                    "Mobility Matters"
+                  ]
+                },
+                "rider_eligibility": {},
+                "source_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583",
+                "destination_address": "6001 Norris Canyon Rd, San Ramon, CA 94583",
+                "source_coordinates": {
+                  "lat": 37.7651203,
+                  "lng": -121.95417239999999
+                },
+                "destination_coordinates": {
+                  "lat": 37.775719599999995,
+                  "lng": -121.9583315
+                },
+                "total_found": 0,
+                "direct_provider_count": 0,
+                "public_transit_available": true,
+                "total_options_found": 1,
+                "filtered_out_count": 24,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 4,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 1,
+                  "schedule_match_count": 4,
+                  "eligible_match_count": 0,
+                  "verification_required_count": 4,
+                  "ineligible_count": 0,
+                  "providers_without_service_hours": 4,
+                  "alternatives_found": 4
+                },
+                "public_transit": {
+                  "summary": null,
+                  "overview_polyline": "a~neFvfjgVrA}@HKBEYg@q@iA[i@uBkDHIr@lA`BlC|CpF`BjDfCfGTl@GTuDrB_B~@wAv@iDlB_J`FgJhF{Az@uBjAq@yB]kAY{@IULOfA]mAr@C@EOOUCSSHL^FPV|@Tl@^nAf@~A{Az@iGjD_KvFyBnAWC_@TA@SJQLQNi@j@]j@MXEEP]j@{@f@g@j@]PKq@sBE_@QYa@sA[y@e@s@oEiEeA_AZ]ECHIYk@KHKWKWc@gAIMDGLOJOr@w@f@k@vAgAt@k@DCGOtAaAFEFE",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.7773138,
+                      "lng": -121.9524313
+                    },
+                    "southwest": {
+                      "lat": 37.7627195,
+                      "lng": -121.9657161
+                    }
+                  },
+                  "distance_text": "2.3 mi",
+                  "distance_meters": 3729,
+                  "duration_text": "29 mins",
+                  "duration_seconds": 1731,
+                  "departure_time": "10:03 AM",
+                  "arrival_time": "10:31 AM",
+                  "start_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583, USA",
+                  "end_address": "6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to Bollinger Canyon Rd and Alcosta Blvd",
+                      "distance_text": "0.2 mi",
+                      "distance_meters": 262,
+                      "duration_text": "4 mins",
+                      "duration_seconds": 218,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "a~neFvfjgVj@_@NILIHIBCDGBEYg@m@cACES]GKg@y@Yc@CGo@eA"
+                    },
+                    {
+                      "instruction": "Bus towards San Ramon TC via Bollinger Canyon",
+                      "distance_text": "1.6 mi",
+                      "distance_meters": 2582,
+                      "duration_text": "11 mins",
+                      "duration_seconds": 679,
+                      "travel_mode": "TRANSIT",
+                      "transit_details": {
+                        "line_name": "Dublin/Pleasanton BART/San Ramon",
+                        "vehicle_type": "BUS",
+                        "vehicle_name": "Bus",
+                        "line_color": "#006493",
+                        "line_text_color": "#ffffff",
+                        "departure_stop": "Bollinger Canyon Rd and Alcosta Blvd",
+                        "arrival_stop": "Camino Ramon and Norris Canyon Rd",
+                        "num_stops": 5
+                      },
+                      "polyline": "}aoeF`zigVHKn@dABFXb@j@~@Vb@BDl@dA@?Vb@R^T`@Tb@HNJPVf@DHFNDJ@BHNJT\\r@Zt@Rd@Pf@DJZt@BDHPTh@FNL\\GTuDrBg@Xw@d@aAh@ULULc@Vs@^{@f@WLe@XmDnBsBhACBgAl@ULYNeAl@EB}BpAa@T{@d@_@TuBjAq@yBEOW{@GQQi@EMCGLOfA]cAj@IFC@EOAAMSCSSHFRDJ@DDJBLBDBJJ\\DJDJDLBFFP@FDHBJ@DHV?@@BL`@HTLb@GBKFcAj@CBcB~@_@RGDULMFs@`@SLQJw@b@SLQJcAh@CBe@V{BpAw@`@_@TyAx@WC_@TA@IDIDGDCBEBCBC@GDABC@EDEDCBEDCDEDEFCDCBABCDGJCFA@A@EJGLAC"
+                    },
+                    {
+                      "instruction": "Walk to 6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                      "distance_text": "0.5 mi",
+                      "distance_meters": 885,
+                      "duration_text": "14 mins",
+                      "duration_seconds": 833,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "y_qeFpllgVFMDK@A@ABGFKDGBGDEDEBGDCBEDEDEDEBA@CFEBCBADEBAFEHEHG@?PK_@kAQg@E_@QYGSY_AGQGOGMCIKOGIEIKOACQQQQm@i@u@s@MMi@g@MMKKMKIGa@_@Z]ECHIYk@KHKWEIEMISQc@CECIIMDGHMBA?ABC?AFGNQBCRU?ABC@A@?BCNQTU@C\\WHGNM^YBAHITOPODCGOv@i@\\W@ABA@ADC@A"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_deiVP3SvKiJE6abQuxVrvZ",
+                "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49"
+              }
+            }
+          ],
+          "latency_ms": 10500,
+          "tools": [
+            "resolve_trip_date",
+            "find_providers"
+          ]
+        },
+        {
+          "index": 2,
+          "user": "I'm 72 years old, I live in San Ramon, I'm not disabled, not ADA-certified, and not a veteran.",
+          "message": "Two services fit — and you qualify for both.\n\n**Senior Express Van (San Ramon)** — door-to-door, $5.00 each way, cash. Book at least a day ahead: **(925) 938-7433**.\n\n**Mobility Matters** — volunteer drivers, free, but it's meant as a last-resort option and needs **7 days' notice**, so you'd want to call by around August 5: **(925) 284-6161**.\n\nOne thing: neither provider's operating hours are on file with us, so please confirm 10:00 AM works when you call.\n\nIf neither pans out, public transit gets you there in about 29 minutes: short walk to Bollinger Canyon Rd & Alcosta Blvd, bus at 10:03 AM toward San Ramon, then a 14-minute walk from Camino Ramon & Norris Canyon Rd, arriving about 10:31 AM.\n\nI can't book for you, but would you like details on either provider?",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "10:00 AM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [
+                  {
+                    "id": "e89680bd-9aac-4f05-8b45-f557459ba0ed",
+                    "provider_id": 3017,
+                    "provider_name": "Senior Express Van (San Ramon)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "at least 1 day"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)938-7433"
+                    },
+                    "fare": {
+                      "cost": "$5.00 each way",
+                      "type": "fixed",
+                      "payment": "cash"
+                    },
+                    "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
+                    "contacts": [
+                      {
+                        "name": "Chris Weeks",
+                        "email": "cweeks@sanramon.ca.gov"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "verification_required": [],
+                "excluded_providers": [
+                  {
+                    "provider_name": "LINK Paratransit",
+                    "stage": "eligibility",
+                    "reason": "The rider does not match the provider's disability requirement.",
+                    "requirement": "Eligibility: Disabled (18+). Proof: Complete County Connection LINK ADA application."
+                  },
+                  {
+                    "provider_name": "One-Seat Regional Ride",
+                    "stage": "eligibility",
+                    "reason": "The rider does not match the provider's disability requirement.",
+                    "requirement": "Eligibility: Disabled (18+). Proof: No proof mentioned on website."
+                  }
+                ],
+                "alternatives": [],
+                "next_question": null,
+                "rider_eligibility": {
+                  "age": 72,
+                  "residence_city": "San Ramon",
+                  "disabled": false,
+                  "ada_certified": false,
+                  "veteran": false
+                },
+                "source_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583",
+                "destination_address": "6001 Norris Canyon Rd, San Ramon, CA 94583",
+                "source_coordinates": {
+                  "lat": 37.7651203,
+                  "lng": -121.95417239999999
+                },
+                "destination_coordinates": {
+                  "lat": 37.775719599999995,
+                  "lng": -121.9583315
+                },
+                "total_found": 2,
+                "direct_provider_count": 2,
+                "public_transit_available": true,
+                "total_options_found": 3,
+                "filtered_out_count": 22,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 4,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 1,
+                  "schedule_match_count": 4,
+                  "eligible_match_count": 2,
+                  "verification_required_count": 0,
+                  "ineligible_count": 2,
+                  "providers_without_service_hours": 2,
+                  "alternatives_found": 0
+                },
+                "public_transit": {
+                  "summary": null,
+                  "overview_polyline": "a~neFvfjgVrA}@HKBEYg@q@iA[i@uBkDHIr@lA`BlC|CpF`BjDfCfGTl@GTuDrB_B~@wAv@iDlB_J`FgJhF{Az@uBjAq@yB]kAY{@IULOfA]mAr@C@EOOUCSSHL^FPV|@Tl@^nAf@~A{Az@iGjD_KvFyBnAWC_@TA@SJQLQNi@j@]j@MXEEP]j@{@f@g@j@]PKq@sBE_@QYa@sA[y@e@s@oEiEeA_AZ]ECHIYk@KHKWKWc@gAIMDGLOJOr@w@f@k@vAgAt@k@DCGOtAaAFEFE",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.7773138,
+                      "lng": -121.9524313
+                    },
+                    "southwest": {
+                      "lat": 37.7627195,
+                      "lng": -121.9657161
+                    }
+                  },
+                  "distance_text": "2.3 mi",
+                  "distance_meters": 3729,
+                  "duration_text": "29 mins",
+                  "duration_seconds": 1731,
+                  "departure_time": "10:03 AM",
+                  "arrival_time": "10:31 AM",
+                  "start_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583, USA",
+                  "end_address": "6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to Bollinger Canyon Rd and Alcosta Blvd",
+                      "distance_text": "0.2 mi",
+                      "distance_meters": 262,
+                      "duration_text": "4 mins",
+                      "duration_seconds": 218,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "a~neFvfjgVj@_@NILIHIBCDGBEYg@m@cACES]GKg@y@Yc@CGo@eA"
+                    },
+                    {
+                      "instruction": "Bus towards San Ramon TC via Bollinger Canyon",
+                      "distance_text": "1.6 mi",
+                      "distance_meters": 2582,
+                      "duration_text": "11 mins",
+                      "duration_seconds": 679,
+                      "travel_mode": "TRANSIT",
+                      "transit_details": {
+                        "line_name": "Dublin/Pleasanton BART/San Ramon",
+                        "vehicle_type": "BUS",
+                        "vehicle_name": "Bus",
+                        "line_color": "#006493",
+                        "line_text_color": "#ffffff",
+                        "departure_stop": "Bollinger Canyon Rd and Alcosta Blvd",
+                        "arrival_stop": "Camino Ramon and Norris Canyon Rd",
+                        "num_stops": 5
+                      },
+                      "polyline": "}aoeF`zigVHKn@dABFXb@j@~@Vb@BDl@dA@?Vb@R^T`@Tb@HNJPVf@DHFNDJ@BHNJT\\r@Zt@Rd@Pf@DJZt@BDHPTh@FNL\\GTuDrBg@Xw@d@aAh@ULULc@Vs@^{@f@WLe@XmDnBsBhACBgAl@ULYNeAl@EB}BpAa@T{@d@_@TuBjAq@yBEOW{@GQQi@EMCGLOfA]cAj@IFC@EOAAMSCSSHFRDJ@DDJBLBDBJJ\\DJDJDLBFFP@FDHBJ@DHV?@@BL`@HTLb@GBKFcAj@CBcB~@_@RGDULMFs@`@SLQJw@b@SLQJcAh@CBe@V{BpAw@`@_@TyAx@WC_@TA@IDIDGDCBEBCBC@GDABC@EDEDCBEDCDEDEFCDCBABCDGJCFA@A@EJGLAC"
+                    },
+                    {
+                      "instruction": "Walk to 6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                      "distance_text": "0.5 mi",
+                      "distance_meters": 885,
+                      "duration_text": "14 mins",
+                      "duration_seconds": 833,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "y_qeFpllgVFMDK@A@ABGFKDGBGDEDEBGDCBEDEDEDEBA@CFEBCBADEBAFEHEHG@?PK_@kAQg@E_@QYGSY_AGQGOGMCIKOGIEIKOACQQQQm@i@u@s@MMi@g@MMKKMKIGa@_@Z]ECHIYk@KHKWEIEMISQc@CECIIMDGHMBA?ABC?AFGNQBCRU?ABC@A@?BCNQTU@C\\WHGNM^YBAHITOPODCGOv@i@\\W@ABA@ADC@A"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_EfIq4F0JwQZ6fLySOa8qzV",
+                "conversation_id": "11497ef7-d8af-4dc5-93f0-b1c74438ce49"
+              }
+            }
+          ],
+          "latency_ms": 12112,
+          "tools": [
+            "find_providers"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s02-senior-withholds-age",
+      "title": "Senior who will not give an age",
+      "conversation_id": "90169929-7125-437e-8981-ea16316b336c",
+      "passed": false,
+      "failures": [
+        {
+          "assertion": "grounded_provider_names",
+          "turn": 1,
+          "detail": "provider names not in data: San Ramon Transit Center"
+        },
+        {
+          "assertion": "mentions_verification_path",
+          "turn": null,
+          "detail": "never told the rider how to resolve eligibility"
+        }
+      ],
+      "metrics": {
+        "turns": 3,
+        "questions_asked": 1,
+        "tool_calls": 5,
+        "searches": 2,
+        "total_ms": 41273,
+        "max_turn_ms": 16622,
+        "response_chars": 2788
+      },
+      "turns": [
+        {
+          "index": 0,
+          "user": "I'm a senior and I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on August 12, 2026 at 10:00 AM, one way.",
+          "message": "Four local services cover that trip on Wednesday, August 12 — but \"senior\" isn't enough to pin them down, since the age cutoffs run from 55 to 65. What's your exact age?\n\nHere's what's waiting on that answer:\n\n- **Senior Express Van (San Ramon)** — 55+, no proof needed, $5 each way, book at least a day ahead: (925) 938-7433\n- **Mobility Matters** — free volunteer drivers, but needs 60+ (or veteran) and Contra Costa County residency, and 7 days' notice: (925) 284-6161\n- **LINK Paratransit** ($5 each way) and **One-Seat Regional Ride** ($3) — these two go by disability rather than age, so let me know if you have a disability or ADA certification.\n\nTwo things to know: none of these have operating hours on file with us, so confirm 10:00 AM works when you call. And if you'd rather not deal with eligibility, County Connection bus route to Camino Ramon & Norris Canyon Rd gets you there in about 29 minutes with roughly a half-mile walk at the end.",
+          "attachments": [
+            {
+              "type": "tool_result",
+              "data": {
+                "status": "resolved",
+                "travel_date_raw": "August 12, 2026",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "timezone": "America/Los_Angeles",
+                "message": "Use Wednesday, August 12, 2026 (2026-08-12). Do not substitute another year or weekday."
+              },
+              "metadata": {
+                "tool_name": "resolve_trip_date",
+                "tool_use_id": "tooluse_qSxbwcpruEdilPRQfotohn",
+                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "covered",
+                "source_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583",
+                "destination_address": "6001 Norris Canyon Rd, San Ramon, CA 94583",
+                "geography_match_count": 4,
+                "fixed_route_fallback_count": 6,
+                "provider_names": [
+                  "LINK Paratransit",
+                  "Senior Express Van (San Ramon)",
+                  "One-Seat Regional Ride",
+                  "Mobility Matters"
+                ],
+                "message": "4 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_rILLmIW1WKCLThf04mo39y",
+                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "10:00 AM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [],
+                "verification_required": [
+                  {
+                    "id": "3c2475eb-70b7-4e2e-87a7-d2a6807c9ea5",
+                    "provider_id": 2006,
+                    "provider_name": "LINK Paratransit",
+                    "provider_type": "ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "1-7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Disabled (18+). Proof: Complete County Connection LINK ADA application.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "disabled"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)938-7433"
+                    },
+                    "fare": {
+                      "cost": "$5 each way",
+                      "type": "fixed",
+                      "payment": "cash"
+                    },
+                    "website": "https://countyconnection.com/paratransit/",
+                    "contacts": [
+                      {
+                        "name": "John Sanderson",
+                        "email": "jsanderson@cccta.org"
+                      },
+                      {
+                        "name": "Rosa Noya",
+                        "email": "noya@cccta.org"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "e89680bd-9aac-4f05-8b45-f557459ba0ed",
+                    "provider_id": 3017,
+                    "provider_name": "Senior Express Van (San Ramon)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "at least 1 day"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)938-7433"
+                    },
+                    "fare": {
+                      "cost": "$5.00 each way",
+                      "type": "fixed",
+                      "payment": "cash"
+                    },
+                    "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
+                    "contacts": [
+                      {
+                        "name": "Chris Weeks",
+                        "email": "cweeks@sanramon.ca.gov"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "75f2e6fe-3270-4f63-9b04-3722d1e3ecd2",
+                    "provider_id": 2012,
+                    "provider_name": "One-Seat Regional Ride",
+                    "provider_type": "ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "1-3 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Disabled (18+). Proof: No proof mentioned on website.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "disabled"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)680-2134"
+                    },
+                    "fare": {
+                      "cost": "$3.00",
+                      "type": "fixed"
+                    },
+                    "website": "https://oneseatride.org/",
+                    "contacts": [
+                      {
+                        "name": "John Sanderson",
+                        "email": "jsanderson@cccta.org"
+                      },
+                      {
+                        "name": "Rosa Noya",
+                        "email": "noya@cccta.org"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age",
+                      "veteran",
+                      "residence_city"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "excluded_providers": [],
+                "alternatives": [
+                  {
+                    "change": "eligibility_category",
+                    "description": "a rider aged 60 or older would qualify for these",
+                    "providers": [
+                      "Senior Express Van (San Ramon)"
+                    ],
+                    "count": 1
+                  },
+                  {
+                    "change": "eligibility_category",
+                    "description": "a rider aged 65 or older would qualify for these",
+                    "providers": [
+                      "Senior Express Van (San Ramon)"
+                    ],
+                    "count": 1
+                  },
+                  {
+                    "change": "eligibility_category",
+                    "description": "a rider with a disability would qualify for these",
+                    "providers": [
+                      "LINK Paratransit",
+                      "One-Seat Regional Ride"
+                    ],
+                    "count": 2
+                  },
+                  {
+                    "change": "eligibility_category",
+                    "description": "an ADA-certified rider would qualify for these",
+                    "providers": [
+                      "LINK Paratransit",
+                      "One-Seat Regional Ride"
+                    ],
+                    "count": 2
+                  }
+                ],
+                "next_question": {
+                  "field": "age",
+                  "question": "the rider's exact age in years",
+                  "why": "2 providers on this trip (Senior Express Van (San Ramon), Mobility Matters) can only be decided once this is known",
+                  "candidates_if_known": 2,
+                  "provider_names": [
+                    "Senior Express Van (San Ramon)",
+                    "Mobility Matters"
+                  ]
+                },
+                "rider_eligibility": {},
+                "source_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583",
+                "destination_address": "6001 Norris Canyon Rd, San Ramon, CA 94583",
+                "source_coordinates": {
+                  "lat": 37.7651203,
+                  "lng": -121.95417239999999
+                },
+                "destination_coordinates": {
+                  "lat": 37.775719599999995,
+                  "lng": -121.9583315
+                },
+                "total_found": 0,
+                "direct_provider_count": 0,
+                "public_transit_available": true,
+                "total_options_found": 1,
+                "filtered_out_count": 24,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 4,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 1,
+                  "schedule_match_count": 4,
+                  "eligible_match_count": 0,
+                  "verification_required_count": 4,
+                  "ineligible_count": 0,
+                  "providers_without_service_hours": 4,
+                  "alternatives_found": 4
+                },
+                "public_transit": {
+                  "summary": null,
+                  "overview_polyline": "a~neFvfjgVrA}@HKBEYg@q@iA[i@uBkDHIr@lA`BlC|CpF`BjDfCfGTl@GTuDrB_B~@wAv@iDlB_J`FgJhF{Az@uBjAq@yB]kAY{@IULOfA]mAr@C@EOOUCSSHL^FPV|@Tl@^nAf@~A{Az@iGjD_KvFyBnAWC_@TA@SJQLQNi@j@]j@MXEEP]j@{@f@g@j@]PKq@sBE_@QYa@sA[y@e@s@oEiEeA_AZ]ECHIYk@KHKWKWc@gAIMDGLOJOr@w@f@k@vAgAt@k@DCGOtAaAFEFE",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.7773138,
+                      "lng": -121.9524313
+                    },
+                    "southwest": {
+                      "lat": 37.7627195,
+                      "lng": -121.9657161
+                    }
+                  },
+                  "distance_text": "2.3 mi",
+                  "distance_meters": 3729,
+                  "duration_text": "29 mins",
+                  "duration_seconds": 1731,
+                  "departure_time": "10:03 AM",
+                  "arrival_time": "10:31 AM",
+                  "start_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583, USA",
+                  "end_address": "6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to Bollinger Canyon Rd and Alcosta Blvd",
+                      "distance_text": "0.2 mi",
+                      "distance_meters": 262,
+                      "duration_text": "4 mins",
+                      "duration_seconds": 218,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "a~neFvfjgVj@_@NILIHIBCDGBEYg@m@cACES]GKg@y@Yc@CGo@eA"
+                    },
+                    {
+                      "instruction": "Bus towards San Ramon TC via Bollinger Canyon",
+                      "distance_text": "1.6 mi",
+                      "distance_meters": 2582,
+                      "duration_text": "11 mins",
+                      "duration_seconds": 679,
+                      "travel_mode": "TRANSIT",
+                      "transit_details": {
+                        "line_name": "Dublin/Pleasanton BART/San Ramon",
+                        "vehicle_type": "BUS",
+                        "vehicle_name": "Bus",
+                        "line_color": "#006493",
+                        "line_text_color": "#ffffff",
+                        "departure_stop": "Bollinger Canyon Rd and Alcosta Blvd",
+                        "arrival_stop": "Camino Ramon and Norris Canyon Rd",
+                        "num_stops": 5
+                      },
+                      "polyline": "}aoeF`zigVHKn@dABFXb@j@~@Vb@BDl@dA@?Vb@R^T`@Tb@HNJPVf@DHFNDJ@BHNJT\\r@Zt@Rd@Pf@DJZt@BDHPTh@FNL\\GTuDrBg@Xw@d@aAh@ULULc@Vs@^{@f@WLe@XmDnBsBhACBgAl@ULYNeAl@EB}BpAa@T{@d@_@TuBjAq@yBEOW{@GQQi@EMCGLOfA]cAj@IFC@EOAAMSCSSHFRDJ@DDJBLBDBJJ\\DJDJDLBFFP@FDHBJ@DHV?@@BL`@HTLb@GBKFcAj@CBcB~@_@RGDULMFs@`@SLQJw@b@SLQJcAh@CBe@V{BpAw@`@_@TyAx@WC_@TA@IDIDGDCBEBCBC@GDABC@EDEDCBEDCDEDEFCDCBABCDGJCFA@A@EJGLAC"
+                    },
+                    {
+                      "instruction": "Walk to 6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                      "distance_text": "0.5 mi",
+                      "distance_meters": 885,
+                      "duration_text": "14 mins",
+                      "duration_seconds": 833,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "y_qeFpllgVFMDK@A@ABGFKDGBGDEDEBGDCBEDEDEDEBA@CFEBCBADEBAFEHEHG@?PK_@kAQg@E_@QYGSY_AGQGOGMCIKOGIEIKOACQQQQm@i@u@s@MMi@g@MMKKMKIGa@_@Z]ECHIYk@KHKWEIEMISQc@CECIIMDGHMBA?ABC?AFGNQBCRU?ABC@A@?BCNQTU@C\\WHGNM^YBAHITOPODCGOv@i@\\W@ABA@ADC@A"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_dwyKJZGvOrWRCx7QAOyj1T",
+                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
+              }
+            }
+          ],
+          "latency_ms": 16622,
+          "tools": [
+            "resolve_trip_date",
+            "check_trip_coverage",
+            "find_providers"
+          ]
+        },
+        {
+          "index": 1,
+          "user": "I'd rather not say my exact age.",
+          "message": "That's fine — you don't have to tell me. Your best bet then is **Senior Express Van (San Ramon)**: it's for riders 55 and up and requires no proof of age, so you can sort it out directly with them on the phone.\n\n- Call **(925) 938-7433**, at least one day before August 12 — sooner is safer\n- $5 each way, cash, door-to-door\n- Confirm 10:00 AM works, since we don't have their operating hours on file\n\nThe other three (LINK Paratransit, One-Seat Regional Ride, Mobility Matters) also serve this trip, but each has an eligibility rule you'd need to confirm with them — disability or ADA certification for the two paratransit ones, and age 60+ or veteran status plus 7 days' notice for Mobility Matters.\n\nAnd with no eligibility at all: the County Connection bus from Bollinger Canyon & Alcosta toward San Ramon Transit Center, off at Camino Ramon & Norris Canyon — about 29 minutes, including a half-mile walk at the end.\n\nI can't book any of these for you, but the phone number above is all you need.",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "10:00 AM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [],
+                "verification_required": [
+                  {
+                    "id": "3c2475eb-70b7-4e2e-87a7-d2a6807c9ea5",
+                    "provider_id": 2006,
+                    "provider_name": "LINK Paratransit",
+                    "provider_type": "ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "1-7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Disabled (18+). Proof: Complete County Connection LINK ADA application.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)938-7433"
+                    },
+                    "fare": {
+                      "cost": "$5 each way",
+                      "type": "fixed",
+                      "payment": "cash"
+                    },
+                    "website": "https://countyconnection.com/paratransit/",
+                    "contacts": [
+                      {
+                        "name": "John Sanderson",
+                        "email": "jsanderson@cccta.org"
+                      },
+                      {
+                        "name": "Rosa Noya",
+                        "email": "noya@cccta.org"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "e89680bd-9aac-4f05-8b45-f557459ba0ed",
+                    "provider_id": 3017,
+                    "provider_name": "Senior Express Van (San Ramon)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "at least 1 day"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)938-7433"
+                    },
+                    "fare": {
+                      "cost": "$5.00 each way",
+                      "type": "fixed",
+                      "payment": "cash"
+                    },
+                    "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
+                    "contacts": [
+                      {
+                        "name": "Chris Weeks",
+                        "email": "cweeks@sanramon.ca.gov"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "75f2e6fe-3270-4f63-9b04-3722d1e3ecd2",
+                    "provider_id": 2012,
+                    "provider_name": "One-Seat Regional Ride",
+                    "provider_type": "ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "1-3 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Disabled (18+). Proof: No proof mentioned on website.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)680-2134"
+                    },
+                    "fare": {
+                      "cost": "$3.00",
+                      "type": "fixed"
+                    },
+                    "website": "https://oneseatride.org/",
+                    "contacts": [
+                      {
+                        "name": "John Sanderson",
+                        "email": "jsanderson@cccta.org"
+                      },
+                      {
+                        "name": "Rosa Noya",
+                        "email": "noya@cccta.org"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 10:00 AM"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "excluded_providers": [],
+                "alternatives": [
+                  {
+                    "change": "eligibility_category",
+                    "description": "a rider aged 60 or older would qualify for these",
+                    "providers": [
+                      "Senior Express Van (San Ramon)"
+                    ],
+                    "count": 1
+                  },
+                  {
+                    "change": "eligibility_category",
+                    "description": "a rider aged 65 or older would qualify for these",
+                    "providers": [
+                      "Senior Express Van (San Ramon)"
+                    ],
+                    "count": 1
+                  },
+                  {
+                    "change": "eligibility_category",
+                    "description": "a rider with a disability would qualify for these",
+                    "providers": [
+                      "LINK Paratransit",
+                      "One-Seat Regional Ride"
+                    ],
+                    "count": 2
+                  },
+                  {
+                    "change": "eligibility_category",
+                    "description": "an ADA-certified rider would qualify for these",
+                    "providers": [
+                      "LINK Paratransit",
+                      "One-Seat Regional Ride"
+                    ],
+                    "count": 2
+                  }
+                ],
+                "next_question": null,
+                "rider_eligibility": {
+                  "declined": true
+                },
+                "source_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583",
+                "destination_address": "6001 Norris Canyon Rd, San Ramon, CA 94583",
+                "source_coordinates": {
+                  "lat": 37.7651203,
+                  "lng": -121.95417239999999
+                },
+                "destination_coordinates": {
+                  "lat": 37.775719599999995,
+                  "lng": -121.9583315
+                },
+                "total_found": 0,
+                "direct_provider_count": 0,
+                "public_transit_available": true,
+                "total_options_found": 1,
+                "filtered_out_count": 24,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 4,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 1,
+                  "schedule_match_count": 4,
+                  "eligible_match_count": 0,
+                  "verification_required_count": 4,
+                  "ineligible_count": 0,
+                  "providers_without_service_hours": 4,
+                  "alternatives_found": 4
+                },
+                "public_transit": {
+                  "summary": null,
+                  "overview_polyline": "a~neFvfjgVrA}@HKBEYg@q@iA[i@uBkDHIr@lA`BlC|CpF`BjDfCfGTl@GTuDrB_B~@wAv@iDlB_J`FgJhF{Az@uBjAq@yB]kAY{@IULOfA]mAr@C@EOOUCSSHL^FPV|@Tl@^nAf@~A{Az@iGjD_KvFyBnAWC_@TA@SJQLQNi@j@]j@MXEEP]j@{@f@g@j@]PKq@sBE_@QYa@sA[y@e@s@oEiEeA_AZ]ECHIYk@KHKWKWc@gAIMDGLOJOr@w@f@k@vAgAt@k@DCGOtAaAFEFE",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.7773138,
+                      "lng": -121.9524313
+                    },
+                    "southwest": {
+                      "lat": 37.7627195,
+                      "lng": -121.9657161
+                    }
+                  },
+                  "distance_text": "2.3 mi",
+                  "distance_meters": 3729,
+                  "duration_text": "29 mins",
+                  "duration_seconds": 1731,
+                  "departure_time": "10:03 AM",
+                  "arrival_time": "10:31 AM",
+                  "start_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583, USA",
+                  "end_address": "6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to Bollinger Canyon Rd and Alcosta Blvd",
+                      "distance_text": "0.2 mi",
+                      "distance_meters": 262,
+                      "duration_text": "4 mins",
+                      "duration_seconds": 218,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "a~neFvfjgVj@_@NILIHIBCDGBEYg@m@cACES]GKg@y@Yc@CGo@eA"
+                    },
+                    {
+                      "instruction": "Bus towards San Ramon TC via Bollinger Canyon",
+                      "distance_text": "1.6 mi",
+                      "distance_meters": 2582,
+                      "duration_text": "11 mins",
+                      "duration_seconds": 679,
+                      "travel_mode": "TRANSIT",
+                      "transit_details": {
+                        "line_name": "Dublin/Pleasanton BART/San Ramon",
+                        "vehicle_type": "BUS",
+                        "vehicle_name": "Bus",
+                        "line_color": "#006493",
+                        "line_text_color": "#ffffff",
+                        "departure_stop": "Bollinger Canyon Rd and Alcosta Blvd",
+                        "arrival_stop": "Camino Ramon and Norris Canyon Rd",
+                        "num_stops": 5
+                      },
+                      "polyline": "}aoeF`zigVHKn@dABFXb@j@~@Vb@BDl@dA@?Vb@R^T`@Tb@HNJPVf@DHFNDJ@BHNJT\\r@Zt@Rd@Pf@DJZt@BDHPTh@FNL\\GTuDrBg@Xw@d@aAh@ULULc@Vs@^{@f@WLe@XmDnBsBhACBgAl@ULYNeAl@EB}BpAa@T{@d@_@TuBjAq@yBEOW{@GQQi@EMCGLOfA]cAj@IFC@EOAAMSCSSHFRDJ@DDJBLBDBJJ\\DJDJDLBFFP@FDHBJ@DHV?@@BL`@HTLb@GBKFcAj@CBcB~@_@RGDULMFs@`@SLQJw@b@SLQJcAh@CBe@V{BpAw@`@_@TyAx@WC_@TA@IDIDGDCBEBCBC@GDABC@EDEDCBEDCDEDEFCDCBABCDGJCFA@A@EJGLAC"
+                    },
+                    {
+                      "instruction": "Walk to 6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                      "distance_text": "0.5 mi",
+                      "distance_meters": 885,
+                      "duration_text": "14 mins",
+                      "duration_seconds": 833,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "y_qeFpllgVFMDK@A@ABGFKDGBGDEDEBGDCBEDEDEDEBA@CFEBCBADEBAFEHEHG@?PK_@kAQg@E_@QYGSY_AGQGOGMCIKOGIEIKOACQQQQm@i@u@s@MMi@g@MMKKMKIGa@_@Z]ECHIYk@KHKWEIEMISQc@CECIIMDGHMBA?ABC?AFGNQBCRU?ABC@A@?BCNQTU@C\\WHGNM^YBAHITOPODCGOv@i@\\W@ABA@ADC@A"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_qMqRQPn5uXySrOCccRlleL",
+                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
+              }
+            },
+            {
+              "type": "provider_info",
+              "data": {
+                "id": "e89680bd-9aac-4f05-8b45-f557459ba0ed",
+                "provider_id": 3017,
+                "provider_name": "Senior Express Van (San Ramon)",
+                "provider_type": "Non-ADA Paratransit",
+                "routing_type": "door-to-door",
+                "schedule_type": {
+                  "type": "in-advance-book",
+                  "advance_notice": "at least 1 day"
+                },
+                "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
+                "booking": {
+                  "method": "call",
+                  "details": "(925)938-7433"
+                },
+                "fare": {
+                  "cost": "$5.00 each way",
+                  "type": "fixed",
+                  "payment": "cash"
+                },
+                "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
+                "contacts": [
+                  {
+                    "name": "Chris Weeks",
+                    "email": "cweeks@sanramon.ca.gov"
+                  }
+                ],
+                "round_trip_booking": true
+              },
+              "metadata": {
+                "tool_name": "get_provider_info",
+                "tool_use_id": "tooluse_ye3MfkyvJTgj2fUSt8A6mX",
+                "conversation_id": "90169929-7125-437e-8981-ea16316b336c"
+              }
+            }
+          ],
+          "latency_ms": 14079,
+          "tools": [
+            "find_providers",
+            "get_provider_info"
+          ]
+        },
+        {
+          "index": 2,
+          "user": "No, I really don't want to give my age. What can you tell me?",
+          "message": "Understood — I won't ask again.\n\nFour services cover this trip, and since you'd rather not answer eligibility questions, each one will need to confirm that with you directly when you call:\n\n- **Senior Express Van (San Ramon)** — likely your easiest start; no proof of age required. $5 each way. **(925) 938-7433**, at least a day before August 12\n- **LINK Paratransit** — $5 each way, goes by disability/ADA status\n- **One-Seat Regional Ride** — $3, also disability-based\n- **Mobility Matters** — free volunteer drivers, needs 7 days' notice. **(925) 284-6161**\n\nNone of these have operating hours on file with us, so confirm 10:00 AM when you call rather than assuming it's open.\n\nAnd if you'd rather skip eligibility entirely: the County Connection bus makes the trip in about 29 minutes, with a walk of about half a mile at the end.",
+          "attachments": [],
+          "latency_ms": 10223,
+          "tools": []
+        }
+      ]
+    },
+    {
+      "id": "s03-declines-eligibility",
+      "title": "Rider declines every eligibility question",
+      "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3",
+      "passed": false,
+      "failures": [
+        {
+          "assertion": "mentions_verification_path",
+          "turn": null,
+          "detail": "never told the rider how to resolve eligibility"
+        }
+      ],
+      "metrics": {
+        "turns": 3,
+        "questions_asked": 2,
+        "tool_calls": 4,
+        "searches": 2,
+        "total_ms": 36517,
+        "max_turn_ms": 18183,
+        "response_chars": 2110
+      },
+      "turns": [
+        {
+          "index": 0,
+          "user": "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026 at 1:00 PM, one way.",
+          "message": "Three providers serve that trip — Richmond City Hall to Kaiser Richmond on Nevin Ave, Wednesday, August 12, 2026 — but each needs an eligibility check before I can say you qualify:\n\n- **R-Transit (Richmond)** — door-to-door, $3.00 each way, book 7 days ahead: (510) 307-8026. Requires 55+ or disabled, and residence in Richmond, North Richmond, El Sobrante or Kensington.\n- **East Bay Paratransit** — door-to-door, $4–$7 in the East Bay, book 1–7 days ahead: (510) 287-5000. Requires ADA certification.\n- **Mobility Matters** — volunteer drivers, free, book 7 days ahead: (925) 284-6161. Requires 60+ or veteran, and Contra Costa County residence.\n\nNone of these have operating hours on file, so please confirm the 1:00 PM pickup when you call. Also worth noting: it's only about a mile, roughly 24 minutes walking.\n\nTo narrow this down — how old are you? That decides both R-Transit and Mobility Matters.",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "covered",
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "geography_match_count": 3,
+                "fixed_route_fallback_count": 6,
+                "provider_names": [
+                  "R-Transit (Richmond)",
+                  "East Bay Paratransit",
+                  "Mobility Matters"
+                ],
+                "message": "3 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_B7aXaZFBuxAWpQlehRwWqg",
+                "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3"
+              }
+            },
+            {
+              "type": "tool_result",
+              "data": {
+                "status": "resolved",
+                "travel_date_raw": "August 12, 2026",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "timezone": "America/Los_Angeles",
+                "message": "Use Wednesday, August 12, 2026 (2026-08-12). Do not substitute another year or weekday."
+              },
+              "metadata": {
+                "tool_name": "resolve_trip_date",
+                "tool_use_id": "tooluse_irChsf8Ap4tLAHLpXNOfeh",
+                "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "1:00 PM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [],
+                "verification_required": [
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age",
+                      "disabled",
+                      "residence_city"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "fe07d31f-4a10-43ec-95f6-a4a25da1f03b",
+                    "provider_id": 2009,
+                    "provider_name": "East Bay Paratransit",
+                    "provider_type": "ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "1-7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Disabled (ada-eligible). Proof: Complete East Bay Paratransit ADA application and call the office at (510) 287-5000 and select option 5 to set up your interview. Alternatively, you can call or send an email to Certification.EastBayPT@transdev.com to request an ADA application and instructions.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "ada_certified"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)287-5000"
+                    },
+                    "fare": {
+                      "cost": "$4.00-$7.00 for trips in East Bay. $6.00-$10.00 for trips to and from San Francisco",
+                      "type": "fixed"
+                    },
+                    "website": "https://www.eastbayparatransit.org/",
+                    "contacts": [
+                      {
+                        "name": "Mallory Nestor",
+                        "email": "MNestor@actransit.org"
+                      },
+                      {
+                        "name": "Kim Ridgeway",
+                        "email": "kridgeway@actransit.org"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age",
+                      "veteran",
+                      "residence_city"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "excluded_providers": [],
+                "alternatives": [
+                  {
+                    "change": "eligibility_category",
+                    "description": "an ADA-certified rider would qualify for these",
+                    "providers": [
+                      "East Bay Paratransit"
+                    ],
+                    "count": 1
+                  }
+                ],
+                "next_question": {
+                  "field": "age",
+                  "question": "the rider's exact age in years",
+                  "why": "2 providers on this trip (R-Transit (Richmond), Mobility Matters) can only be decided once this is known",
+                  "candidates_if_known": 2,
+                  "provider_names": [
+                    "R-Transit (Richmond)",
+                    "Mobility Matters"
+                  ]
+                },
+                "rider_eligibility": {},
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "source_coordinates": {
+                  "lat": 37.9375139,
+                  "lng": -122.3432277
+                },
+                "destination_coordinates": {
+                  "lat": 37.937205299999995,
+                  "lng": -122.36083300000001
+                },
+                "total_found": 0,
+                "direct_provider_count": 0,
+                "public_transit_available": true,
+                "total_options_found": 1,
+                "filtered_out_count": 24,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 3,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 0,
+                  "schedule_match_count": 3,
+                  "eligible_match_count": 0,
+                  "verification_required_count": 3,
+                  "ineligible_count": 0,
+                  "providers_without_service_hours": 3,
+                  "alternatives_found": 1
+                },
+                "public_transit": {
+                  "summary": "Nevin Ave",
+                  "overview_polyline": "}rpfFtdviVATlDh@Ed@KvBEJKdATDARIj@F@ATC?Gv@Gv@E^HFCd@GAEBATEr@IdAMxA?JF??XE?ATBV@bBEb@F??PG??FBT?lBC\\?LF??LG?B^?|@@hA?FB??XC??FAbDBf@G??J?D?|@B|AEZ?f@B`D?d@CD[TAZ?D`@JCvDUBALP?Ch@?~ADT@HE?@b@F??BEFAtBBXC`@?v@?|A?lCCx@BRAFA|C?f@B??J?|A@RJTKTC?",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.937283,
+                      "lng": -122.3433074
+                    },
+                    "southwest": {
+                      "lat": 37.9364143,
+                      "lng": -122.3609789
+                    }
+                  },
+                  "distance_text": "1.0 mi",
+                  "distance_meters": 1683,
+                  "duration_text": "24 mins",
+                  "duration_seconds": 1456,
+                  "departure_time": null,
+                  "arrival_time": null,
+                  "start_address": "450 Civic Center Plaza, Richmond, CA 94804, USA",
+                  "end_address": "901 Nevin Ave, Richmond, CA 94801, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to 901 Nevin Ave, Richmond, CA 94801, USA",
+                      "distance_text": "1.0 mi",
+                      "distance_meters": 1683,
+                      "duration_text": "24 mins",
+                      "duration_seconds": 1456,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "}rpfFtdviVATlDh@CZAHKnA?f@EJKdATDARGTATF@ATC?Gv@C\\CXER?JDFB?Cd@GAEBATCVAZALAJC^AJE|@GZ?JF??XE?AN?DBV@bBEV?JF??PG??FBT?lBCV?D?LF??LG??HBT?x@?B@P?v@?FB??XC??FAvC?JB??f@G??J?B?@?j@?B?D?F?T@H@p@?J?JEN?L?X@X?l@?j@@l@?b@?@A@ABYRA@?BAV?B?@JBTFCvDUBALP??RCT?~ADT?@@FE?@b@F??BA@CD?D?HAfA?\\?LBJCT?J?B?J?J?Z?f@?Z?R?D?R?J?F?F?F?P?L?t@CT?V?JBRAF?nAAlA?f@B??J?D?vA@RJTITA?C?"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_auwuy1ZFvmTUBwMKLY1968",
+                "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3"
+              }
+            }
+          ],
+          "latency_ms": 18183,
+          "tools": [
+            "check_trip_coverage",
+            "resolve_trip_date",
+            "find_providers"
+          ]
+        },
+        {
+          "index": 1,
+          "user": "I'd prefer not to answer any personal questions about my age, disability, or veteran status.",
+          "message": "Understood — I won't ask again. Here's where that leaves you: the same three providers serve this trip, but each has an eligibility rule, so you'd confirm that directly with them when you call. None of them requires answering anything to me.\n\n- **R-Transit (Richmond)** — $3.00 each way, door-to-door. Book 7 days ahead: **(510) 307-8026**. For your August 12 trip, that means calling by **August 5**.\n- **Mobility Matters** — free volunteer drivers, door-to-door. Also 7 days ahead: **(925) 284-6161**.\n- **East Bay Paratransit** — $4–$7, door-to-door, 1–7 days ahead: **(510) 287-5000**. This one needs ADA certification, which takes an application and interview, so it's only realistic if you already have it.\n\nTwo things to keep in mind: I don't have operating hours on file for any of them, so confirm 1:00 PM works when you call. And the trip is only about a mile — roughly 24 minutes on foot — if that's an option for you.\n\nWant me to pull up more detail on any one of these?",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "1:00 PM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [],
+                "verification_required": [
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "fe07d31f-4a10-43ec-95f6-a4a25da1f03b",
+                    "provider_id": 2009,
+                    "provider_name": "East Bay Paratransit",
+                    "provider_type": "ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "1-7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Disabled (ada-eligible). Proof: Complete East Bay Paratransit ADA application and call the office at (510) 287-5000 and select option 5 to set up your interview. Alternatively, you can call or send an email to Certification.EastBayPT@transdev.com to request an ADA application and instructions.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)287-5000"
+                    },
+                    "fare": {
+                      "cost": "$4.00-$7.00 for trips in East Bay. $6.00-$10.00 for trips to and from San Francisco",
+                      "type": "fixed"
+                    },
+                    "website": "https://www.eastbayparatransit.org/",
+                    "contacts": [
+                      {
+                        "name": "Mallory Nestor",
+                        "email": "MNestor@actransit.org"
+                      },
+                      {
+                        "name": "Kim Ridgeway",
+                        "email": "kridgeway@actransit.org"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "The rider declined to confirm eligibility, so this must be checked with the provider.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 1:00 PM"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "excluded_providers": [],
+                "alternatives": [
+                  {
+                    "change": "eligibility_category",
+                    "description": "an ADA-certified rider would qualify for these",
+                    "providers": [
+                      "East Bay Paratransit"
+                    ],
+                    "count": 1
+                  }
+                ],
+                "next_question": null,
+                "rider_eligibility": {
+                  "declined": true
+                },
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "source_coordinates": {
+                  "lat": 37.9375139,
+                  "lng": -122.3432277
+                },
+                "destination_coordinates": {
+                  "lat": 37.937205299999995,
+                  "lng": -122.36083300000001
+                },
+                "total_found": 0,
+                "direct_provider_count": 0,
+                "public_transit_available": true,
+                "total_options_found": 1,
+                "filtered_out_count": 24,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 3,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 0,
+                  "schedule_match_count": 3,
+                  "eligible_match_count": 0,
+                  "verification_required_count": 3,
+                  "ineligible_count": 0,
+                  "providers_without_service_hours": 3,
+                  "alternatives_found": 1
+                },
+                "public_transit": {
+                  "summary": "Nevin Ave",
+                  "overview_polyline": "}rpfFtdviVATlDh@Ed@KvBEJKdATDARIj@F@ATC?Gv@Gv@E^HFCd@GAEBATEr@IdAMxA?JF??XE?ATBV@bBEb@F??PG??FBT?lBC\\?LF??LG?B^?|@@hA?FB??XC??FAbDBf@G??J?D?|@B|AEZ?f@B`D?d@CD[TAZ?D`@JCvDUBALP?Ch@?~ADT@HE?@b@F??BEFAtBBXC`@?v@?|A?lCCx@BRAFA|C?f@B??J?|A@RJTKTC?",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.937283,
+                      "lng": -122.3433074
+                    },
+                    "southwest": {
+                      "lat": 37.9364143,
+                      "lng": -122.3609789
+                    }
+                  },
+                  "distance_text": "1.0 mi",
+                  "distance_meters": 1683,
+                  "duration_text": "24 mins",
+                  "duration_seconds": 1456,
+                  "departure_time": null,
+                  "arrival_time": null,
+                  "start_address": "450 Civic Center Plaza, Richmond, CA 94804, USA",
+                  "end_address": "901 Nevin Ave, Richmond, CA 94801, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to 901 Nevin Ave, Richmond, CA 94801, USA",
+                      "distance_text": "1.0 mi",
+                      "distance_meters": 1683,
+                      "duration_text": "24 mins",
+                      "duration_seconds": 1456,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "}rpfFtdviVATlDh@CZAHKnA?f@EJKdATDARGTATF@ATC?Gv@C\\CXER?JDFB?Cd@GAEBATCVAZALAJC^AJE|@GZ?JF??XE?AN?DBV@bBEV?JF??PG??FBT?lBCV?D?LF??LG??HBT?x@?B@P?v@?FB??XC??FAvC?JB??f@G??J?B?@?j@?B?D?F?T@H@p@?J?JEN?L?X@X?l@?j@@l@?b@?@A@ABYRA@?BAV?B?@JBTFCvDUBALP??RCT?~ADT?@@FE?@b@F??BA@CD?D?HAfA?\\?LBJCT?J?B?J?J?Z?f@?Z?R?D?R?J?F?F?F?P?L?t@CT?V?JBRAF?nAAlA?f@B??J?D?vA@RJTITA?C?"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_erR2vsqj9zVamJVeJVnNoB",
+                "conversation_id": "1489f6e4-e64d-45d6-b2f7-5e75d8c6a4b3"
+              }
+            }
+          ],
+          "latency_ms": 13576,
+          "tools": [
+            "find_providers"
+          ]
+        },
+        {
+          "index": 2,
+          "user": "Just tell me who might be able to take me.",
+          "message": "Three: **R-Transit** at (510) 307-8026, **Mobility Matters** at (925) 284-6161, and **East Bay Paratransit** at (510) 287-5000.\n\nCall by **August 5** — all three want about a week's notice — and confirm 1:00 PM when you do.",
+          "attachments": [],
+          "latency_ms": 4197,
+          "tools": []
+        }
+      ]
+    },
+    {
+      "id": "s04-zero-coverage",
+      "title": "No provider covers both ends (DVC to San Francisco)",
+      "conversation_id": "d68651ae-9996-45b0-8caa-60e213e8c1fb",
+      "passed": true,
+      "failures": [],
+      "metrics": {
+        "turns": 1,
+        "questions_asked": 1,
+        "tool_calls": 3,
+        "searches": 1,
+        "total_ms": 20036,
+        "max_turn_ms": 19723,
+        "response_chars": 1036
+      },
+      "turns": [
+        {
+          "index": 0,
+          "user": "I need a ride from Diablo Valley College to San Francisco City Hall on August 12, 2026 at 9:00 AM, one way. I'm 70, live in Pleasant Hill, not disabled, not ADA-certified, not a veteran.",
+          "message": "There's no door-to-door provider that can do this trip — no service area in our data covers both Pleasant Hill and San Francisco City Hall, so a different date or time won't help.\n\nWhat will get you there: public transit, about 1 hour 29 minutes. Leaving Diablo Valley College around 9:14 AM, you'd take the County Connection bus from Viking Dr at the college to Pleasant Hill BART, then the yellow Antioch–SFO line to Civic Center/UN Plaza, with about a 3-block walk to City Hall. Arrival around 10:42 AM. At 70 you qualify for BART and bus senior discount fares — ask about a Clipper senior card.\n\nIf you'd rather have a ride part of the way, a few programs cover the Pleasant Hill/Walnut Creek end and could get you to BART: the Walnut Creek Lyft passes, LINK Paratransit, One-Seat Regional Ride, and Lamorinda Spirit. Want me to pull up contact details and eligibility for any of those?\n\nNote that OPTIMAT doesn't book rides — you'd call the provider directly, and most advance-booking programs want at least a day or two of notice.",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "not_covered",
+                "source_address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
+                "destination_address": "1 Dr Carlton B Goodlett Pl, San Francisco, CA 94102",
+                "geography_match_count": 0,
+                "fixed_route_fallback_count": 6,
+                "provider_names": [],
+                "message": "No provider in the current OPTIMAT data has a service area covering both 321 Golf Club Rd, Pleasant Hill, CA 94523 and 1 Dr Carlton B Goodlett Pl, San Francisco, CA 94102. Changing the time will not fix this coverage constraint."
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_zjYI4Pt2iZVi6yOtVk7B9Y",
+                "conversation_id": "d68651ae-9996-45b0-8caa-60e213e8c1fb"
+              }
+            },
+            {
+              "type": "tool_result",
+              "data": {
+                "status": "resolved",
+                "travel_date_raw": "August 12, 2026",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "timezone": "America/Los_Angeles",
+                "message": "Use Wednesday, August 12, 2026 (2026-08-12). Do not substitute another year or weekday."
+              },
+              "metadata": {
+                "tool_name": "resolve_trip_date",
+                "tool_use_id": "tooluse_JgHZhVkjXlFmN6G7uU7HRU",
+                "conversation_id": "d68651ae-9996-45b0-8caa-60e213e8c1fb"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "9:00 AM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [],
+                "verification_required": [],
+                "excluded_providers": [],
+                "alternatives": [
+                  {
+                    "change": "partial_coverage_origin",
+                    "description": "covers the pickup area but not the destination — could take the rider part of the way",
+                    "providers": [
+                      "Walnut Creek Lyft Self Access Pass",
+                      "Walnut Creek Lyft Concierge Pass",
+                      "LINK Paratransit",
+                      "One-Seat Regional Ride",
+                      "Lamorinda Spirit"
+                    ],
+                    "count": 7
+                  },
+                  {
+                    "change": "partial_coverage_destination",
+                    "description": "serves the destination area but does not reach the pickup point",
+                    "providers": [
+                      "East Bay Paratransit"
+                    ],
+                    "count": 1
+                  }
+                ],
+                "next_question": null,
+                "rider_eligibility": {
+                  "age": 70,
+                  "residence_city": "Pleasant Hill",
+                  "disabled": false,
+                  "ada_certified": false,
+                  "veteran": false
+                },
+                "source_address": "Engineering Technology Building, 321 Golf Club Rd, Pleasant Hill, CA 94523",
+                "destination_address": "1 Dr Carlton B Goodlett Pl, San Francisco, CA 94102",
+                "source_coordinates": {
+                  "lat": 37.9670835,
+                  "lng": -122.0711704
+                },
+                "destination_coordinates": {
+                  "lat": 37.7792891,
+                  "lng": -122.4192458
+                },
+                "total_found": 0,
+                "direct_provider_count": 0,
+                "public_transit_available": true,
+                "total_options_found": 1,
+                "filtered_out_count": 24,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 0,
+                  "geography_origin_only_count": 7,
+                  "geography_destination_only_count": 1,
+                  "schedule_match_count": 0,
+                  "eligible_match_count": 0,
+                  "verification_required_count": 0,
+                  "ineligible_count": 0,
+                  "providers_without_service_hours": 0,
+                  "alternatives_found": 2
+                },
+                "public_transit": {
+                  "summary": null,
+                  "overview_polyline": "emvfFlbahV|DACgD?cAH?Z@@f@PDG?@n@DvIFvJBlCF`Ab@lC`A`DvAzDVtA^pBr@lAh@p@nAoAv@_@hAUfAAzAHbCH|AUZJLVTr@r@tDdBxFnBvDr@bAvA`BtAlAfB|@dDfBhAx@|CbDnAnBlBxD|@|Aj@`ATTN[Pc@DI|@iB~DaHzDgGhA}@rAi@vNgFnA_@ZG?u@?eB@iEAmFAcGHs@?mC?yA@sKM}CD_C?aBBaCAgCI}C?iBEkI@gFFu@@o@BoF?{@CmEpCAjA@pIErEe@XA|@EZA?[?q@?e@AoGF{A?uB?cB~@BvC@jBBnBHnCT?lB?|C?fA?`F?j@?ZO?I@O?gA?kC?kF?eA?I?OK?Z?pA?FAf@?|@?rD@dMCvFfGNpFt@rGzAjEFr@HdCpBbC~BdHrGzAbAfBh@rBLR?Z@?]AcA?Y?oB@eKDcFP}E~@yMRuEGoC?sDIwA_@qCGuB`@_GRmEAmRLsHNy@LI`AK`K`AxEh@r@Dj@`@PXdB~BZ`@DEGpACIvC`EzCbEbDvDvDvCfEnBdL|CdLxCvKjEnEtAtEz@tLx@xE^tEx@nExAhEjBlKjFnHtDpTvKbE|BxDrCdDrDnCpEvBfFzAzF|@fG^pG?tG[pGeAbPQrG?tGHhP^ra@ThPRrG`@pGtA~OxA|OrD|`@|I|bAvBrO`AhGfG~_@`CpOr@lGRrGMrGi@nG{A|OQrGFrGl@fPAtG[pGoA`PiD~`@_AbPMrG@tGNrG\\pGfBxOhAdGtA~FfBrFxBdFjCtExCbEjDlDtDxCfKzFhKrFzJrGxJzGxGvExDpClDhD`H|KfCxE|B`FfFvMzE~MrL`]tL`]`Zf{@~Yh{@lZ`{@`Mv\\tFjMzFbM|FbMvFhMlEfN`CnI~CzKnDxN`If_@zAzFzB`F`D|DzDhCpErAvEj@rLbAbZhDhShCvY`GjLzBlLtBhL`CvEf@lBCjBYfBi@`B_AzAkApA{AzCaEvAqAfBk@lBJdBn@bEzBdEvBhVrMpEdCfKtFfEpBrAvAbAjBf@~BDhC[pGaBtFyBfF_FzMiBpFoA`GwBtO_CnOyA|FcBtFwDjMaDrKoA`G_AhGuBrOqBvOsA~O{@bPq@dPmBha@eBja@k@fPUhPLfP`@fPr@dPjA`PvDz`@zDx`@pJrbAvDz`@bEv`@~@fGlAbGvAzFdBtFtEbNtEbNjLf]pL`]pBjF~B~EtFdIhOvS~`@xi@|`@li@EF`B~Cl@dAMPS?A^Dr@JhBHjAKNh@dIDnA?t@WLEP@P",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.9670727,
+                      "lng": -122.0539671
+                    },
+                    "southwest": {
+                      "lat": 37.7785874,
+                      "lng": -122.4190769
+                    }
+                  },
+                  "distance_text": "32.5 mi",
+                  "distance_meters": 52350,
+                  "duration_text": "1 hour 29 mins",
+                  "duration_seconds": 5316,
+                  "departure_time": "9:14 AM",
+                  "arrival_time": "10:42 AM",
+                  "start_address": "Engineering Technology Building, 321 Golf Club Rd, Pleasant Hill, CA 94523, USA",
+                  "end_address": "1 Dr Carlton B Goodlett Pl, San Francisco, CA 94102, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to Viking Dr and Diablo Valley College",
+                      "distance_text": "0.2 mi",
+                      "distance_meters": 268,
+                      "duration_text": "3 mins",
+                      "duration_seconds": 209,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "emvfFlbahVlAAFBxACL?A_@?m@?k@Am@?m@?UDAB@DBD@FAFA@R?RP??D"
+                    },
+                    {
+                      "instruction": "Bus towards Pleasant Hill BART",
+                      "distance_text": "6.5 mi",
+                      "distance_meters": 10491,
+                      "duration_text": "27 mins",
+                      "duration_seconds": 1605,
+                      "travel_mode": "TRANSIT",
+                      "transit_details": {
+                        "line_name": "Martinez Amtrak/Pleasant Hill BART",
+                        "vehicle_type": "BUS",
+                        "vehicle_name": "Bus",
+                        "line_color": "#006493",
+                        "line_text_color": "#ffffff",
+                        "departure_stop": "Viking Dr and Diablo Valley College",
+                        "arrival_stop": "Pleasant Hill BART",
+                        "num_stops": 28
+                      },
+                      "polyline": "}evfFn|`hVB?@Z?R@pA@jA@bD?TDnF?J?H@pB?n@?R@P?J?@?B@Z?H@@?X@JBX@L@JPz@Lv@H`@HZJXN`@BHBDBJDJHP`@hA`@hAHTDTDPBHFb@H`@@HF\\@H@HBHBF?@BFBH@@BDFLDDPVDF@?FJHJTXLSTWTSTOLIJE?AJEDCB?BABA@A@?NEJCREHAJAJAj@AN@TBT@N?^BB@\\B@?T@T@X?X?NABATCLCFAVE@?BABAPJB@@?BBDJ@D@@BFBJBB@@@?DXLn@?BRjADRDRBJ@@FZ@FDNPn@Vz@BFRj@Rd@^z@^r@NV^n@JL`@j@BD@BDDb@h@X\\RRFFLLXTd@`@LHJFPHZPB@@?PHFBd@Td@TFBXPv@b@?@JF^V@@ZVv@p@f@f@Z^`@h@Zb@Zf@DHPXXh@Tb@f@dATd@Zj@FJNVHL\\j@LTTTN[HQFQDIBETg@N[R_@`@w@NYFKR[HQHOPYjAkB\\m@x@qAT_@DGb@w@JOPQDEFIBCBCDEDEPMLGLI@?BAPIDCLE^Q@?DABATIRG@AHCDA`Bo@^O@?fAc@JCbA_@PGh@QTGhAa@RGp@UDAB?LCLC?Y?[?O?o@?A?c@?c@?K@iB?o@?cA?E?C?Y?E?GAwB?qA?c@A{A?q@?SHM?A?O?G?U?[?E?I?C?A?}@?K?A?C?M?C?A?c@?O?}@?a@?W?a@?y@?I?G?C?_@?e@?S?I?W@[?C?M?M?E?MAEGq@A[?YAMFSAq@?u@?C?]?Y?A?g@?U?M@K?E?i@?G?C@U?I?Y?W?Q?A?[AY?AAW?IA[Cq@?A?EAK?Y?E?A?Q?oA?uA?qAEg@?{B@}A?o@?Q?gAHYA[?G@g@@cB?sA@[?[?E?a@?G?K?{@?GAgBAa@ZCv@@N?l@?B?X?H?N@B?B?D?D?D?L?JAH?NAnA?N?H?B?T?@?D?jA?N?T?XAJAD?DAVAD?HAJA@?@AZE^E^GB?TCFAD?FAD?@?H?RAh@CZA?[?e@?K?G?]Ao@?mD?[?U?cAFW?gA?m@Au@@m@`@@\\@R?l@?b@?p@@j@?B?r@BF?B?V@H@^?F@F?L@J@xBPTB?b@?hA?D?n@?T?pA?@?X?@?@?B?B?J?R?t@?J?J?F?bA?R?R?^?B?@?^?D?ZO?C?E@E?G?A?o@?K?K?U?eA?O?I?K?C?E?I?G?Q?{B?[?I?W?M?C?M?Q?G?C?E?O?C?E?OK?Z?`@?n@?B?BAN?@?D?N?L?R?R?F?L?R?jA?B?J?\\?T?@?D@~@?`@?T?vB?LAL?D@nA?@?R?F?D?b@?TAL?n@?\\?n@?H?L?v@AZT?v@?R?n@Bn@B`@@RBN@D?b@Dr@H`@Fx@LNBRDRDtCr@b@JNDh@NRBD@D?RB`@@h@?X?P?B?F?r@@L?F?F@F@B?DBB@PJRLBBBBLJXVn@j@NNPP|@z@DDHFLLDB?@@?ZZTRNNRPPPb@`@BBPNNN~@x@NPDBBBFFNLPNXRLH`@T`@N@?z@VF@PDH@F?N@r@BB?B?B?P?@?Z@?]?EA}@?M?K?S?S?k@?[?aE?S?E@iD?[?[?E@]?]@[@eA?G?E?S@WBu@B_@?GBi@Bc@?A@YDg@@EHkAB[Do@F{@?GNkBBa@BY@I?ADo@?ADg@?C@I?M@Q@Q@O?E?E?C?E?G?I?C?E?C?C?E?A?EAUA[?MAMAO?E?A?M?AAAAQ?E?C?A?GDQ?GAU?[?c@?A?G?G?G?G?E?A?IAI?E?E?AAA?C?CAE?A?CCOCMCUE[Ig@?CCOCO?EAEAGASAUAS?U@S@Y?A?A?K@MJmAPwB?AH_ABW?E@U@K?M?W@g@@[?cA?[?e@?Q?k@?_@?WAoB?g@?EAU?i@?U?E?{A?A?kB?I@K@M?E?A@W@A?G?C@K?S@cA?E@ILw@@A@AJGPGPCLAN@@?P@XBf@FH@z@H~BTdBPrAL@?@?ZBL@H@D@D@B?B@HBHBD?D@LBJ?V?L@LBJFJFHHHFB@JP?@@BJLf@p@V^X^Z`@DE"
+                    },
+                    {
+                      "instruction": "Walk to Pleasant Hill / Contra Costa Centre",
+                      "distance_text": "141 ft",
+                      "distance_meters": 43,
+                      "duration_text": "2 mins",
+                      "duration_seconds": 142,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "g{nfFn~}gVItAIA"
+                    },
+                    {
+                      "instruction": "Subway towards San Francisco International Airport",
+                      "distance_text": "25.5 mi",
+                      "distance_meters": 41030,
+                      "duration_text": "43 mins",
+                      "duration_seconds": 2580,
+                      "travel_mode": "TRANSIT",
+                      "transit_details": {
+                        "line_name": "Antioch to SF Int'l Airport SFO/Millbrae",
+                        "vehicle_type": "SUBWAY",
+                        "vehicle_name": "Subway",
+                        "line_color": "#f2f230",
+                        "line_text_color": "#000000",
+                        "departure_stop": "Pleasant Hill / Contra Costa Centre",
+                        "arrival_stop": "Civic Center / UN Plaza",
+                        "num_stops": 12
+                      },
+                      "polyline": "{{nfFba~gVDGhA~AlA`BlA`BlA`BnA|ArAxAxAnA|AfA`B|@dBp@fBj@hBf@hBd@hBb@hBb@hBb@fBf@hBh@dBn@dBp@dBt@dBr@fBl@fBf@jB`@hBXlBPjBNlBJlBJlBLjBPjBXhB^hBh@dBn@dBr@bBv@bBx@bBz@bBx@`Bz@bBz@`Bz@bBx@DBLFnAn@`Bz@bBx@bBx@bBx@bBx@`Bz@bB|@~A~@~AdAxAlAtAtAnA|AjAdBbAjB~@nBv@vBp@zBh@~B`@`CZdCRhCJfCBjCChCIhCQfCQhCUfCOfCMhCIhCGhCAhC@jC@hC@hCBjC@hCBhCBjCBhCBhCBhCBjCBhCBhCDhCBjCDhCDhCFhCJhCNhCPfCTfCRfCTfCTfCTfCTfCVdCTfCTfCVfCTfCTfCVdCTfCTfCTfCTfCTfCRfCRfCTfCRfCTfCVfCTfCVdCRfCTfCTfCTfCTfCVfCXdCZdC^bC`@bCRhALx@^dC^bC^bC`@bC^bC^bCb@bC`@bC^bC`@bC^bC^dC^bCZdCVfCLfCDjCAhCKhCSfCUfCYdCWfCUfCSfCKhCEhC?hCFhCJhCLhCJhCFhC@hCCjCKhCOfCSfCSfCShCSfCUfCUfCUfCSdCUfCShCUfCSfCQfCQfCOhCKhCGhCEhC?jC@hCDhCHhCLhCNfCTfCVfCZdC\\bCb@bCd@`Cf@~Bl@~Bp@xBt@xBx@rB~@pBbAlBfAfBhAbBnA~ArAxAvArAxAnAzAhA~AbA`Bz@`B|@bB|@`Bz@bBz@`Bz@`B~@~A~@~AbA|AfA|AfA|AdA|AhA|AdA~AdA|AfAjAx@PL|AfA|AfAzAhAxAnArAxAjA`BfAhBfAfBdAhBdAjB`AlB~@nB|@pBz@tBz@rBv@vBv@tBv@vBv@vBt@vBt@vBt@xBt@vBt@vBt@xBt@vBv@vBt@tBv@vBv@vBt@vBv@vBt@vBt@vBv@vBt@xBt@vBt@vBt@vBv@vBt@xBt@vBt@vBt@xBt@vBt@vBt@vBt@xBt@vBt@vBt@xBt@vBt@vBt@xBt@vBt@xBt@vBt@vBr@xBt@vBt@xBt@vBt@vBt@xBt@vBv@vBt@vBt@vBt@vBv@xBt@vBt@vBv@vBt@vBt@vBv@vBt@vBt@vBv@vBt@vBv@vBt@vBv@vBt@vBv@vBv@vBt@vBv@tBv@vBv@tBx@tBx@tBv@vBx@tBz@rB~@nB~@pB~@nB|@pB|@pB~@nB~@nB~@pB|@pB~@nB~@pB~@nB|@pBx@tBv@vBr@xBp@zBn@xBn@|Bn@zB`@tALd@p@zBn@zBn@|Bn@zBj@|Bj@~Bf@~Bh@`Cf@~Bd@`Cf@`Cf@~Bf@`Ch@~Bf@~Bj@~Bn@zBx@tB`AjBjAdBtAvAxAjA`B|@fBn@hBb@jBVjBRlBNjBNlBPjBPlBPjBRjBTlBRjBTjBTjBTjBVlBVfANb@FPBxANjBTjBTjBXjB\\jB^hB^hBb@hBb@jB^hB\\jB\\hB\\jBZhBb@jB\\hB\\jBZjBZjB^hBZjB^hBb@hB`@jBZjBJlBCjBYfBi@`B_AzAkApA{AjAcBnA}AvAqAfBk@lBJdBn@bBz@~A~@XN`Af@FB`Bz@`B|@bB|@`B|@`B|@`B|@`B|@`B|@x@`@B@HD`Bz@`B`A~A`A`B|@`B|@bBv@dBr@`B|@rAvAbAjBf@~BDhCIhCQfCi@~Bw@tB}@rB{@rBy@tBw@vBw@tBu@vBw@vBq@xBk@~Bc@`C_@dC]bC[dC]dC]bC]dC_@bCc@`Ci@~Bo@|Bq@xBq@zBq@zBq@xBo@zBc@xAM`@s@xBq@zBm@zBk@~Bc@`C_@bC_@dC]bC]dC[dC]bC]dC[dC[dC[dCYdCUfCSfCOhCOfCOhCMfCMhCMhCMfCGhCMhCMhCMfCKhCMhCMfCMhCMhCMfCKhCMhCKhCMfCKhCKhCMhCKfCMhCIhCIhCIhCGhCEhCChCCjC?hCBhCBhCDhCDhCFhCHhCHhCHhCLhCLhCLfCPhCPfCRfCRfCTfCVdCVfCTfCVdCTfCVfCTfCVdCVfCTdCVfCVfCTdCVfCVfCTdCVfCTfCVdCTfCVfCVdCTfCVfCTfCVdCTfCVdCVfCVfCTdCVfCTfCVdCTfCVfCTfCVdCTfCVfCTdCVfCVfCVdCXdCVfCZdC\\bC`@bCd@`Cf@`Ch@~Bl@zBn@|Bt@vBt@vBt@xBr@vBt@xBt@vBr@xBt@vBt@xBt@vBr@xBt@vBt@xBt@vBr@xBt@vBt@xBr@vBt@vBt@xBt@vBt@vBv@vBt@vBv@vBv@tBx@tBz@rBbAjBhAfBjAbBlA`BPVZ`@\\f@lA`BjAbBlA`BlA`BjA`BlA`BlA`BlA~A^d@b@l@HLlA`BlA`BlA`BlA`BjA`BlA`BlA`BjA`BlA`BlA`BlA`Bl@x@@@\\d@lA~AlA`BlA`BlA`BlA`BlA`BlA~AlA`BlA`BlA~AlA`BlA`BfAxAEF"
+                    },
+                    {
+                      "instruction": "Walk to 1 Dr Carlton B Goodlett Pl, San Francisco, CA 94102, USA",
+                      "distance_text": "0.3 mi",
+                      "distance_meters": 518,
+                      "duration_text": "8 mins",
+                      "duration_seconds": 470,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "qxqeFv}cjV`B~C@Aj@fAMPGAK@EBBZ@ZBV@N@RD`@@b@B\\@L?DBX?JE@E@?D@`@?D@?@F\\~FDNA?Dl@@??`@Dr@E@GBOHCF?@?BAB?D@J"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_CAuxKWnRX9aVlQulc5chs8",
+                "conversation_id": "d68651ae-9996-45b0-8caa-60e213e8c1fb"
+              }
+            }
+          ],
+          "latency_ms": 19723,
+          "tools": [
+            "check_trip_coverage",
+            "resolve_trip_date",
+            "find_providers"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s05-unconfirmed-hours",
+      "title": "Unusual hour with no service-hours data on file",
+      "conversation_id": "ad1ba1e1-12cf-4160-8c5b-b412b3fdb344",
+      "passed": true,
+      "failures": [],
+      "metrics": {
+        "turns": 1,
+        "questions_asked": 1,
+        "tool_calls": 3,
+        "searches": 1,
+        "total_ms": 22786,
+        "max_turn_ms": 22443,
+        "response_chars": 970
+      },
+      "turns": [
+        {
+          "index": 0,
+          "user": "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on Sunday, August 16, 2026 at 5:00 AM, one way. I'm 70, live in San Ramon, not disabled, not ADA-certified, not a veteran.",
+          "message": "You have two options for Sunday, August 16 from San Ramon City Hall to San Ramon Regional Medical Center. Neither provider has operating hours on file, so confirm the 5:00 AM pickup when you call — that early on a Sunday is the main question mark.\n\n**Senior Express Van (San Ramon)** — door-to-door, $5.00 cash one way. You qualify (seniors 55+, no proof needed). Book at least a day ahead: **(925) 938-7433**.\n\n**Mobility Matters** — volunteer drivers, free, door-to-door. You qualify as a 60+ Contra Costa County resident. Needs 7 days notice, so call by about August 9: **(925) 284-6161**. They're meant as a last-resort option.\n\nTwo other services in the area, LINK Paratransit and One-Seat Regional Ride, are ruled out for you — both require a disability certification.\n\nPublic transit shows about 27 minutes, but it's mostly walking and early Sunday service may be limited.\n\nOPTIMAT doesn't book rides, so please call directly. Want more detail on either provider?",
+          "attachments": [
             {
               "type": "tool_result",
               "data": {
@@ -127,8 +2449,30 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_T2g9hhRc75EuFcjXCXHh9t",
-                "conversation_id": "95a7a0f9-024a-4e5d-95c2-46470ce6d05a"
+                "tool_use_id": "tooluse_mwujCSw6iwvqaXnLiEr63K",
+                "conversation_id": "ad1ba1e1-12cf-4160-8c5b-b412b3fdb344"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "covered",
+                "source_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583",
+                "destination_address": "6001 Norris Canyon Rd, San Ramon, CA 94583",
+                "geography_match_count": 4,
+                "fixed_route_fallback_count": 6,
+                "provider_names": [
+                  "LINK Paratransit",
+                  "Senior Express Van (San Ramon)",
+                  "One-Seat Regional Ride",
+                  "Mobility Matters"
+                ],
+                "message": "4 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_cB5o8syT1MRIKp96vO5lDu",
+                "conversation_id": "ad1ba1e1-12cf-4160-8c5b-b412b3fdb344"
               }
             },
             {
@@ -337,15 +2681,15 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_tyuiBrLVhuKiQ6MhTGLApx",
-                "conversation_id": "95a7a0f9-024a-4e5d-95c2-46470ce6d05a"
+                "tool_use_id": "tooluse_JSxKzgXlvWiR5VQ4o4M1Rw",
+                "conversation_id": "ad1ba1e1-12cf-4160-8c5b-b412b3fdb344"
               }
             }
           ],
-          "latency_ms": 29442,
+          "latency_ms": 22443,
           "tools": [
-            "check_trip_coverage",
             "resolve_trip_date",
+            "check_trip_coverage",
             "find_providers"
           ]
         }
@@ -354,38 +2698,219 @@
     {
       "id": "s06-ambiguous-place",
       "title": "Named place resolves to a different city",
-      "passed": false,
-      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:37.498Z\"}",
-      "failures": [
-        {
-          "assertion": "transport",
-          "turn": null,
-          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:37.498Z\"}"
-        }
-      ],
-      "metrics": {},
-      "turns": []
-    },
-    {
-      "id": "s07-richmond-multi-provider",
-      "title": "Multi-provider Richmond search (payload size)",
-      "conversation_id": "4338020d-ade4-45c7-b35a-5e98c1c8967c",
+      "conversation_id": "3cc7a0ac-c514-44e1-a94e-421d7117102c",
       "passed": true,
       "failures": [],
       "metrics": {
         "turns": 1,
-        "questions_asked": 1,
+        "questions_asked": 2,
+        "tool_calls": 2,
+        "searches": 0,
+        "total_ms": 9443,
+        "max_turn_ms": 9131,
+        "response_chars": 301
+      },
+      "turns": [
+        {
+          "index": 0,
+          "user": "I need a ride from my house in Antioch to DVC in Antioch.",
+          "message": "Quick check on the destination: Diablo Valley College isn't in Antioch — the main campus is at 321 Golf Club Rd in Pleasant Hill, and the other campus is in San Ramon.\n\nDid you mean the Pleasant Hill campus? Or were you thinking of Los Medanos College in Pittsburg, which is the closer one to Antioch?",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "clarification_required",
+                "reason_code": "location_city_mismatch",
+                "message": "“DVC (Diablo Valley College), Antioch” resolved to 321 Golf Club Rd, Pleasant Hill, CA 94523, which is in Pleasant Hill, not Antioch. Please confirm the destination before I search providers.",
+                "requested_source": "Antioch",
+                "requested_destination": "DVC (Diablo Valley College), Antioch",
+                "resolved_source": "Antioch, CA",
+                "resolved_destination": "321 Golf Club Rd, Pleasant Hill, CA 94523"
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_y8yWrJszDTBfdyRu3wbhip",
+                "conversation_id": "3cc7a0ac-c514-44e1-a94e-421d7117102c"
+              }
+            },
+            {
+              "type": "address_search",
+              "data": {
+                "places": [
+                  {
+                    "name": "Diablo Valley College",
+                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
+                    "location": {
+                      "lat": 37.9686774,
+                      "lng": -122.07115370000001
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley College - San Ramon Campus",
+                    "address": "1690 Watermill Rd, San Ramon, CA 94582",
+                    "location": {
+                      "lat": 37.7549069,
+                      "lng": -121.90982220000001
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley College Library",
+                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
+                    "location": {
+                      "lat": 37.9683765,
+                      "lng": -122.07242850000002
+                    }
+                  },
+                  {
+                    "name": "DVC International Student Office",
+                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
+                    "location": {
+                      "lat": 37.9693328,
+                      "lng": -122.0712832
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley College Book Center",
+                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
+                    "location": {
+                      "lat": 37.9684896,
+                      "lng": -122.0712889
+                    }
+                  },
+                  {
+                    "name": "Contra Costa Medical Career College",
+                    "address": "4041 Lone Tree Wy #101, Antioch, CA 94531",
+                    "location": {
+                      "lat": 37.9768028,
+                      "lng": -121.80149839999999
+                    }
+                  },
+                  {
+                    "name": "Los Medanos College",
+                    "address": "2700 E Leland Rd, Pittsburg, CA 94565",
+                    "location": {
+                      "lat": 38.005794699999996,
+                      "lng": -121.8608721
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley College Pool",
+                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
+                    "location": {
+                      "lat": 37.9688002,
+                      "lng": -122.068786
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley College",
+                    "address": "Pleasant Hill, CA 94523, USA",
+                    "location": {
+                      "lat": 37.971029099999996,
+                      "lng": -122.0689484
+                    }
+                  },
+                  {
+                    "name": "Deer Valley High School",
+                    "address": "4700 Lone Tree Wy, Antioch, CA 94531",
+                    "location": {
+                      "lat": 37.9637451,
+                      "lng": -121.77527230000001
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley School",
+                    "address": "2924 Clayton Rd, Concord, CA 94519",
+                    "location": {
+                      "lat": 37.974080099999995,
+                      "lng": -122.02464889999997
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley College Library -- San Ramon Campus",
+                    "address": "Admissions and Records Office, 1690 Watermill Rd, San Ramon, CA 94582",
+                    "location": {
+                      "lat": 37.7547547,
+                      "lng": -121.9097087
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley College Lot 1",
+                    "address": "Viking Dr, Pleasant Hill, CA 94523",
+                    "location": {
+                      "lat": 37.965917,
+                      "lng": -122.0697359
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley",
+                    "address": "2910 Camino Diablo, Walnut Creek, CA 94597",
+                    "location": {
+                      "lat": 37.898836599999996,
+                      "lng": -122.0838776
+                    }
+                  },
+                  {
+                    "name": "DVC Cafeteria",
+                    "address": "321 Golf Club Rd, Pleasant Hill, CA 94523",
+                    "location": {
+                      "lat": 37.969265299999996,
+                      "lng": -122.0712157
+                    }
+                  },
+                  {
+                    "name": "Diablo Valley College",
+                    "address": "Pleasant Hill, CA 94523, USA",
+                    "location": {
+                      "lat": 37.971019999999996,
+                      "lng": -122.06923
+                    }
+                  },
+                  {
+                    "name": "Year Up United Bay Area - Diablo Valley College",
+                    "address": "321 Golf Club Rd L100, Pleasant Hill, CA 94523",
+                    "location": {
+                      "lat": 37.9685658,
+                      "lng": -122.07127179999999
+                    }
+                  }
+                ],
+                "query": "Diablo Valley College Antioch"
+              },
+              "metadata": {
+                "tool_name": "search_addresses_from_user_query",
+                "tool_use_id": "tooluse_kQ9EQnE9Zc6e4T4CIHnBP2",
+                "conversation_id": "3cc7a0ac-c514-44e1-a94e-421d7117102c"
+              }
+            }
+          ],
+          "latency_ms": 9131,
+          "tools": [
+            "check_trip_coverage",
+            "search_addresses_from_user_query"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s07-richmond-multi-provider",
+      "title": "Multi-provider Richmond search (payload size)",
+      "conversation_id": "43743402-1b0e-4895-8d23-961fbd0d2db4",
+      "passed": true,
+      "failures": [],
+      "metrics": {
+        "turns": 1,
+        "questions_asked": 0,
         "tool_calls": 3,
         "searches": 1,
-        "total_ms": 20228,
-        "max_turn_ms": 19875,
-        "response_chars": 1241
+        "total_ms": 17219,
+        "max_turn_ms": 16936,
+        "response_chars": 949
       },
       "turns": [
         {
           "index": 0,
           "user": "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026, departing at noon, round trip returning at 3:00 PM. I'm 68, I live in Richmond, I'm not disabled, not ADA-certified, and not a veteran.",
-          "message": "Good news — you qualify for two door-to-door options for your round trip on Wednesday, August 12.\n\n**R-Transit (Richmond)** — city paratransit for Richmond residents 55+. $3.00 each way, paid by ticket. Book at least 7 days ahead: **(510) 307-8026**. First-time riders need to complete an R-Transit application with photo ID and a piece of mail showing your Richmond address.\n\n**Mobility Matters** — free volunteer driver program for Contra Costa residents 60+. Also 7 days advance notice: **(925) 284-6161**. They describe themselves as a last-resort option, so availability depends on a volunteer being free.\n\nTwo things to know:\n- Neither provider's operating hours are in our records, so please confirm the noon pickup and 3:00 PM return when you call — I can't guarantee those times.\n- To make the 7-day notice, call by **Wednesday, August 5**. Sooner is better, especially for Mobility Matters.\n\nEast Bay Paratransit also serves this route but requires ADA certification, so it's not an option for you.\n\nOne more thing: it's only about a mile — roughly a 24-minute walk — from City Hall to the medical center, if that's ever useful.\n\nOPTIMAT doesn't book rides, so you'll need to call the provider directly. Want details on either one?",
+          "message": "Two providers can take you door-to-door on Wednesday, August 12 — and one of them is free.\n\n**Mobility Matters** — volunteer drivers, free. You qualify (60+, Contra Costa County resident). Call **(925) 284-6161**. Note they describe themselves as a last-resort option, so call early.\n\n**R-Transit (Richmond)** — city paratransit for Richmond seniors 55+, $3.00 each way by ticket. Call **(510) 307-8026**. You'll need to complete an R-Transit application with photo ID and a piece of mail showing your Richmond address.\n\nBoth need booking at least **7 days ahead** — so call by **Wednesday, August 5** at the latest. Neither has operating hours on file with us, so confirm the noon departure and 3:00 PM return when you call.\n\nOne note: East Bay Paratransit serves this route but requires ADA certification, so it's not an option for you.\n\nAlso worth knowing — it's only about a mile, roughly a 24-minute walk, if that's ever easier than scheduling.",
           "attachments": [
             {
               "type": "provider_search",
@@ -404,8 +2929,8 @@
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_xpKZz42Lhz8X8DtHqgCOWS",
-                "conversation_id": "4338020d-ade4-45c7-b35a-5e98c1c8967c"
+                "tool_use_id": "tooluse_tgGDrqsRbpIoRYO2GoSqXE",
+                "conversation_id": "43743402-1b0e-4895-8d23-961fbd0d2db4"
               }
             },
             {
@@ -420,8 +2945,8 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_aKPxBsifgfSMYzDFrrTJiH",
-                "conversation_id": "4338020d-ade4-45c7-b35a-5e98c1c8967c"
+                "tool_use_id": "tooluse_uGXJqJvh5wHcc2oNeUd6Ee",
+                "conversation_id": "43743402-1b0e-4895-8d23-961fbd0d2db4"
               }
             },
             {
@@ -431,7 +2956,7 @@
                 "trip_type": "round_trip",
                 "travel_date": "2026-08-12",
                 "travel_date_display": "Wednesday, August 12, 2026",
-                "departure_time": "noon",
+                "departure_time": "12:00 PM",
                 "outbound_time_intent": "depart_at",
                 "return_time": "3:00 PM",
                 "data": [
@@ -478,7 +3003,7 @@
                         },
                         {
                           "label": "Service hours are not on file — confirm the time with the provider",
-                          "detail": "Wednesday, August 12, 2026; outbound noon; return 3:00 PM"
+                          "detail": "Wednesday, August 12, 2026; outbound 12:00 PM; return 3:00 PM"
                         },
                         {
                           "label": "Eligibility matched",
@@ -528,7 +3053,7 @@
                         },
                         {
                           "label": "Service hours are not on file — confirm the time with the provider",
-                          "detail": "Wednesday, August 12, 2026; outbound noon; return 3:00 PM"
+                          "detail": "Wednesday, August 12, 2026; outbound 12:00 PM; return 3:00 PM"
                         },
                         {
                           "label": "Eligibility matched",
@@ -624,12 +3149,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_3oXWHCrvYxkCxQJLecqnQc",
-                "conversation_id": "4338020d-ade4-45c7-b35a-5e98c1c8967c"
+                "tool_use_id": "tooluse_llLEf3g5GSyG6yN53LNjKE",
+                "conversation_id": "43743402-1b0e-4895-8d23-961fbd0d2db4"
               }
             }
           ],
-          "latency_ms": 19875,
+          "latency_ms": 16936,
           "tools": [
             "check_trip_coverage",
             "resolve_trip_date",
@@ -641,7 +3166,7 @@
     {
       "id": "s08-one-way-no-return",
       "title": "One-way trip is never asked for a return time",
-      "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871",
+      "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1",
       "passed": true,
       "failures": [],
       "metrics": {
@@ -649,15 +3174,15 @@
         "questions_asked": 1,
         "tool_calls": 4,
         "searches": 2,
-        "total_ms": 39587,
-        "max_turn_ms": 20746,
-        "response_chars": 1601
+        "total_ms": 30707,
+        "max_turn_ms": 16793,
+        "response_chars": 1585
       },
       "turns": [
         {
           "index": 0,
           "user": "One way only: Richmond City Hall to Kaiser Permanente Richmond Medical Center, August 12, 2026 at 2:00 PM.",
-          "message": "Three door-to-door services cover Richmond City Hall to Kaiser Richmond on Wednesday, August 12 — but all three depend on eligibility I don't know yet:\n\n- **R-Transit (Richmond)** — $3.00 each way, book 7 days ahead, (510) 307-8026. Needs 55+ or disabled, and a Richmond/North Richmond/El Sobrante/Kensington address.\n- **Mobility Matters** — free volunteer drivers, 7 days ahead, (925) 284-6161. Needs 60+ or veteran, and Contra Costa County residency.\n- **East Bay Paratransit** — $4–$7, book 1–7 days ahead, (510) 287-5000. Needs ADA certification.\n\nNone of these have operating hours on file, so please confirm 2:00 PM works when you call.\n\nWhat's your exact age? That alone decides R-Transit and Mobility Matters for you.\n\nAlso worth knowing: it's only about a mile, roughly a 24-minute walk, if that's ever an option.",
+          "message": "Here's what I found for Wednesday, August 12, 2026, one way from Richmond City Hall to Kaiser Permanente Richmond (901 Nevin Ave) — a short trip, about a mile.\n\nThree providers serve this route, but each needs an eligibility check first:\n\n- **R-Transit (Richmond)** — door-to-door, $3.00 each way, book 7 days ahead: (510) 307-8026. For Richmond-area residents 55+ or adults with a disability.\n- **East Bay Paratransit** — door-to-door, $4–$7, book 1–7 days ahead: (510) 287-5000. Requires ADA certification.\n- **Mobility Matters** — volunteer drivers, free, 7 days notice: (925) 284-6161. For Contra Costa County residents 60+ or veterans.\n\nNone of them have operating hours on file, so please confirm the 2:00 PM pickup when you call.\n\nOne thing that would narrow this down fast: how old is the rider? That decides both R-Transit and Mobility Matters.",
           "attachments": [
             {
               "type": "provider_search",
@@ -676,8 +3201,8 @@
               },
               "metadata": {
                 "tool_name": "check_trip_coverage",
-                "tool_use_id": "tooluse_bxtve8sTj14fgPZMBepFKo",
-                "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871"
+                "tool_use_id": "tooluse_KokARhfWMpcBQgV0GPuVc2",
+                "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1"
               }
             },
             {
@@ -692,8 +3217,8 @@
               },
               "metadata": {
                 "tool_name": "resolve_trip_date",
-                "tool_use_id": "tooluse_rPY5SsPWkc8oqX6qGOmzpW",
-                "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871"
+                "tool_use_id": "tooluse_Ei3yQ8aiOtTWmcGWfCYwuH",
+                "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1"
               }
             },
             {
@@ -957,12 +3482,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_gDyzzLkc1hsif2frfI6qKr",
-                "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871"
+                "tool_use_id": "tooluse_C1IFocLQpBep0FvqWhSjKr",
+                "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1"
               }
             }
           ],
-          "latency_ms": 18436,
+          "latency_ms": 16793,
           "tools": [
             "check_trip_coverage",
             "resolve_trip_date",
@@ -972,7 +3497,7 @@
         {
           "index": 1,
           "user": "I'm 68, live in Richmond, not disabled, not ADA-certified, not a veteran.",
-          "message": "You qualify for both door-to-door services for Wednesday, August 12:\n\n- **R-Transit (Richmond)** — $3.00, paid by ticket. Call **(510) 307-8026**. Needs booking 7 days ahead, so call by **August 5**. You'll need to complete their application with a photo ID and a piece of mail showing your Richmond address.\n- **Mobility Matters** — free volunteer driver, also 7 days ahead, **(925) 284-6161**. They describe themselves as a last-resort option, so R-Transit is likely the surer bet.\n\nNeither has operating hours on file, so confirm 2:00 PM is available when you call.\n\nEast Bay Paratransit won't work — it requires ADA certification.\n\nOne more option: the trip is only about a mile, roughly 24 minutes on foot. OPTIMAT can't book for you, so the ride is set once you've called.",
+          "message": "You qualify for two providers for Wednesday, August 12 at 2:00 PM:\n\n- **R-Transit (Richmond)** — door-to-door, $3.00, pay by ticket. Call **(510) 307-8026**. They need 7 days' notice and a one-time application (ID, proof of Richmond address), so call by **August 5** — sooner is better so the application clears.\n- **Mobility Matters** — volunteer driver, free, also 7 days' notice. Call **(925) 284-6161**. They're a last-resort option, so treat them as your backup.\n\nNeither has operating hours on file, so confirm 2:00 PM works when you call.\n\nEast Bay Paratransit is out — it requires ADA certification.\n\nOne more option: it's only a mile, and public transit/walking covers it in about 24 minutes if you'd rather not book ahead.",
           "attachments": [
             {
               "type": "provider_search",
@@ -1174,12 +3699,12 @@
               },
               "metadata": {
                 "tool_name": "find_providers",
-                "tool_use_id": "tooluse_sgVuBIGJNRi2Lk7c5pYiQC",
-                "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871"
+                "tool_use_id": "tooluse_d8X7hX6xKPnR6IgTQ9zyOz",
+                "conversation_id": "54eb2cd9-fcb1-4d97-a746-e877180c3bb1"
               }
             }
           ],
-          "latency_ms": 20746,
+          "latency_ms": 13581,
           "tools": [
             "find_providers"
           ]
@@ -1189,32 +3714,350 @@
     {
       "id": "s09-followup-from-memory",
       "title": "Follow-up about a provider from an earlier turn",
-      "passed": false,
-      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:30:21.194Z\"}",
-      "failures": [
+      "conversation_id": "972118f6-7784-4c38-a0ae-1272ba3b8753",
+      "passed": true,
+      "failures": [],
+      "metrics": {
+        "turns": 2,
+        "questions_asked": 1,
+        "tool_calls": 3,
+        "searches": 1,
+        "total_ms": 21008,
+        "max_turn_ms": 15916,
+        "response_chars": 1505
+      },
+      "turns": [
         {
-          "assertion": "transport",
-          "turn": null,
-          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:30:21.194Z\"}"
+          "index": 0,
+          "user": "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026 at noon, one way. I'm 68, live in Richmond, not disabled, not ADA-certified, not a veteran.",
+          "message": "Good news — you qualify for two door-to-door options for Wednesday, August 12 at noon, Richmond City Hall to Kaiser Richmond on Nevin Ave.\n\n**R-Transit (Richmond)** — call (510) 307-8026. $3.00 each way, paid by ticket. Book at least 7 days ahead, so call by about August 5. First-time riders complete an R-Transit application with photo ID and a piece of mail showing your Richmond address.\n\n**Mobility Matters** — call (925) 284-6161. Free volunteer drivers, also 7 days' advance notice. They describe themselves as a last-resort option, so R-Transit is the better first call.\n\nTwo notes: neither provider has operating hours on file with us, so confirm noon works when you call. And East Bay Paratransit isn't an option for you — it requires ADA certification.\n\nThis trip is also short — about a mile — so regular AC Transit service or a walk of roughly 24 minutes is a fallback.\n\nI can't book for you, but those numbers will get it done. Want details on either provider?",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "covered",
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "geography_match_count": 3,
+                "fixed_route_fallback_count": 6,
+                "provider_names": [
+                  "R-Transit (Richmond)",
+                  "East Bay Paratransit",
+                  "Mobility Matters"
+                ],
+                "message": "3 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_OPUHN7PT7DGkDGgxwzzyoP",
+                "conversation_id": "972118f6-7784-4c38-a0ae-1272ba3b8753"
+              }
+            },
+            {
+              "type": "tool_result",
+              "data": {
+                "status": "resolved",
+                "travel_date_raw": "August 12, 2026",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "timezone": "America/Los_Angeles",
+                "message": "Use Wednesday, August 12, 2026 (2026-08-12). Do not substitute another year or weekday."
+              },
+              "metadata": {
+                "tool_name": "resolve_trip_date",
+                "tool_use_id": "tooluse_Hcta8LMy4aw9g0kQIJDFjv",
+                "conversation_id": "972118f6-7784-4c38-a0ae-1272ba3b8753"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "noon",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound noon"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound noon"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "verification_required": [],
+                "excluded_providers": [
+                  {
+                    "provider_name": "East Bay Paratransit",
+                    "stage": "eligibility",
+                    "reason": "The rider does not match the provider's ADA-certified disability requirement.",
+                    "requirement": "Eligibility: Disabled (ada-eligible). Proof: Complete East Bay Paratransit ADA application and call the office at (510) 287-5000 and select option 5 to set up your interview. Alternatively, you can call or send an email to Certification.EastBayPT@transdev.com to request an ADA application and instructions."
+                  }
+                ],
+                "alternatives": [],
+                "next_question": null,
+                "rider_eligibility": {
+                  "age": 68,
+                  "residence_city": "Richmond",
+                  "disabled": false,
+                  "ada_certified": false,
+                  "veteran": false
+                },
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "source_coordinates": {
+                  "lat": 37.9375139,
+                  "lng": -122.3432277
+                },
+                "destination_coordinates": {
+                  "lat": 37.937205299999995,
+                  "lng": -122.36083300000001
+                },
+                "total_found": 2,
+                "direct_provider_count": 2,
+                "public_transit_available": true,
+                "total_options_found": 3,
+                "filtered_out_count": 22,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 3,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 0,
+                  "schedule_match_count": 3,
+                  "eligible_match_count": 2,
+                  "verification_required_count": 0,
+                  "ineligible_count": 1,
+                  "providers_without_service_hours": 2,
+                  "alternatives_found": 0
+                },
+                "public_transit": {
+                  "summary": "Nevin Ave",
+                  "overview_polyline": "}rpfFtdviVATlDh@Ed@KvBEJKdATDARIj@F@ATC?Gv@Gv@E^HFCd@GAEBATEr@IdAMxA?JF??XE?ATBV@bBEb@F??PG??FBT?lBC\\?LF??LG?B^?|@@hA?FB??XC??FAbDBf@G??J?D?|@B|AEZ?f@B`D?d@CD[TAZ?D`@JCvDUBALP?Ch@?~ADT@HE?@b@F??BEFAtBBXC`@?v@?|A?lCCx@BRAFA|C?f@B??J?|A@RJTKTC?",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.937283,
+                      "lng": -122.3433074
+                    },
+                    "southwest": {
+                      "lat": 37.9364143,
+                      "lng": -122.3609789
+                    }
+                  },
+                  "distance_text": "1.0 mi",
+                  "distance_meters": 1683,
+                  "duration_text": "24 mins",
+                  "duration_seconds": 1456,
+                  "departure_time": null,
+                  "arrival_time": null,
+                  "start_address": "450 Civic Center Plaza, Richmond, CA 94804, USA",
+                  "end_address": "901 Nevin Ave, Richmond, CA 94801, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to 901 Nevin Ave, Richmond, CA 94801, USA",
+                      "distance_text": "1.0 mi",
+                      "distance_meters": 1683,
+                      "duration_text": "24 mins",
+                      "duration_seconds": 1456,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "}rpfFtdviVATlDh@CZAHKnA?f@EJKdATDARGTATF@ATC?Gv@C\\CXER?JDFB?Cd@GAEBATCVAZALAJC^AJE|@GZ?JF??XE?AN?DBV@bBEV?JF??PG??FBT?lBCV?D?LF??LG??HBT?x@?B@P?v@?FB??XC??FAvC?JB??f@G??J?B?@?j@?B?D?F?T@H@p@?J?JEN?L?X@X?l@?j@@l@?b@?@A@ABYRA@?BAV?B?@JBTFCvDUBALP??RCT?~ADT?@@FE?@b@F??BA@CD?D?HAfA?\\?LBJCT?J?B?J?J?Z?f@?Z?R?D?R?J?F?F?F?P?L?t@CT?V?JBRAF?nAAlA?f@B??J?D?vA@RJTITA?C?"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_KgStzVs0tB5OrpEmLupFRx",
+                "conversation_id": "972118f6-7784-4c38-a0ae-1272ba3b8753"
+              }
+            }
+          ],
+          "latency_ms": 15916,
+          "tools": [
+            "check_trip_coverage",
+            "resolve_trip_date",
+            "find_providers"
+          ]
+        },
+        {
+          "index": 1,
+          "user": "Which of those did you say I still need to check eligibility for, and why?",
+          "message": "Neither one — both R-Transit and Mobility Matters came back as matching your eligibility, based on your age of 68, living in Richmond, and the rest of what you told me.\n\nWhat I flagged as unverified was different: the **time**, not your eligibility. Neither provider has operating hours on file with us, so I couldn't confirm that a noon pickup on August 12 is within their service hours. Ask about that when you call.\n\nThe only eligibility ruling was East Bay Paratransit, which is ruled out because it requires ADA certification.",
+          "attachments": [],
+          "latency_ms": 4753,
+          "tools": []
         }
-      ],
-      "metrics": {},
-      "turns": []
+      ]
     },
     {
       "id": "s10-off-trip-question",
       "title": "General accessibility question, not a trip request",
-      "passed": false,
-      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:30:25.927Z\"}",
-      "failures": [
+      "conversation_id": "43ad22dd-b692-4d10-9f76-0525291a8a4c",
+      "passed": true,
+      "failures": [],
+      "metrics": {
+        "turns": 1,
+        "questions_asked": 0,
+        "tool_calls": 1,
+        "searches": 0,
+        "total_ms": 13178,
+        "max_turn_ms": 12854,
+        "response_chars": 530
+      },
+      "turns": [
         {
-          "assertion": "transport",
-          "turn": null,
-          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:30:25.927Z\"}"
+          "index": 0,
+          "user": "Does BART have wheelchair access at every station?",
+          "message": "Yes — every BART station is wheelchair accessible. All stations have elevators and wider accessible fare gates (usually located nearest the elevators), and all trains have level boarding with designated wheelchair areas and priority seating.\n\nOne practical note: at a few stations the elevator doesn't let out at a staffed fare gate, so if you can't process your ticket there, see a ticket agent for help.\n\nIf you'd like, tell me where you're starting from and where you're headed, and I can look at door-to-door ride options too.",
+          "attachments": [
+            {
+              "type": "web_search",
+              "data": {
+                "query": "Does BART have wheelchair accessibility at every station? Are all BART stations wheelchair accessible with elevators?",
+                "answer": "BART stations in the California Bay Area are fully wheelchair accessible with elevators at every station and level boarding on all trains. All stations have accessible fare gates and designated spaces for wheelchairs on trains.",
+                "sources": [
+                  {
+                    "title": "Accessibility Overview | Bay Area Rapid Transit",
+                    "url": "https://www.bart.gov/guide/accessibility",
+                    "content": "Elevators/escalators:All BART stations have escalatorsand accessible elevators.\n Accessible fare gates:All BART stations have wider fare gates to accommodate those in wheelchairs. These fare gates are typically located nearest to the elevators.\n Level boarding:All BART trains have level boarding. Please be mindful of the gap between the train and the platform.\n Priority seats and wheelchair area:All train cars have green priority seats to the left of the door on all train cars. Designated wheelc"
+                  },
+                  {
+                    "title": "Bay Area Rapid Transit (BART) | WheelchairTraveling.com",
+                    "url": "https://wheelchairtraveling.com/bay-area-rapid-transit-bart-wheelchair-travel",
+                    "content": "# Bay Area Rapid Transit (BART)\n\nAvatar photo\n\nWheelchairTraveling.com\n\nThe Bay Area Rapid is a great public transportation option for those traveling in the San Francisco or Berkeley area as well many places in the greater Bay Area.\n\n### BART Stations\n\nAll stations have elevators to reach the loading docks and getting onto the train is easy with the flat platform. However, some stations do not have a fare gate available to process your ticket if when using the elevator. If this is the case, the"
+                  },
+                  {
+                    "title": "Bay Area Rapid Transit (BART) | WheelchairTraveling.com",
+                    "url": "https://wheelchairtraveling.com/bay-area-rapid-transit-bart-wheelchair-travel/amp",
+                    "content": "# Bay Area Rapid Transit (BART)\n\nThe Bay Area Rapid Transit (BART) is a great public transportation option for those traveling in the San Francisco or Berkeley area as well many places in the greater Bay Area.\n\n### BART Stations\n\nAll stations have elevators to reach the loading docks and getting onto the train is easy with the flat platform. However, some stations do not have a fare gate available to process your ticket if when using the elevator. If this is the case, then see a ticket agent to "
+                  },
+                  {
+                    "title": "BART Accessibility Guide",
+                    "url": "https://www.bart.gov/sites/default/files/2024-10/Accessibility%20guide%20FINAL4.pdf",
+                    "content": "BART Accessibility Guide For Seniors and People with Disabilities Welcome to BART The San Francisco Bay Area Rapid Transit District (BART) provides rail transportation among San Francisco, Alameda, Contra Costa, Santa Clara, and San Mateo counties. For detailed train schedules, visit the BART Trip Planner (bart.gov/planner) or download schedules in PDF format (bart.gov/schedules/pdfs). Accessibility Features The following is a partial list of the features that make it simpler for seniors and peo"
+                  },
+                  {
+                    "title": "San Francisco, California Wheelchair Accessible Travel Guide",
+                    "url": "https://wheelchairtravel.org/san-francisco",
+                    "content": "The BART is fully wheelchair accessible, with elevators or ramps at all stations and barrier free boarding. Wheelchair users are able to roll on and off of the trains without assistance from BART staff or station personnel. Tickets can be purchased with cash or credit/debit card at automated kiosks available at each station. The fare breakdown to the downtown San Francisco stations from SFO airport is $8.65 each way, or $3.20 for seniors.\n\nAdditional information on the BART is available via thes"
+                  }
+                ]
+              },
+              "metadata": {
+                "tool_name": "general_provider_question",
+                "tool_use_id": "tooluse_KQOm3A7ChZ7NTxvFTr0Cwf",
+                "conversation_id": "43ad22dd-b692-4d10-9f76-0525291a8a4c"
+              }
+            }
+          ],
+          "latency_ms": 12854,
+          "tools": [
+            "general_provider_question"
+          ]
         }
-      ],
-      "metrics": {},
-      "turns": []
+      ]
     }
   ]
 }

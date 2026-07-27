@@ -166,7 +166,13 @@ const BOOKING_CLAIM = /\b(i'?ll book|i will book|i'?ve booked|i have booked|i'?v
 const INTERNAL_XML = /<\/?(thinking|answer|reasoning|scratchpad|system)\b/i;
 const AGE_QUESTION = /\bhow old\b|\byour (exact )?age\b|\bage in years\b|\bwhat.{0,10}age\b/i;
 const RETURN_TIME_QUESTION = /\breturn (time|trip)\b[^.?!]*\?|\bwhat time[^.?!]*(return|come back|head back)[^.?!]*\?|\bcoming back\b[^.?!]*\?/i;
-const VERIFICATION_PATH = /verif|confirm (?:your |whether |if )?(?:eligib|you qualify)|check (?:your )?eligib|call (?:them|the provider)|contact (?:them|the provider)/i;
+/**
+ * Any way of telling the rider that eligibility gets settled with the provider rather than here.
+ * The first version demanded near-exact wording ("confirm your eligibility", "call them") and so
+ * scored "each one will need to confirm that with you directly when you call" as a failure.
+ */
+const VERIFICATION_PATH =
+  /verif|confirm (?:your |that |this |whether |if )?(?:eligib|you qualify|with (?:them|the provider))|check (?:your )?eligib|sort (?:it|that) out (?:directly )?with|(?:call|contact|ask|speak to) (?:them|the provider|each|all three)|(?:directly )?with them when you call|when you call/i;
 const GEOGRAPHY_CONSTRAINT = /service area|covers? both|coverage|no provider.{0,40}(serves|covers)|outside .{0,20}service/i;
 const SCHEDULE_CONSTRAINT = /service hours|operat(e|es|ing)|closed|don'?t run|doesn'?t run|not available on|hours are|too early/i;
 const TIME_QUESTION = /what time\b[^.?!]*\?|\bdepart|\barrive by\b[^.?!]*\?/i;
@@ -243,6 +249,9 @@ const GLOBAL_ASSERTIONS = {
       if (!/\b(Shuttle|Transit|Transport|Paratransit|Van|Ride|Rides|Express|Mobility|Taxi|Link|Connection|Wheels)\b/.test(phrase)) continue;
       if (known.some((name) => name.includes(phrase) || phrase.includes(name))) continue;
       if (/^(Public Transit|Transit|Public)$/i.test(phrase)) continue;
+      // Places, not providers. Naming the stop a bus route uses ("San Ramon Transit Center",
+      // "Richmond BART Station") is giving directions, not inventing an operator.
+      if (/\b(Center|Centre|Station|Stop|Plaza|Terminal|Hub|Mall|Hospital|Medical|College|Hall)\b/.test(phrase)) continue;
       suspicious.push(phrase);
     }
     return suspicious.length ? `provider names not in data: ${[...new Set(suspicious)].join(', ')}` : null;
@@ -280,9 +289,15 @@ const SCENARIO_ASSERTIONS = {
     return onlyAsks ? 'final turn only asks another question, delivering nothing' : null;
   },
 
+  /**
+   * Somewhere in the conversation, the rider must be told eligibility is settled with the
+   * provider. Checking only the final turn punished a correct terse answer: asked "just tell me
+   * who can take me", the assistant listed three names and phone numbers, having explained the
+   * eligibility path in the turn before.
+   */
   mentions_verification_path: (turns) => {
-    const last = turns[turns.length - 1];
-    return VERIFICATION_PATH.test(last.message) ? null : 'never told the rider how to resolve eligibility';
+    const said = turns.some((turn) => VERIFICATION_PATH.test(turn.message));
+    return said ? null : 'never told the rider how to resolve eligibility';
   },
 
   names_geography_constraint: (turns) => {

@@ -568,3 +568,50 @@ Deno.test("providers with no service hours on file are reported as unverified, n
     );
   });
 });
+
+Deno.test("a provider dropped on the requested day is explained even when others matched", async () => {
+  await withGoogleFetch(async () => {
+    // The live gap this covers: a Sunday trip returned one open provider, while a weekday-only
+    // service was silently dropped instead of being offered for Monday.
+    const result = await relaxationSearch([
+      provider({ id: 1, provider_name: "Always Open Van" }),
+      provider({ id: 2, provider_name: "Weekday Van", service_hours: WEEKDAY_ONLY_HOURS }),
+    ]);
+    const data = result.data as Record<string, unknown>;
+    const alternatives = data.alternatives as Array<Record<string, unknown>>;
+
+    assertEquals(data.total_found, 1, "the open provider is still returned");
+    const otherDay = alternatives.find((alternative) => alternative.change === "other_day");
+    assert(otherDay, `expected the weekday-only provider to be explained, got ${JSON.stringify(alternatives)}`);
+    assertEquals(otherDay.providers, ["Weekday Van"]);
+    assert(
+      !String(otherDay.description).includes("Sunday"),
+      "the requested day must not be offered back as an alternative to itself",
+    );
+  });
+});
+
+Deno.test("a provider outside hours on both day and time is still explained by its own window", async () => {
+  await withGoogleFetch(async () => {
+    // The live gap: a 7am Sunday request against a Monday-Thursday 9:30am-3pm service. No
+    // same-time-other-day or same-day-shifted-time variant reaches it, but its hours say it all.
+    const result = await relaxationSearch(
+      [provider({
+        id: 1,
+        provider_name: "Easy Ride Paratransit",
+        service_hours: { hours: [{ day: "1111000", start: "0930", end: "1500" }] },
+      })],
+      { departure_time: "7:00 AM" },
+    );
+    const data = result.data as Record<string, unknown>;
+    const alternatives = data.alternatives as Array<Record<string, unknown>>;
+
+    assertEquals(data.total_found, 0);
+    const window = alternatives.find((alternative) => alternative.change === "provider_schedule");
+    assert(window, `expected the provider's own hours, got ${JSON.stringify(alternatives)}`);
+    assertStringIncludes(String(window.description), "Easy Ride Paratransit");
+    assertStringIncludes(String(window.description), "Monday-Thursday");
+    assertStringIncludes(String(window.description), "9:30 AM");
+    assertStringIncludes(String(window.description), "3 PM");
+  });
+});
