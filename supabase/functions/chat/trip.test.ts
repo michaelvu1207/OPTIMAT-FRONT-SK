@@ -1,9 +1,9 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   evaluateEligibility,
   getLocationMismatch,
   getServiceClockContext,
-  requiresRiderAge,
+  nextQuestion,
   resolveTravelDate,
 } from "./trip.ts";
 
@@ -84,11 +84,6 @@ const SAN_RAMON_SENIOR_VAN = "Eligibility: Senior (55+). Proof: No proof require
 const ORINDA_SENIOR = "Eligibility: Senior. Proof: No proof required.";
 
 Deno.test("provider minimum ages need an exact rider age, not senior status", () => {
-  assert(requiresRiderAge(SAN_RAMON_SENIOR_VAN), "a 55+ rule depends on the rider's age");
-  assert(requiresRiderAge(ORINDA_SENIOR), "a bare senior rule still depends on age");
-  assert(!requiresRiderAge("Eligibility: Disabled (18+)."), "a disability rule does not need an age");
-  assert(!requiresRiderAge("none"), "an unrestricted provider does not need an age");
-
   const senior = { age: 68, disabled: false, ada_certified: false, veteran: false, residence_city: "San Ramon" };
   assert(
     evaluateEligibility(SAN_RAMON_SENIOR_VAN, senior).status === "eligible",
@@ -97,10 +92,56 @@ Deno.test("provider minimum ages need an exact rider age, not senior status", ()
 
   // The reported bug: "I'm a senior" with no age hid this provider from the results entirely.
   const ageUnknown = { disabled: false, ada_certified: false, veteran: false, residence_city: "San Ramon" };
-  assert(
-    evaluateEligibility(SAN_RAMON_SENIOR_VAN, ageUnknown).status === "verification_required",
-    "an unknown age cannot decide an age rule",
+  const undecided = evaluateEligibility(SAN_RAMON_SENIOR_VAN, ageUnknown);
+  assert(undecided.status === "verification_required", "an unknown age cannot decide an age rule");
+  assertEquals(undecided.missing_facts, ["age"], "the search must know it is the age that is missing");
+
+  // A disability floor is decided by disability status, so no age question is worth asking.
+  assertEquals(evaluateEligibility("Eligibility: Disabled (18+).", ageUnknown).missing_facts, []);
+  assertEquals(evaluateEligibility("none", ageUnknown).missing_facts, []);
+});
+
+Deno.test("the next question is the one that decides the most providers", () => {
+  const rider = { disabled: false, ada_certified: false, veteran: false };
+  const question = nextQuestion([
+    { provider_name: "Senior Express Van (San Ramon)", missing_facts: ["age"] },
+    { provider_name: "Seniors Around Town (Orinda)", missing_facts: ["age"] },
+    { provider_name: "Mobility Matters", missing_facts: ["residence_city"] },
+  ], rider);
+
+  assertEquals(question?.field, "age", "two providers hinge on age against one on residency");
+  assertEquals(question?.candidates_if_known, 2);
+  assertStringIncludes(question?.why || "", "Senior Express Van (San Ramon)");
+});
+
+Deno.test("a fact the rider already gave is never asked for again", () => {
+  const question = nextQuestion(
+    [{ provider_name: "Senior Express Van (San Ramon)", missing_facts: ["age"] }],
+    { age: 68 },
   );
+  assertEquals(question, null, "age is known, so there is nothing worth asking");
+});
+
+Deno.test("an ADA-only candidate set is never asked about senior status", () => {
+  const question = nextQuestion(
+    [
+      { provider_name: "East Bay Paratransit", missing_facts: ["ada_certified"] },
+      { provider_name: "LINK Paratransit", missing_facts: ["ada_certified"] },
+    ],
+    {},
+  );
+  assertEquals(question?.field, "ada_certified");
+});
+
+Deno.test("a rider who declined is not asked anything further", () => {
+  assertEquals(
+    nextQuestion([{ provider_name: "Senior Express Van (San Ramon)", missing_facts: ["age"] }], { declined: true }),
+    null,
+  );
+  // Their eligibility still cannot be asserted — it goes to the provider to confirm.
+  const declined = evaluateEligibility(SAN_RAMON_SENIOR_VAN, { declined: true });
+  assertEquals(declined.status, "verification_required");
+  assertEquals(declined.missing_facts, [], "no rider answer is coming, so nothing is pending");
 });
 
 Deno.test("a bare senior rule uses the 60+ default", () => {

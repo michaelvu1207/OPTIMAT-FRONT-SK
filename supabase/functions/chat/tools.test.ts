@@ -278,15 +278,23 @@ function seniorVanSearch(riderEligibility: Record<string, unknown>) {
   );
 }
 
-Deno.test("a senior-rule provider makes the search ask for the rider's exact age", async () => {
+Deno.test("an unknown age returns the provider with the age question, instead of stalling", async () => {
   await withGoogleFetch(async () => {
-    // The rider said they are a senior but gave no age, which previously hid the provider.
+    // Previously this stopped the search dead and returned only a question, so a rider who
+    // would not give an age got no list at all. Now the search completes and says what it needs.
     const result = await seniorVanSearch({ disabled: false, ada_certified: false, veteran: false });
     const data = result.data as Record<string, unknown>;
     assertEquals(result.success, true);
-    assertEquals(data.status, "clarification_required");
-    assertEquals(data.reason_code, "rider_age_missing");
-    assertStringIncludes(String(data.message), "How old");
+    assertEquals(data.status, "complete");
+
+    const verification = data.verification_required as Array<Record<string, unknown>>;
+    assertEquals(verification.length, 1);
+    assertEquals(verification[0].provider_name, "Senior Express Van (San Ramon)");
+    assertEquals(verification[0].missing_facts, ["age"]);
+
+    const question = data.next_question as Record<string, unknown>;
+    assertEquals(question.field, "age");
+    assertStringIncludes(String(question.question), "exact age");
   });
 });
 
@@ -368,5 +376,195 @@ Deno.test("Richmond provider result stays compact and does not return service ge
     assert(returnedProviders.every((item) => !("service_zone" in item)));
     assert(returnedProviders.every((item) => !("description" in item)));
     assert(JSON.stringify(data).length < 25_000);
+  });
+});
+
+// ─── Relaxation search ──────────────────────────────────────────────────────
+
+const WEEKDAY_ONLY_HOURS = { hours: [{ day: "1111100", start: "0800", end: "1700" }] };
+const SF_ZONE = {
+  type: "Polygon",
+  coordinates: [[
+    [-122.52, 37.70],
+    [-122.35, 37.70],
+    [-122.35, 37.84],
+    [-122.52, 37.84],
+    [-122.52, 37.70],
+  ]],
+};
+
+function relaxationSearch(providers: Provider[], overrides: Record<string, unknown> = {}) {
+  return executeFindProviders(
+    {
+      source_address: "Bay Point",
+      destination_address: "Antioch",
+      departure_time: "10:00 AM",
+      trip_type: "one_way",
+      // 2099-07-19 is a Sunday, outside a Monday-to-Friday service pattern.
+      travel_date_raw: "July 19, 2099",
+      outbound_time_intent: "depart_at",
+      rider_eligibility: { age: 68, disabled: false, ada_certified: false, veteran: false, residence_city: "Bay Point" },
+      ...overrides,
+    } as Parameters<typeof executeFindProviders>[0],
+    fakeDatabase(providers),
+    "test-key",
+  );
+}
+
+Deno.test("a request outside service hours reports the days that would work", async () => {
+  await withGoogleFetch(async () => {
+    const result = await relaxationSearch([
+      provider({ id: 1, provider_name: "Weekday Van", service_hours: WEEKDAY_ONLY_HOURS }),
+    ]);
+    const data = result.data as Record<string, unknown>;
+    const alternatives = data.alternatives as Array<Record<string, unknown>>;
+
+    assertEquals(data.total_found, 0);
+    assertEquals((data.diagnostics as Record<string, number>).schedule_match_count, 0);
+
+    const otherDay = alternatives.find((alternative) => alternative.change === "other_day");
+    assert(otherDay, `expected an other_day alternative, got ${JSON.stringify(alternatives)}`);
+    assertStringIncludes(String(otherDay.description), "Monday");
+    assertStringIncludes(String(otherDay.description), "Friday");
+    assertEquals(otherDay.providers, ["Weekday Van"]);
+  });
+});
+
+Deno.test("a time outside the service window suggests a nearby time", async () => {
+  await withGoogleFetch(async () => {
+    const result = await relaxationSearch(
+      [provider({ id: 1, provider_name: "Daytime Van", service_hours: { hours: [{ day: "1111111", start: "0800", end: "1700" }] } })],
+      { departure_time: "6:00 AM" },
+    );
+    const alternatives = (result.data as Record<string, unknown>).alternatives as Array<Record<string, unknown>>;
+    const shift = alternatives.find((alternative) => alternative.change === "shift_time");
+    assert(shift, `expected a shift_time alternative, got ${JSON.stringify(alternatives)}`);
+    assertStringIncludes(String(shift.description), "8:00 AM");
+  });
+});
+
+Deno.test("a round trip that fails only on the return leg is reported as such", async () => {
+  await withGoogleFetch(async () => {
+    const result = await relaxationSearch(
+      [provider({ id: 1, provider_name: "Daytime Van", service_hours: { hours: [{ day: "1111111", start: "0800", end: "1700" }] } })],
+      { trip_type: "round_trip", return_time: "9:00 PM", departure_time: "10:00 AM" },
+    );
+    const alternatives = (result.data as Record<string, unknown>).alternatives as Array<Record<string, unknown>>;
+    const oneWay = alternatives.find((alternative) => alternative.change === "one_way_instead");
+    assert(oneWay, `expected a one_way_instead alternative, got ${JSON.stringify(alternatives)}`);
+    assertStringIncludes(String(oneWay.description), "return time is what falls outside");
+  });
+});
+
+Deno.test("no coverage reports which end of the trip each provider can reach", async () => {
+  await withGoogleFetch(async () => {
+    // DVC to San Francisco: the reported zero-coverage trip. One provider covers each end,
+    // and neither covers both.
+    const result = await executeFindProviders(
+      {
+        source_address: "Diablo Valley College",
+        destination_address: "San Francisco",
+        departure_time: "9:00 AM",
+        trip_type: "one_way",
+        travel_date_raw: "July 21, 2099",
+        outbound_time_intent: "depart_at",
+        rider_eligibility: { age: 70, disabled: false, ada_certified: false, veteran: false, residence_city: "Pleasant Hill" },
+      } as Parameters<typeof executeFindProviders>[0],
+      fakeDatabase([
+        provider({ id: 1, provider_name: "Pleasant Hill Van Service" }),
+        provider({ id: 2, provider_name: "SF Only Shuttle", service_zone: SF_ZONE }),
+      ]),
+      "test-key",
+    );
+    const data = result.data as Record<string, unknown>;
+    const alternatives = data.alternatives as Array<Record<string, unknown>>;
+    const diagnostics = data.diagnostics as Record<string, number>;
+
+    assertEquals(diagnostics.geography_match_count, 0);
+    assertEquals(diagnostics.geography_origin_only_count, 1);
+    assertEquals(diagnostics.geography_destination_only_count, 1);
+
+    const origin = alternatives.find((alternative) => alternative.change === "partial_coverage_origin");
+    const destination = alternatives.find((alternative) => alternative.change === "partial_coverage_destination");
+    assertEquals(origin?.providers, ["Pleasant Hill Van Service"]);
+    assertEquals(destination?.providers, ["SF Only Shuttle"]);
+
+    // Nothing about the date or time can fix coverage, so no schedule variants are offered.
+    assert(!alternatives.some((alternative) => String(alternative.change).startsWith("shift")));
+  });
+});
+
+Deno.test("an eligibility mismatch names the category that would qualify", async () => {
+  await withGoogleFetch(async () => {
+    const result = await relaxationSearch(
+      [
+        provider({ id: 1, provider_name: "Veterans Ride", eligibility_reqs: "Eligibility: Veteran." }),
+        provider({ id: 2, provider_name: "ADA Paratransit Only", eligibility_reqs: "Eligibility: ADA-certified disability." }),
+      ],
+      { travel_date_raw: "July 21, 2099", rider_eligibility: { age: 40, disabled: false, ada_certified: false, veteran: false } },
+    );
+    const data = result.data as Record<string, unknown>;
+    const alternatives = data.alternatives as Array<Record<string, unknown>>;
+
+    assertEquals(data.total_found, 0);
+    const veteran = alternatives.find((alternative) => String(alternative.description).includes("veteran"));
+    const ada = alternatives.find((alternative) => String(alternative.description).includes("ADA-certified"));
+    assertEquals(veteran?.providers, ["Veterans Ride"]);
+    assertEquals(ada?.providers, ["ADA Paratransit Only"]);
+    // Phrased as a property of the rule, never as a claim about this rider.
+    assertStringIncludes(String(veteran?.description), "would qualify");
+  });
+});
+
+Deno.test("a healthy result does not pay for relaxation variants", async () => {
+  await withGoogleFetch(async () => {
+    const result = await relaxationSearch([
+      provider({ id: 1, provider_name: "Open Van One" }),
+      provider({ id: 2, provider_name: "Open Van Two" }),
+    ], { travel_date_raw: "July 21, 2099" });
+    const data = result.data as Record<string, unknown>;
+    assertEquals(data.total_found, 2);
+    assertEquals((data.alternatives as unknown[]).length, 0);
+  });
+});
+
+Deno.test("alternatives stay inside the payload budget", async () => {
+  await withGoogleFetch(async () => {
+    const providers = Array.from({ length: 40 }, (_, index) =>
+      provider({
+        id: index + 1,
+        provider_name: `Weekday Van ${index + 1}`,
+        service_hours: WEEKDAY_ONLY_HOURS,
+      }));
+    const result = await relaxationSearch(providers);
+    const data = result.data as Record<string, unknown>;
+    const alternatives = data.alternatives as Array<Record<string, unknown>>;
+
+    assert(alternatives.length <= 6, `alternatives were not capped: ${alternatives.length}`);
+    for (const alternative of alternatives) {
+      assert((alternative.providers as string[]).length <= 5, "provider names per alternative were not capped");
+    }
+    assert(JSON.stringify(data).length < 100_000, "relaxation pushed the payload past the ceiling");
+  });
+});
+
+Deno.test("providers with no service hours on file are reported as unverified, not available", async () => {
+  await withGoogleFetch(async () => {
+    // Every provider row in production currently has service_hours = null, so the schedule
+    // filter passes them through unchecked. The result must say so.
+    const result = await relaxationSearch([
+      provider({ id: 1, provider_name: "No Hours Van", service_hours: undefined }),
+    ], { departure_time: "5:00 AM" });
+    const data = result.data as Record<string, unknown>;
+    const diagnostics = data.diagnostics as Record<string, number>;
+
+    assertEquals(data.total_found, 1);
+    assertEquals(diagnostics.providers_without_service_hours, 1);
+    const returned = (data.data as Array<Record<string, unknown>>)[0];
+    assert(!("service_hours_known" in returned), "a provider with no hours must not claim known hours");
+    assertStringIncludes(
+      JSON.stringify(returned.match_criteria),
+      "Service hours are not on file",
+    );
   });
 });

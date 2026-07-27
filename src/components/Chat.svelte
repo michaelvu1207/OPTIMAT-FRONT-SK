@@ -571,9 +571,7 @@ How can I assist you today?`,
                 badge: 'Action required',
                 detail: data.reason_code === 'location_city_mismatch'
                     ? 'Confirm the corrected location before the provider search can continue.'
-                    : data.reason_code === 'rider_age_missing'
-                      ? 'Providers here set different minimum ages, so the exact rider age is needed to finish the search.'
-                      : 'Confirm the requested information before the provider search can continue.',
+                    : 'Confirm the requested information before the provider search can continue.',
                 sourceAddress,
                 destinationAddress
             };

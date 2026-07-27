@@ -22,45 +22,37 @@ import {
 import { toolDefinitions, executeTool, storeToolCall, ToolResult } from "./tools.ts";
 import { getServiceClockContext, SERVICE_TIME_ZONE } from "./trip.ts";
 import {
-  buildCoverageResponse,
-  buildDateResolutionResponse,
-  buildNoProviderResponse,
-  ensurePublicTransitProviderSummary,
-  ensureVerificationSummary,
+  buildCorrectionPrompt,
+  buildFallbackResponse,
+  verifyResponse,
 } from "./responses.ts";
+import {
+  buildFactsBlock,
+  loadTripState,
+  saveTripState,
+  updateTripStateFromTools,
+  type TripState,
+} from "./state.ts";
 
-const SYSTEM_PROMPT = `You are OPTIMAT's Bay Area transportation assistant. Use current OPTIMAT provider data and tool results; never invent dates, locations, eligibility, schedules, routes, or booking capabilities.
+/**
+ * The prompt states only what the server cannot enforce on its own. Anything the code already
+ * guarantees — date arithmetic, eligibility evaluation, which bucket a provider belongs in, what
+ * question is worth asking next — lives in the tool descriptions and the facts block, where it
+ * cannot drift out of step with the validator that enforces it.
+ */
+const SYSTEM_PROMPT =
+  `You are OPTIMAT's transportation assistant, helping riders in the California Bay Area find a ride.
 
-Location rules:
-- OPTIMAT's default service context is the California Bay Area. “Richmond” always means Richmond, California unless the user explicitly names another state. Never ask which Richmond or which state.
-- If a location is vague, use search_addresses_from_user_query.
-- As soon as origin and destination are known, call check_trip_coverage before asking for date, times, return details, or eligibility. If it reports not_covered or a city mismatch, explain that immediately and do not continue a provider search until the location is corrected.
+Be genuinely useful: work out what the rider needs, explain what you find, and when something will not work say why and what would work instead. Ask a question only when the answer changes what you can tell them, and ask it in your own words.
 
-Full provider-search rules:
-- Required facts are: origin, destination, travel date, outbound time, outbound time intent (depart_at or arrive_by), trip type (one_way or round_trip), and eligibility context.
-- Pass the user's date words exactly as travel_date_raw. The server—not you—resolves “today,” “tomorrow,” weekdays, month/day, and the year.
-- Whenever the user provides or changes a date phrase, call resolve_trip_date before repeating it, naming its weekday, or inferring its year. Never calculate dates yourself.
-- Never reuse an earlier trip's explicit date to reinterpret a later relative date.
-- A one-way trip never needs a return time. Ask for return_time only for a round trip.
-- Eligibility context includes the rider's exact age, disability, ADA certification, veteran status, and residence city. Use null for facts not stated. If the rider declines, set declined=true.
-- Ask "How old are you?" and pass the number. Never ask "are you a senior?" and never treat "senior" as an age: providers in this area set minimums of 50, 55, 60, and 65, so only an exact age decides them.
-- Only providers in result.data are eligible recommendations. Providers in result.verification_required matched location and schedule but their eligibility could not be confirmed — list them separately as needing confirmation with the provider, and never drop them silently. Never recommend result.excluded_providers.
-- Fixed-route agencies are not door-to-door providers. When public_transit is returned, present it as a found transportation provider option labeled “Public Transit,” while clearly distinguishing it from direct-ride providers.
-- The diagnostics identify whether geography, schedule, or eligibility caused zero results. State the first definitive reason; do not give a generic list of guesses.
-- Public transit times are valid only when returned by the tool for the requested travel date and depart/arrive intent.
+Rules you must not break:
+- Every provider, date, time, fare, phone number, eligibility rule and route comes from tool results or the verified facts below. Never fill a gap from memory.
+- OPTIMAT does not book rides. Hand off — who to call, and by when. Never say a ride is booked or arranged, never pass rider details to a provider, and never collect a name, address, phone number or gate code.
+- Providers with unconfirmed eligibility still belong in your answer, marked as needing confirmation. Never drop them silently; never present a ruled-out provider as available.
+- Places are in the Bay Area: "Richmond" means Richmond, California. Never ask which state.
+- Pass the rider's date words to the tools verbatim; the server resolves them. Never work out a date or weekday yourself.
 
-Provider handoff rules:
-- OPTIMAT does not book rides. Do not ask for the rider's name, home address, phone number, gate code, or other booking details.
-- When a user selects a provider, use get_provider_info and give the external booking method, advance notice, eligibility/application requirement, phone, and website from the tool data.
-- Do not say a booking is complete or that OPTIMAT will send information to a provider.
-
-For provider facts not in internal data, use general_provider_question and keep the query in California Bay Area context.
-Call tools directly when needed.
-
-Writing for riders:
-- Lead with the answer. The first sentence says what you found or what you need, not what you are about to do.
-- Keep it short enough to read aloud over the phone. Include the details that change the rider's next step (who to call, when to book by, whether they qualify) and drop the rest.
-- Give a fact once. Do not restate a provider count, a date, or an eligibility rule you have already stated in the same message.`;
+Write for someone listening on the phone: lead with the answer, keep what changes their next step (who to call, the deadline, whether they qualify), drop the rest. State each fact once, and never two different provider counts in one message.`;
 
 // Types
 interface ChatRequest {
@@ -82,39 +74,6 @@ interface Attachment {
 interface ChatResponse {
   message: string;
   attachments: Attachment[];
-}
-
-function getProviderSearchData(attachments: Attachment[]): Record<string, unknown> | null {
-  for (let i = attachments.length - 1; i >= 0; i--) {
-    const attachment = attachments[i];
-    if (
-      attachment.type === "provider_search" &&
-      attachment.metadata?.tool_name === "find_providers" &&
-      attachment.data &&
-      typeof attachment.data === "object"
-    ) {
-      return attachment.data as Record<string, unknown>;
-    }
-  }
-
-  return null;
-}
-
-function getToolData(
-  attachments: Attachment[],
-  toolName: string,
-): Record<string, unknown> | null {
-  for (let i = attachments.length - 1; i >= 0; i--) {
-    const attachment = attachments[i];
-    if (
-      attachment.metadata?.tool_name === toolName &&
-      attachment.data &&
-      typeof attachment.data === "object"
-    ) {
-      return attachment.data as Record<string, unknown>;
-    }
-  }
-  return null;
 }
 
 function compactAttachments(attachments: Attachment[]): Attachment[] {
@@ -320,21 +279,29 @@ serve(async (req: Request) => {
     // Convert tools to Bedrock format
     const bedrockTools = convertToolsToBedrockFormat(toolDefinitions);
 
+    // What this conversation already established. Loaded before the loop so the model can answer
+    // a follow-up about an earlier search without running it again.
+    let tripState: TripState = await loadTripState(supabase, body.conversation_id);
+
+    const buildSystemPrompt = (state: TripState): string => {
+      const facts = buildFactsBlock(state);
+      return [
+        SYSTEM_PROMPT,
+        `\nCurrent service clock: ${getServiceClockContext()}\nAll relative dates must be resolved in ${SERVICE_TIME_ZONE}.`,
+        facts ? `\n${facts}` : "",
+      ].join("\n");
+    };
+
     // Process with Claude via Bedrock (with tool calling loop)
     let currentMessages: any[] = convertMessagesToBedrockFormat(messageHistory);
     let iterations = 0;
     let finalResponse = "";
 
-    while (iterations < MAX_TOOL_ITERATIONS) {
-      iterations++;
-
-      // Call Bedrock Converse API
-      const command = new ConverseCommand({
+    const callModel = (messages: any[], state: TripState) =>
+      bedrockClient.send(new ConverseCommand({
         modelId: BEDROCK_MODEL_ID,
-        system: [{
-          text: `${SYSTEM_PROMPT}\n\nCurrent service clock: ${getServiceClockContext()}\nAll relative dates must be resolved in ${SERVICE_TIME_ZONE}.`,
-        }],
-        messages: currentMessages,
+        system: [{ text: buildSystemPrompt(state) }],
+        messages,
         toolConfig: {
           tools: bedrockTools,
         },
@@ -344,9 +311,12 @@ serve(async (req: Request) => {
         additionalModelRequestFields: {
           output_config: { effort: CHAT_EFFORT },
         },
-      });
+      }));
 
-      const response = await bedrockClient.send(command);
+    while (iterations < MAX_TOOL_ITERATIONS) {
+      iterations++;
+
+      const response = await callModel(currentMessages, tripState);
 
       // Extract content from response
       const outputContent: any[] = response.output?.message?.content || [];
@@ -371,6 +341,7 @@ serve(async (req: Request) => {
       }
 
       // Execute tool calls
+      const attachmentsBefore = attachments.length;
       const toolResults: Array<{
         toolResult: {
           toolUseId: string;
@@ -425,6 +396,10 @@ serve(async (req: Request) => {
         });
       }
 
+      // Fold this iteration's results in before the next model call, so a follow-up tool call
+      // sees what the previous one established.
+      tripState = updateTripStateFromTools(tripState, attachments.slice(attachmentsBefore));
+
       // Add assistant response and tool results to message history
       const assistantContent = sanitizeAssistantContent(outputContent);
       if (assistantContent.length === 0) {
@@ -448,20 +423,50 @@ serve(async (req: Request) => {
     }
 
     const responseAttachments = compactAttachments(attachments);
-    const coverage = getToolData(responseAttachments, "check_trip_coverage");
-    const dateResolution = getToolData(responseAttachments, "resolve_trip_date");
-    const providerSearch = getProviderSearchData(responseAttachments);
-    const deterministicResponse =
-      buildCoverageResponse(coverage) ||
-      (providerSearch ? buildNoProviderResponse(providerSearch) : null) ||
-      (!providerSearch ? buildDateResolutionResponse(dateResolution) : null);
-    if (deterministicResponse) {
-      finalResponse = deterministicResponse;
+
+    // Check the model's own answer against the verified facts. Correct it by asking for a
+    // rewrite, not by overwriting it — a substituted template cannot respond to what the rider
+    // just said, which is how the same sentence was returned three turns in a row.
+    let problems = verifyResponse(finalResponse, tripState);
+    if (problems.length > 0) {
+      console.warn("Response failed verification; asking for one correction", {
+        codes: problems.map((problem) => problem.code),
+      });
+      try {
+        const retry = await callModel(
+          [
+            ...currentMessages,
+            ...(finalResponse ? [{ role: "assistant" as const, content: [{ text: finalResponse }] }] : []),
+            { role: "user" as const, content: [{ text: buildCorrectionPrompt(problems) }] },
+          ],
+          tripState,
+        );
+        const retryText = (retry.output?.message?.content || [])
+          .filter((block: { text?: string }) => block.text)
+          .map((block: { text?: string }) => String(block.text || ""))
+          .join("\n");
+        const retryProblems = verifyResponse(retryText, tripState);
+        if (retryText && retryProblems.length === 0) {
+          finalResponse = retryText;
+          problems = [];
+          console.log("Correction accepted");
+        } else {
+          problems = retryProblems;
+        }
+      } catch (error) {
+        console.error("Correction attempt failed:", error);
+      }
     }
-    if (providerSearch) {
-      finalResponse = ensurePublicTransitProviderSummary(finalResponse, providerSearch);
-      finalResponse = ensureVerificationSummary(finalResponse, providerSearch);
+
+    // Only after a failed correction does the server write the words itself.
+    if (problems.length > 0) {
+      console.error("Falling back to generated response", {
+        codes: problems.map((problem) => problem.code),
+      });
+      finalResponse = buildFallbackResponse(tripState);
     }
+
+    await saveTripState(supabase, body.conversation_id, tripState);
 
     // Save assistant response to database
     if (finalResponse) {

@@ -1,153 +1,192 @@
-export function buildNoProviderResponse(providerSearch: Record<string, unknown>): string | null {
-  if (providerSearch.status === "clarification_required") {
-    return typeof providerSearch.message === "string"
-      ? providerSearch.message
-      : "I need one more trip detail before I can search providers.";
-  }
+/**
+ * Response verification.
+ *
+ * These functions used to *replace* the assistant's answer. A zero-result search discarded the
+ * model's entire message and substituted a template, and two more functions prepended and
+ * appended sentences on top — which is how a rider who said "I'd rather not give my age" got the
+ * previous turn's date sentence back three times in a row, and how one message ended up claiming
+ * both "3 transportation provider options" and "no providers".
+ *
+ * The server still owns the facts. It no longer owns the words: it checks the model's answer
+ * against the facts, asks for one correction when they disagree, and only falls back to generated
+ * prose if that also fails.
+ */
 
-  const providers = Array.isArray(providerSearch.data) ? providerSearch.data : [];
-  const totalFound =
-    typeof providerSearch.total_found === "number" ? providerSearch.total_found : providers.length;
+import type { SearchDigest, TripState } from "./state.ts";
 
-  if (totalFound !== 0) return null;
-
-  const sourceAddress =
-    typeof providerSearch.source_address === "string" ? providerSearch.source_address : "the pickup address";
-  const destinationAddress =
-    typeof providerSearch.destination_address === "string"
-      ? providerSearch.destination_address
-      : "the destination address";
-  const hasPublicTransit = Boolean(providerSearch.public_transit);
-  const diagnostics =
-    providerSearch.diagnostics && typeof providerSearch.diagnostics === "object"
-      ? providerSearch.diagnostics as Record<string, unknown>
-      : {};
-  const geographyMatches = Number(diagnostics.geography_match_count || 0);
-  const scheduleMatches = Number(diagnostics.schedule_match_count || 0);
-  const verificationCount = Number(diagnostics.verification_required_count || 0);
-  const excluded = Array.isArray(providerSearch.excluded_providers)
-    ? providerSearch.excluded_providers as Array<Record<string, unknown>>
-    : [];
-
-  const lines: string[] = [];
-
-  if (hasPublicTransit) {
-    lines.push("I found 1 transportation provider option: Public Transit.", "");
-  }
-
-  if (geographyMatches === 0) {
-    lines.push(
-      "I couldn't find a direct provider in our current data whose service area covers both locations.",
-      "Changing the travel time will not fix this coverage constraint.",
-    );
-  } else if (scheduleMatches === 0) {
-    lines.push(
-      `${geographyMatches} provider service area${geographyMatches === 1 ? "" : "s"} cover both locations, but none operate for the requested date and trip time.`,
-    );
-  } else if (verificationCount > 0 && excluded.length === 0) {
-    lines.push(
-      `I found ${verificationCount} provider${verificationCount === 1 ? "" : "s"} covering this trip, but eligibility needs to be verified before I can recommend them.`,
-    );
-  } else {
-    lines.push(
-      `${scheduleMatches} provider${scheduleMatches === 1 ? "" : "s"} cover the trip and requested schedule, but none match the eligibility information provided.`,
-    );
-    for (const provider of excluded.slice(0, 3)) {
-      const name = typeof provider.provider_name === "string" ? provider.provider_name : "Provider";
-      const reason = typeof provider.reason === "string" ? provider.reason : "Eligibility did not match.";
-      lines.push(`${name}: ${reason}`);
-    }
-
-    if (verificationCount > 0) {
-      lines.push(
-        `${verificationCount} additional provider${verificationCount === 1 ? "" : "s"} may cover the trip but require eligibility verification.`,
-      );
-    }
-  }
-
-  lines.push("", `Pickup: ${sourceAddress}`, `Destination: ${destinationAddress}`);
-
-  if (hasPublicTransit) {
-    lines.push("", "Open the results to review its itinerary and display the transit route on the map.");
-  }
-
-  return lines.join("\n");
+export interface ResponseProblem {
+  code: string;
+  detail: string;
 }
 
-export function ensurePublicTransitProviderSummary(
-  response: string,
-  providerSearch: Record<string, unknown> | null,
-): string {
-  if (!providerSearch?.public_transit || providerSearch.status !== "complete") return response;
-  if (/transportation provider option[^\n]*Public Transit/i.test(response)) return response;
+const NUMBER_WORDS: Record<string, number> = {
+  no: 0, zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
 
-  const directProviders = Array.isArray(providerSearch.data) ? providerSearch.data.length : 0;
-  const totalOptions = directProviders + 1;
-  const summary = `I found ${totalOptions} transportation provider ${
-    totalOptions === 1 ? "option" : "options"
-  }, including Public Transit.`;
-  return response ? `${summary}\n\n${response}` : summary;
+const BOOKING_CLAIM =
+  /\b(i'?ll book|i will book|i'?ve booked|i have booked|i'?ve scheduled|i have scheduled|i'?ve arranged|i have arranged|your ride is (booked|scheduled|confirmed)|booking is (complete|confirmed)|i'?ll (send|forward) (your|this) (information|details) to)\b/i;
+
+/**
+ * Provider totals the message asserts. Counts qualified by "more", "additional" or "other" are
+ * deliberately excluded: "2 providers can take you, 1 more needs verification" is correct, and
+ * only an unqualified second total contradicts the first.
+ */
+export function statedProviderCounts(response: string): Array<{ value: number; phrase: string }> {
+  const counts: Array<{ value: number; phrase: string }> = [];
+  const pattern =
+    /\b(\d{1,3}|no|zero|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:more\s+|additional\s+|other\s+|direct\s+|transportation\s+)*provider/gi;
+  for (const match of response.matchAll(pattern)) {
+    const token = match[1].toLowerCase();
+    const value = token in NUMBER_WORDS ? NUMBER_WORDS[token] : Number(token);
+    if (!Number.isFinite(value)) continue;
+    if (/\b(more|additional|other)\b/i.test(match[0])) continue;
+    counts.push({ value, phrase: match[0].trim() });
+  }
+  return counts;
 }
 
 /**
- * Providers whose eligibility could not be confirmed must never vanish from the answer.
- * When the model omits them, state them deterministically instead.
+ * Check the assistant's answer against the server-verified facts.
+ *
+ * Deliberately narrow: every check here is something the server knows for certain. Judging
+ * whether a provider name was invented needs the full provider vocabulary and is done in
+ * tests/chat/eval.mjs, where a false positive costs a red row rather than a broken rider answer.
  */
-export function ensureVerificationSummary(
-  response: string,
-  providerSearch: Record<string, unknown> | null,
-): string {
-  if (providerSearch?.status !== "complete") return response;
-  const verification = Array.isArray(providerSearch.verification_required)
-    ? providerSearch.verification_required as Array<Record<string, unknown>>
-    : [];
-  if (verification.length === 0) return response;
+export function verifyResponse(response: string, state: TripState): ResponseProblem[] {
+  const problems: ResponseProblem[] = [];
+  const text = String(response || "");
 
-  const names = verification
-    .map((provider) => (typeof provider.provider_name === "string" ? provider.provider_name : null))
-    .filter((name): name is string => Boolean(name));
-  if (names.length === 0) return response;
-  if (names.every((name) => response.includes(name))) return response;
+  if (!text.trim()) {
+    problems.push({ code: "empty", detail: "The response was empty." });
+    return problems;
+  }
 
-  const note = `${names.length === 1 ? "One more provider serves" : `${names.length} more providers serve`} this trip but ${
-    names.length === 1 ? "needs" : "need"
-  } eligibility verification: ${names.join(", ")}. Contact them directly to confirm whether you qualify.`;
-  return response ? `${response}\n\n${note}` : note;
+  const bookingClaim = text.match(BOOKING_CLAIM);
+  if (bookingClaim) {
+    problems.push({
+      code: "booking_claim",
+      detail: `The message claims to book or forward a ride ("${bookingClaim[0]}"). OPTIMAT never books; the rider contacts the provider themselves.`,
+    });
+  }
+
+  const search: SearchDigest | null = state.last_search;
+  if (!search) return problems;
+
+  const counts = statedProviderCounts(text);
+  const distinct = [...new Set(counts.map((count) => count.value))];
+  if (distinct.length > 1) {
+    problems.push({
+      code: "contradictory_counts",
+      detail: `The message states two different provider totals (${counts.map((count) => `"${count.phrase}"`).join(", ")}). State one total.`,
+    });
+  }
+
+  const maximumAvailable = search.eligible.length + search.verification.length +
+    (search.public_transit?.available ? 1 : 0);
+  const overstated = counts.find((count) => count.value > maximumAvailable);
+  if (overstated) {
+    problems.push({
+      code: "overstated_count",
+      detail: `The message says "${overstated.phrase}" but at most ${maximumAvailable} option(s) were found.`,
+    });
+  }
+
+  if (search.verification.length > 0) {
+    const named = search.verification.filter((note) => text.includes(note.name));
+    if (named.length === 0) {
+      problems.push({
+        code: "verification_omitted",
+        detail: `These providers match the trip but their eligibility is unconfirmed and none were mentioned: ${
+          search.verification.map((note) => note.name).join(", ")
+        }. They must never be dropped silently.`,
+      });
+    }
+  }
+
+  // A ruled-out provider may be discussed, but not in a line that reads as a recommendation.
+  const NEGATIVE = /\b(not|isn'?t|doesn'?t|don'?t|cannot|can'?t|unfortunately|ruled out|excluded|ineligible|requires|restricted|limited|only)\b/i;
+  for (const note of search.excluded) {
+    const mentions = text.split(/\n|(?<=\.)\s+/).filter((line) => line.includes(note.name));
+    if (mentions.length > 0 && !mentions.some((line) => NEGATIVE.test(line))) {
+      problems.push({
+        code: "excluded_recommended",
+        detail: `${note.name} was ruled out (${note.reason || "eligibility did not match"}) but is presented without saying so.`,
+      });
+    }
+  }
+
+  return problems;
 }
 
-export function buildCoverageResponse(coverage: Record<string, unknown> | null): string | null {
-  if (!coverage) return null;
-  if (coverage.status === "clarification_required" && typeof coverage.message === "string") {
-    return coverage.message;
-  }
-  if (coverage.status !== "not_covered") return null;
-
-  const source = typeof coverage.source_address === "string" ? coverage.source_address : "the pickup location";
-  const destination =
-    typeof coverage.destination_address === "string" ? coverage.destination_address : "the destination";
+/** The correction sent back to the model when its answer disagrees with the facts. */
+export function buildCorrectionPrompt(problems: ResponseProblem[]): string {
   return [
-    "I couldn't find a direct provider in our current data whose service area covers both locations.",
-    `Pickup: ${source}`,
-    `Destination: ${destination}`,
-    "Changing the date or time will not fix this coverage constraint, so I won't ask you for unnecessary return-trip details. Public transit may still be an option.",
+    "Your previous answer did not match the verified search results:",
+    ...problems.map((problem) => `- ${problem.detail}`),
+    "",
+    "Rewrite the answer for the rider. Keep your own wording and keep it short; just make it consistent with the facts above.",
   ].join("\n");
 }
 
-export function buildDateResolutionResponse(dateResolution: Record<string, unknown> | null): string | null {
-  if (!dateResolution) return null;
-  if (dateResolution.status === "clarification_required" && typeof dateResolution.message === "string") {
-    return dateResolution.message;
+/**
+ * Last-resort answer, generated from the facts when the model's own answer fails verification
+ * twice. Plain and complete rather than well-written — it exists so a rider is never handed an
+ * empty or self-contradictory message.
+ */
+export function buildFallbackResponse(state: TripState): string {
+  const search = state.last_search;
+  const lines: string[] = [];
+
+  if (!search) {
+    const missing: string[] = [];
+    if (!state.trip.origin) missing.push("where the trip starts");
+    if (!state.trip.destination) missing.push("where it is going");
+    if (!state.trip.travel_date) missing.push("the travel date");
+    if (!state.trip.departure_time) missing.push("the time");
+    return missing.length > 0
+      ? `I still need ${missing.join(", ")} before I can look for providers.`
+      : "I ran into a problem putting that answer together. Could you tell me again what trip you need?";
   }
-  if (dateResolution.status !== "resolved") return null;
 
-  const raw = typeof dateResolution.travel_date_raw === "string" ? dateResolution.travel_date_raw : "that date";
-  const display = typeof dateResolution.travel_date_display === "string"
-    ? dateResolution.travel_date_display
-    : dateResolution.travel_date;
-  if (typeof display !== "string") return null;
+  const total = search.eligible.length;
+  if (total > 0) {
+    lines.push(`${total} provider${total === 1 ? "" : "s"} can serve this trip:`);
+    for (const note of search.eligible) lines.push(`- ${note.name}`);
+  } else if (search.binding_constraint === "geography") {
+    lines.push("No provider's service area covers both ends of this trip, so changing the date or time would not help.");
+  } else if (search.binding_constraint === "schedule") {
+    lines.push("Providers cover this trip, but none operate at the date and time requested.");
+  } else {
+    lines.push("Providers cover this trip and time, but none match the eligibility details given so far.");
+  }
 
-  return [
-    `I resolved “${raw}” as ${display} using the California service clock, and I'll use that date.`,
-    "Please provide any remaining trip details I asked for, such as one-way or round trip, the outbound time and whether it means depart at or arrive by, and rider eligibility.",
-  ].join("\n");
+  if (search.verification.length > 0) {
+    lines.push(
+      "",
+      `${search.verification.length === 1 ? "One more provider serves" : `${search.verification.length} more providers serve`} this trip, but ${
+        search.verification.length === 1 ? "its" : "their"
+      } eligibility has to be confirmed with them directly: ${search.verification.map((note) => note.name).join(", ")}.`,
+    );
+  }
+
+  if (search.alternatives.length > 0) {
+    lines.push("", "Options that would work instead:");
+    for (const alternative of search.alternatives) {
+      lines.push(`- ${alternative.description}${alternative.providers.length > 0 ? ` (${alternative.providers.join(", ")})` : ""}`);
+    }
+  }
+
+  if (search.public_transit?.available) {
+    lines.push(
+      "",
+      `Public transit also covers this trip${search.public_transit.duration_text ? ` in about ${search.public_transit.duration_text}` : ""}, though it is not door-to-door.`,
+    );
+  }
+
+  if (state.trip.origin && state.trip.destination) {
+    lines.push("", `Pickup: ${state.trip.origin}`, `Destination: ${state.trip.destination}`);
+  }
+
+  return lines.join("\n");
 }

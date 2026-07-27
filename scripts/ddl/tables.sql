@@ -159,6 +159,25 @@ COMMENT ON COLUMN optimat.conversation_states.ui_hints IS 'UI hints for frontend
 
 
 -- =============================================================================
+-- 5b. chat_trip_state — The chat assistant's memory between turns
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS optimat.chat_trip_state (
+    conversation_id UUID PRIMARY KEY
+        REFERENCES optimat.conversations(id) ON DELETE CASCADE,
+    trip            JSONB NOT NULL DEFAULT '{}'::jsonb,
+    last_search     JSONB,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS chat_trip_state_updated_at_idx
+    ON optimat.chat_trip_state (updated_at);
+
+COMMENT ON TABLE optimat.chat_trip_state IS 'Compact per-conversation trip digest the chat assistant reads at the start of each turn.';
+COMMENT ON COLUMN optimat.chat_trip_state.trip IS 'Resolved trip fields: canonical origin/destination, travel date, times, trip type, rider eligibility answers.';
+COMMENT ON COLUMN optimat.chat_trip_state.last_search IS 'Digest of the most recent find_providers result: eligible / verification / excluded provider names with reasons, diagnostics, alternatives.';
+
+
+-- =============================================================================
 -- 6. find_providers_calls — Recorded find_providers tool invocations
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS optimat.find_providers_calls (

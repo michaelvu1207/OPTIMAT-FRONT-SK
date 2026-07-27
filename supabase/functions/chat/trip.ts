@@ -14,10 +14,19 @@ export interface RiderEligibility {
 
 export type EligibilityStatus = "eligible" | "ineligible" | "verification_required";
 
+/** Rider facts an eligibility rule can turn on. */
+export type RiderFact = "age" | "disabled" | "ada_certified" | "veteran" | "residence_city";
+
 export interface EligibilityEvaluation {
   status: EligibilityStatus;
   reason: string;
   requirement: string;
+  /**
+   * Facts the rider has not stated that would settle this requirement. Empty when the verdict
+   * is already decided, or when the requirement text cannot be interpreted at all — in which
+   * case no answer from the rider would help and only the provider can confirm.
+   */
+  missing_facts: RiderFact[];
 }
 
 export interface ResolvedTravelDate {
@@ -373,29 +382,6 @@ function requirementText(requirements: unknown): string {
   return String(requirements);
 }
 
-/**
- * True when the requirement is decided by the rider's age. This mirrors the senior check in
- * `evaluateEligibility` — the only place an age is consulted — so the search never stops to ask
- * for an age that cannot change a verdict. A disability floor such as "Disabled (18+)" is decided
- * by disability status, not age.
- */
-export function requiresRiderAge(requirements: unknown): boolean {
-  const text = requirementText(requirements).toLowerCase();
-  if (!text || /^(none|n\/a|no eligibility requirements?)\.?$/.test(text)) return false;
-  if (/open to (the )?general public/.test(text)) return false;
-  return /\bsenior\b/.test(text);
-}
-
-function hasKnownRiderFacts(rider: RiderEligibility): boolean {
-  return (
-    Number.isFinite(rider.age) ||
-    typeof rider.disabled === "boolean" ||
-    typeof rider.ada_certified === "boolean" ||
-    typeof rider.veteran === "boolean" ||
-    Boolean(rider.residence_city?.trim())
-  );
-}
-
 function riderResidenceMatches(text: string, residenceCity: string): boolean | null {
   const normalizedResidence = normalizeCity(residenceCity);
   if (/contra costa county resident/.test(text)) return CONTRA_COSTA_CITIES.has(normalizedResidence);
@@ -418,29 +404,31 @@ export function evaluateEligibility(requirements: unknown, rider: RiderEligibili
   const text = requirement.toLowerCase();
 
   if (!text || /^(none|n\/a|no eligibility requirements?)\.?$/.test(text) || /open to (the )?general public/.test(text)) {
-    return { status: "eligible", reason: "Open to the general public.", requirement: requirement || "None" };
-  }
-
-  if (rider.declined || !hasKnownRiderFacts(rider)) {
     return {
-      status: "verification_required",
-      reason: "Rider eligibility was not provided; verify the provider requirements before booking.",
-      requirement,
+      status: "eligible",
+      reason: "Open to the general public.",
+      requirement: requirement || "None",
+      missing_facts: [],
     };
   }
 
-  const categoryChecks: Array<{ label: string; value: boolean | null }> = [];
+  const categoryChecks: Array<{ label: string; field: RiderFact; value: boolean | null }> = [];
   const seniorMatch = text.match(/senior[^\d]{0,12}(\d{2})\s*\+/);
   if (/\bsenior\b/.test(text)) {
     const minimumAge = seniorMatch ? Number(seniorMatch[1]) : 60;
     categoryChecks.push({
       label: `age ${minimumAge}+`,
+      field: "age",
       value: Number.isFinite(rider.age) ? Number(rider.age) >= minimumAge : null,
     });
   }
 
   if (/\bveteran\b/.test(text)) {
-    categoryChecks.push({ label: "veteran", value: typeof rider.veteran === "boolean" ? rider.veteran : null });
+    categoryChecks.push({
+      label: "veteran",
+      field: "veteran",
+      value: typeof rider.veteran === "boolean" ? rider.veteran : null,
+    });
   }
 
   if (/\bdisabled|disability\b/.test(text)) {
@@ -454,7 +442,11 @@ export function evaluateEligibility(requirements: unknown, rider: RiderEligibili
         : typeof rider.ada_certified === "boolean"
           ? rider.ada_certified
           : null;
-    categoryChecks.push({ label: requiresAda ? "ADA-certified disability" : "disability", value });
+    categoryChecks.push({
+      label: requiresAda ? "ADA-certified disability" : "disability",
+      field: requiresAda ? "ada_certified" : "disabled",
+      value,
+    });
   }
 
   let categoryStatus: boolean | null = true;
@@ -484,12 +476,13 @@ export function evaluateEligibility(requirements: unknown, rider: RiderEligibili
   }
 
   // Requirement text that states something but names no category or residency rule cannot be
-  // decided here. Unknown must never read as eligible.
+  // decided here. Unknown must never read as eligible, and no rider answer would settle it.
   if (categoryChecks.length === 0 && !requiresResidency) {
     return {
       status: "verification_required",
       reason: "This provider's eligibility requirement could not be interpreted automatically; confirm it with the provider.",
       requirement,
+      missing_facts: [],
     };
   }
 
@@ -501,14 +494,25 @@ export function evaluateEligibility(requirements: unknown, rider: RiderEligibili
       status: "ineligible",
       reason: `The rider does not match the provider's ${failed.join(" and ")} requirement.`,
       requirement,
+      missing_facts: [],
     };
   }
 
   if (categoryStatus === null || residencyStatus === null) {
+    const missing: RiderFact[] = [];
+    if (categoryStatus === null) {
+      for (const check of categoryChecks) {
+        if (check.value === null) missing.push(check.field);
+      }
+    }
+    if (residencyStatus === null) missing.push("residence_city");
     return {
       status: "verification_required",
-      reason: "More information or provider verification is needed to confirm eligibility.",
+      reason: rider.declined
+        ? "The rider declined to confirm eligibility, so this must be checked with the provider."
+        : "More information or provider verification is needed to confirm eligibility.",
       requirement,
+      missing_facts: rider.declined ? [] : missing,
     };
   }
 
@@ -516,6 +520,75 @@ export function evaluateEligibility(requirements: unknown, rider: RiderEligibili
     status: "eligible",
     reason: "The rider information matches the stated eligibility requirements.",
     requirement,
+    missing_facts: [],
+  };
+}
+
+const RIDER_FACT_QUESTIONS: Record<RiderFact, string> = {
+  age: "the rider's exact age in years",
+  disabled: "whether the rider has a disability",
+  ada_certified: "whether the rider is ADA-certified",
+  veteran: "whether the rider is a veteran",
+  residence_city: "which city the rider lives in",
+};
+
+export interface QuestionCandidate {
+  provider_name: string;
+  missing_facts: RiderFact[];
+}
+
+export interface NextQuestionHint {
+  field: RiderFact;
+  question: string;
+  why: string;
+  candidates_if_known: number;
+  provider_names: string[];
+}
+
+/**
+ * Pick the single unknown rider fact that would settle the most undecided providers.
+ *
+ * Question order used to be whatever order the validator happened to reject in, which is why a
+ * rider could be asked about senior status when every candidate was ADA-only. Here the only
+ * questions asked are ones with a candidate riding on the answer, most valuable first.
+ */
+export function nextQuestion(candidates: QuestionCandidate[], rider: RiderEligibility = {}): NextQuestionHint | null {
+  if (rider.declined) return null;
+
+  const known: Record<RiderFact, boolean> = {
+    age: Number.isFinite(rider.age),
+    disabled: typeof rider.disabled === "boolean",
+    ada_certified: typeof rider.ada_certified === "boolean",
+    veteran: typeof rider.veteran === "boolean",
+    residence_city: Boolean(rider.residence_city?.trim()),
+  };
+
+  const byField = new Map<RiderFact, string[]>();
+  for (const candidate of candidates) {
+    for (const field of candidate.missing_facts) {
+      if (known[field]) continue;
+      const names = byField.get(field) || [];
+      if (!names.includes(candidate.provider_name)) names.push(candidate.provider_name);
+      byField.set(field, names);
+    }
+  }
+  if (byField.size === 0) return null;
+
+  // Ties break on the fixed order below rather than on map insertion, so the same candidate set
+  // always produces the same question.
+  const priority: RiderFact[] = ["age", "disabled", "ada_certified", "veteran", "residence_city"];
+  const best = [...byField.entries()].sort((a, b) => {
+    if (b[1].length !== a[1].length) return b[1].length - a[1].length;
+    return priority.indexOf(a[0]) - priority.indexOf(b[0]);
+  })[0];
+
+  const [field, providerNames] = best;
+  return {
+    field,
+    question: RIDER_FACT_QUESTIONS[field],
+    why: `${providerNames.length} provider${providerNames.length === 1 ? "" : "s"} on this trip (${providerNames.join(", ")}) can only be decided once this is known`,
+    candidates_if_known: providerNames.length,
+    provider_names: providerNames,
   };
 }
 

@@ -25,3 +25,8 @@ vite.config.ts.timestamp-*
 # Local migration outputs
 scripts/backup/
 scripts/cache/
+.gstack/
+
+# Point-in-time API captures from tests/api-harness.mjs (8MB+ each, stale by design).
+# tests/snapshots/README.md explains why they must not be read as current data.
+tests/snapshots/*.json

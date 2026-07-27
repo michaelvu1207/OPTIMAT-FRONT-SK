@@ -42,6 +42,23 @@
   // Providers that matched location and schedule but whose eligibility could not be confirmed.
   // They are listed apart from recommendations instead of disappearing from the results.
   $: verificationProviders = normalizeProviderList(providerData?.verification_required);
+  // Variations of the trip that would return providers when the trip as asked does not: another
+  // day, a nearby time, one way instead of round trip, or a provider covering one end only.
+  $: tripAlternatives = Array.isArray(providerData?.alternatives) ? providerData.alternatives : [];
+  // Which filter stage actually emptied the result, so the panel names one reason instead of
+  // always blaming service areas.
+  $: searchDiagnostics = providerData?.diagnostics && typeof providerData.diagnostics === 'object'
+    ? providerData.diagnostics
+    : {};
+  $: emptyResultReason = (() => {
+    if (Number(searchDiagnostics.geography_match_count || 0) === 0) {
+      return 'No provider service area covers both addresses. Changing the date or time would not help.';
+    }
+    if (Number(searchDiagnostics.schedule_match_count || 0) === 0) {
+      return 'Provider service areas cover this trip, but none operate at the date and time requested.';
+    }
+    return 'Providers cover this trip and time, but none match the eligibility details given so far.';
+  })();
 
   const originPing = derived(pings, $pings => $pings.find(p => p.type === PingTypes.ORIGIN && p.visible));
   const destinationPing = derived(pings, $pings => $pings.find(p => p.type === PingTypes.DESTINATION && p.visible));
@@ -1500,7 +1517,7 @@
                     <div class="max-w-md rounded-lg border border-border/60 bg-background/70 p-5 text-center">
                       <div class="text-sm font-medium text-foreground">No providers found</div>
                       <div class="mt-2 text-xs text-muted-foreground">
-                        No provider service area matched both addresses for this search.
+                        {emptyResultReason}
                       </div>
                       {#if providerData.source_address || providerData.destination_address}
                         <div class="mt-3 text-[11px] text-muted-foreground">
@@ -1514,6 +1531,46 @@
                       {/if}
                     </div>
                   </div>
+                {/if}
+
+                {#if tripAlternatives.length > 0}
+                  <section class="mt-3" aria-label="Alternatives that would work">
+                    <div class="mb-2 flex items-center gap-2">
+                      <h3 class="text-xs font-semibold text-foreground">What would work instead</h3>
+                      <span class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-800">
+                        {tripAlternatives.length}
+                      </span>
+                    </div>
+                    <p class="mb-2 text-[11px] text-muted-foreground">
+                      Changes to the trip that return providers. These are possibilities to check with the provider, not bookings.
+                    </p>
+                    <div class="space-y-2">
+                      {#each tripAlternatives as alternative, idx (alternative.change ? `${alternative.change}-${idx}` : `alt-${idx}`)}
+                        <article
+                          class="rounded-lg border border-sky-200 bg-sky-50/60 p-3 text-left dark:border-sky-900 dark:bg-sky-950/20"
+                          data-provider-kind="alternative"
+                        >
+                          <div class="text-xs font-medium leading-snug text-foreground">
+                            {alternative.description}
+                          </div>
+                          {#if Array.isArray(alternative.providers) && alternative.providers.length > 0}
+                            <div class="mt-1.5 flex flex-wrap gap-1">
+                              {#each alternative.providers as name}
+                                <span class="rounded-full bg-background/80 px-2 py-0.5 text-[10px] text-foreground">
+                                  {name}
+                                </span>
+                              {/each}
+                              {#if Number(alternative.count || 0) > alternative.providers.length}
+                                <span class="px-1 py-0.5 text-[10px] text-muted-foreground">
+                                  +{Number(alternative.count) - alternative.providers.length} more
+                                </span>
+                              {/if}
+                            </div>
+                          {/if}
+                        </article>
+                      {/each}
+                    </div>
+                  </section>
                 {/if}
               </div>
             {:else}

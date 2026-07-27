@@ -23,6 +23,7 @@ export const TABLES = {
   GENERAL_QUESTION_CALLS: "general_question_calls",
   CONVERSATION_STATES: "conversation_states",
   TOOL_CALLS: "tool_calls",
+  CHAT_TRIP_STATE: "chat_trip_state",
 } as const;
 
 // Environment variables for Supabase connection

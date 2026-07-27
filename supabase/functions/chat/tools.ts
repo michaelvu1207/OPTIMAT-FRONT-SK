@@ -9,10 +9,12 @@ import { TABLES } from "../_shared/supabase.ts";
 import {
   evaluateEligibility,
   getLocationMismatch,
-  requiresRiderAge,
+  nextQuestion,
   resolveTravelDate,
   SERVICE_TIME_ZONE,
+  type EligibilityStatus,
   type RiderEligibility,
+  type RiderFact,
   type TimeIntent,
   type TripType,
 } from "./trip.ts";
@@ -131,15 +133,15 @@ It detects impossible provider trips early and also detects when a named place r
   },
   {
     name: "find_providers",
-    description: `Find providers for a validated one-way or round trip.
-The server resolves the user's verbatim date phrase in America/Los_Angeles, filters geography and service hours, and enforces rider eligibility.
+    description: `Find providers for a one-way or round trip.
+The server resolves the verbatim date phrase in America/Los_Angeles, filters by service area and service hours, evaluates rider eligibility, and — when the result is empty or thin — searches nearby variations of the trip.
 
-Before calling this tool, ensure you have asked the user for:
-1. Their eligibility context (the rider's exact age in years, disability or ADA certification, veteran status, and relevant residency)
-2. The travel date (pass the user's exact words as travel_date_raw)
-3. Their outbound time and whether it means depart_at or arrive_by
-4. Whether this is one_way or round_trip
-5. A return time only when trip_type is round_trip`,
+Only the travel date and outbound time are required to search. Do not gather eligibility facts before calling: run the search with whatever the rider has already said and pass null for the rest. The result sorts providers into ones the rider qualifies for, ones whose eligibility cannot be confirmed yet (each naming which rider fact would settle it in missing_facts), and ones ruled out with a reason.
+
+The result also carries:
+- next_question: the single unknown rider fact that would decide the most providers. Ask this in your own words rather than working through a checklist. Providers here set minimum ages of 50, 55, 60 and 65, so an exact age is what decides them — "senior" cannot.
+- alternatives: variations that would work when the trip as asked does not (another day, a different time, one way instead of round trip, partial coverage, or an eligibility category). Offer them as possibilities.
+- diagnostics.providers_without_service_hours: providers whose operating hours are not on file. Their times were not actually checked, so tell the rider to confirm the time rather than presenting it as available.`,
     input_schema: {
       type: "object" as const,
       properties: {
@@ -178,20 +180,24 @@ Before calling this tool, ensure you have asked the user for:
         },
         rider_eligibility: {
           type: "object",
-          description: "Only facts the rider stated. Ask for the rider's exact age and the three yes/no facts before searching. Use declined=true if they prefer not to share.",
+          description:
+            "Only facts the rider has actually stated. Omit anything unknown rather than guessing — the search runs with gaps and tells you which fact matters most. Never convert a self-description into a number.",
           properties: {
             age: {
               type: "number",
               description:
-                "The rider's exact age in years. Ask \"How old are you?\" — never substitute \"senior\" or \"65+\", because providers in this area set minimums of 50, 55, 60, and 65. Omit only when the rider refuses, and then set declined=true.",
+                'The rider\'s exact age in years, only if they stated it. Omit when they said something like "senior" or "elderly" without a number.',
             },
-            disabled: { type: "boolean", description: "True or false from the rider's explicit answer" },
-            ada_certified: { type: "boolean", description: "True or false from the rider's explicit answer" },
-            veteran: { type: "boolean", description: "True or false from the rider's explicit answer" },
+            disabled: { type: "boolean", description: "Only from the rider's explicit answer; omit when unstated" },
+            ada_certified: { type: "boolean", description: "Only from the rider's explicit answer; omit when unstated" },
+            veteran: { type: "boolean", description: "Only from the rider's explicit answer; omit when unstated" },
             residence_city: { type: "string", description: "Omit when unknown" },
-            declined: { type: "boolean" },
+            declined: {
+              type: "boolean",
+              description: "True when the rider has said they do not want to answer eligibility questions. Stops further eligibility questions.",
+            },
           },
-          required: ["disabled", "ada_certified", "veteran"],
+          required: [],
         },
         schedule_type: {
           type: "string",
@@ -750,36 +756,81 @@ async function loadProviderSearchRows(supabase: DatabaseClient): Promise<Provide
   return (data || []) as unknown as Provider[];
 }
 
+function parsedServiceZone(provider: Provider): {
+  type: string;
+  coordinates?: number[][][] | number[][][][];
+  features?: unknown[];
+  geometry?: unknown;
+} | null {
+  if (!provider.service_zone) return null;
+  let serviceZone = provider.service_zone;
+  if (typeof serviceZone === "string") {
+    try {
+      serviceZone = JSON.parse(serviceZone);
+    } catch {
+      return null;
+    }
+  }
+  return serviceZone as ReturnType<typeof parsedServiceZone>;
+}
+
+export interface GeographyPartition {
+  /** Service area contains both trip ends — the only providers that can serve the trip. */
+  both: Provider[];
+  /** Contains the pickup but not the destination. */
+  originOnly: Provider[];
+  /** Contains the destination but not the pickup. */
+  destinationOnly: Provider[];
+}
+
+/**
+ * Split providers by which ends of the trip their service area covers.
+ *
+ * The partial buckets are what make "no providers" explainable: a rider going from Pleasant Hill
+ * to San Francisco can be told which provider covers the Pleasant Hill end, instead of only that
+ * nothing matched.
+ */
+export function partitionByGeography(
+  providers: Provider[],
+  source: GeocodedLocation,
+  destination: GeocodedLocation,
+): GeographyPartition {
+  const partition: GeographyPartition = { both: [], originOnly: [], destinationOnly: [] };
+  for (const provider of providers) {
+    const zone = parsedServiceZone(provider);
+    if (!zone) continue;
+    const coversOrigin = isPointInPolygon(source.lat, source.lng, zone);
+    const coversDestination = isPointInPolygon(destination.lat, destination.lng, zone);
+    if (coversOrigin && coversDestination) partition.both.push(provider);
+    else if (coversOrigin) partition.originOnly.push(provider);
+    else if (coversDestination) partition.destinationOnly.push(provider);
+  }
+  return partition;
+}
+
 function geographyMatches(
   providers: Provider[],
   source: GeocodedLocation,
   destination: GeocodedLocation,
 ): Provider[] {
-  const matches: Provider[] = [];
-  for (const provider of providers) {
-    if (!provider.service_zone) continue;
-    let serviceZone = provider.service_zone;
-    if (typeof serviceZone === "string") {
-      try {
-        serviceZone = JSON.parse(serviceZone);
-      } catch {
-        continue;
-      }
-    }
-    const zone = serviceZone as {
-      type: string;
-      coordinates?: number[][][] | number[][][][];
-      features?: unknown[];
-      geometry?: unknown;
-    };
-    if (
-      isPointInPolygon(source.lat, source.lng, zone) &&
-      isPointInPolygon(destination.lat, destination.lng, zone)
-    ) {
-      matches.push(provider);
+  return partitionByGeography(providers, source, destination).both;
+}
+
+/** True when the provider has any usable service-hours data. Most rows currently do not. */
+export function hasServiceHours(provider: Provider): boolean {
+  let serviceHours = provider.service_hours;
+  if (typeof serviceHours === "string") {
+    try {
+      serviceHours = JSON.parse(serviceHours);
+    } catch {
+      return false;
     }
   }
-  return matches;
+  if (!serviceHours || typeof serviceHours !== "object") return false;
+  const hoursList = "hours" in serviceHours
+    ? (serviceHours as { hours?: unknown[] }).hours
+    : null;
+  return Array.isArray(hoursList) && hoursList.length > 0;
 }
 
 function isDirectRideProvider(provider: Provider): boolean {
@@ -800,6 +851,12 @@ function compactProvider(provider: Provider): Record<string, unknown> {
       eligibility_reqs: provider.eligibility_reqs,
       eligibility_status: provider.eligibility_status,
       eligibility_reason: provider.eligibility_reason,
+      // Which rider facts would settle an unconfirmed provider, so the assistant can say what
+      // it needs rather than repeating a generic "verify with the provider".
+      missing_facts: Array.isArray(provider.missing_facts) && provider.missing_facts.length > 0
+        ? provider.missing_facts
+        : undefined,
+      service_hours_known: hasServiceHours(provider as Provider) || undefined,
       booking: provider.booking,
       fare: provider.fare,
       service_hours: provider.service_hours,
@@ -882,6 +939,248 @@ export function executeResolveTripDate(
   };
 }
 
+// ─── Search core ────────────────────────────────────────────────────────────
+
+export interface SearchContext {
+  /** Direct-ride providers only; fixed-route agencies are handled as public transit. */
+  directProviders: Provider[];
+  totalProviderCount: number;
+  source: GeocodedLocation;
+  destination: GeocodedLocation;
+}
+
+export interface SearchStageParams {
+  travel_date: string;
+  departure_time: string;
+  return_time?: string | null;
+  trip_type: TripType;
+  rider: RiderEligibility;
+}
+
+export interface EvaluatedProvider extends Provider {
+  eligibility_status: EligibilityStatus;
+  eligibility_reason: string;
+  missing_facts: RiderFact[];
+}
+
+export interface StagedSearch {
+  geography: GeographyPartition;
+  schedule: Provider[];
+  eligible: EvaluatedProvider[];
+  /** Cannot be confirmed here: either a rider fact is missing or the rule is uninterpretable. */
+  verification: EvaluatedProvider[];
+  ineligible: EvaluatedProvider[];
+}
+
+function filterBySchedule(providers: Provider[], params: SearchStageParams): Provider[] {
+  return providers.filter((provider) =>
+    isTimeWithinServiceHours(
+      provider,
+      params.departure_time,
+      params.trip_type === "round_trip" ? params.return_time || undefined : undefined,
+      params.travel_date,
+    )
+  );
+}
+
+function evaluateProviders(providers: Provider[], rider: RiderEligibility): EvaluatedProvider[] {
+  return providers.map((provider) => {
+    const evaluation = evaluateEligibility(provider.eligibility_reqs, rider);
+    return {
+      ...provider,
+      eligibility_status: evaluation.status,
+      eligibility_reason: evaluation.reason,
+      missing_facts: evaluation.missing_facts,
+    } as EvaluatedProvider;
+  });
+}
+
+/**
+ * Run the filter pipeline once and keep every stage's output.
+ *
+ * Extracted from the tool wrapper so relaxation variants can re-run it against already-loaded
+ * providers and already-geocoded endpoints — a variant costs pure computation, no extra API calls.
+ */
+export function searchProviders(context: SearchContext, params: SearchStageParams): StagedSearch {
+  const geography = partitionByGeography(context.directProviders, context.source, context.destination);
+  const schedule = filterBySchedule(geography.both, params);
+  const evaluated = evaluateProviders(schedule, params.rider);
+  return {
+    geography,
+    schedule,
+    eligible: evaluated.filter((provider) => provider.eligibility_status === "eligible"),
+    verification: evaluated.filter((provider) => provider.eligibility_status === "verification_required"),
+    ineligible: evaluated.filter((provider) => provider.eligibility_status === "ineligible"),
+  };
+}
+
+export interface SearchAlternative {
+  change: string;
+  description: string;
+  providers: string[];
+  count: number;
+}
+
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const MAX_ALTERNATIVES = 6;
+const MAX_ALTERNATIVE_PROVIDERS = 5;
+
+function providerNames(providers: Provider[]): string[] {
+  return providers
+    .slice(0, MAX_ALTERNATIVE_PROVIDERS)
+    .map((provider) => String(provider.provider_name || "Unnamed provider"));
+}
+
+function shiftTime(time: string, deltaMinutes: number): string | null {
+  const minutes = parseTimeToMinutes(time);
+  if (minutes === null) return null;
+  const shifted = minutes + deltaMinutes;
+  if (shifted < 0 || shifted > 24 * 60) return null;
+  const hours = Math.floor(shifted / 60) % 24;
+  const suffix = hours < 12 ? "AM" : "PM";
+  const display = hours % 12 === 0 ? 12 : hours % 12;
+  return `${display}:${String(shifted % 60).padStart(2, "0")} ${suffix}`;
+}
+
+/** Substitute one calendar day, keeping the same weekday semantics the schedule filter uses. */
+function dateForWeekday(travelDate: string, targetDayIndex: number): string | null {
+  const currentDayIndex = getDayIndexFromDate(travelDate);
+  if (currentDayIndex === null) return null;
+  const match = travelDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const delta = (targetDayIndex - currentDayIndex + 7) % 7;
+  if (delta === 0) return travelDate;
+  const shifted = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + delta));
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}-${String(shifted.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Find bounded variations of a failed or thin search that would return providers.
+ *
+ * Every variant is a possibility to offer the rider, never a booking: the point is to replace
+ * "I couldn't find anything" with "nothing works as asked, but here is what would."
+ *
+ * Runs only when the primary search is empty or thin. Each variant reuses the loaded provider
+ * rows and geocoded endpoints, so the whole set costs no additional network calls.
+ */
+export function relaxSearch(
+  context: SearchContext,
+  params: SearchStageParams,
+  primary: StagedSearch,
+): SearchAlternative[] {
+  const alternatives: SearchAlternative[] = [];
+  const add = (alternative: SearchAlternative) => {
+    if (alternatives.length >= MAX_ALTERNATIVES) return;
+    if (alternative.count === 0) return;
+    alternatives.push(alternative);
+  };
+
+  // Geography is the one constraint no change of date, time, or eligibility can relax, so when
+  // it fails the useful answer is which end of the trip is reachable at all.
+  if (primary.geography.both.length === 0) {
+    if (primary.geography.originOnly.length > 0) {
+      add({
+        change: "partial_coverage_origin",
+        description: `covers the pickup area but not the destination — could take the rider part of the way`,
+        providers: providerNames(primary.geography.originOnly),
+        count: primary.geography.originOnly.length,
+      });
+    }
+    if (primary.geography.destinationOnly.length > 0) {
+      add({
+        change: "partial_coverage_destination",
+        description: `serves the destination area but does not reach the pickup point`,
+        providers: providerNames(primary.geography.destinationOnly),
+        count: primary.geography.destinationOnly.length,
+      });
+    }
+    return alternatives;
+  }
+
+  // A different day, when the requested one is outside every provider's hours.
+  if (primary.schedule.length === 0) {
+    const requestedDayIndex = getDayIndexFromDate(params.travel_date);
+    const workingDays: string[] = [];
+    const dayProviders = new Set<string>();
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      if (dayIndex === requestedDayIndex) continue;
+      const candidateDate = dateForWeekday(params.travel_date, dayIndex);
+      if (!candidateDate) continue;
+      const matches = filterBySchedule(primary.geography.both, { ...params, travel_date: candidateDate });
+      if (matches.length > 0) {
+        workingDays.push(DAY_NAMES[dayIndex]);
+        for (const name of providerNames(matches)) dayProviders.add(name);
+      }
+    }
+    if (workingDays.length > 0) {
+      add({
+        change: "other_day",
+        description: `the same trip is inside service hours on ${workingDays.join(", ")}`,
+        providers: [...dayProviders].slice(0, MAX_ALTERNATIVE_PROVIDERS),
+        count: dayProviders.size,
+      });
+    }
+
+    for (const delta of [-120, -60, 60, 120]) {
+      const shifted = shiftTime(params.departure_time, delta);
+      if (!shifted) continue;
+      const matches = filterBySchedule(primary.geography.both, { ...params, departure_time: shifted });
+      if (matches.length > 0) {
+        add({
+          change: "shift_time",
+          description: `leaving at ${shifted} instead is inside service hours`,
+          providers: providerNames(matches),
+          count: matches.length,
+        });
+        break;
+      }
+    }
+
+    // A round trip can fail purely on the return leg; the outbound may be servable on its own.
+    if (params.trip_type === "round_trip" && params.return_time) {
+      const outboundOnly = filterBySchedule(primary.geography.both, { ...params, trip_type: "one_way" });
+      if (outboundOnly.length > 0) {
+        add({
+          change: "one_way_instead",
+          description: `the outbound leg alone is inside service hours — the return time is what falls outside`,
+          providers: providerNames(outboundOnly),
+          count: outboundOnly.length,
+        });
+      }
+    }
+  }
+
+  // Which single eligibility category would open up providers. Stated as a possibility about the
+  // rule, never as an assertion about the rider.
+  if (primary.eligible.length === 0 && primary.schedule.length > 0) {
+    const categories: Array<{ label: string; rider: Partial<RiderEligibility> }> = [
+      { label: "a rider aged 60 or older", rider: { age: 60 } },
+      { label: "a rider aged 65 or older", rider: { age: 65 } },
+      { label: "a rider with a disability", rider: { disabled: true } },
+      { label: "an ADA-certified rider", rider: { ada_certified: true } },
+      { label: "a veteran", rider: { veteran: true } },
+    ];
+    for (const category of categories) {
+      const hypothetical = { ...params.rider, ...category.rider, declined: false };
+      const matches = evaluateProviders(primary.schedule, hypothetical)
+        .filter((provider) => provider.eligibility_status === "eligible");
+      const newlyEligible = matches.filter(
+        (provider) => !primary.eligible.some((already) => already.provider_name === provider.provider_name),
+      );
+      if (newlyEligible.length > 0) {
+        add({
+          change: "eligibility_category",
+          description: `${category.label} would qualify for these`,
+          providers: providerNames(newlyEligible),
+          count: newlyEligible.length,
+        });
+      }
+    }
+  }
+
+  return alternatives;
+}
+
 /** Execute the full provider search after coverage and required trip fields are known. */
 export async function executeFindProviders(
   params: FindProvidersParams,
@@ -956,64 +1255,71 @@ export async function executeFindProviders(
 
     const providers = await loadProviderSearchRows(supabase);
     const directProviders = providers.filter(isDirectRideProvider);
-    const geographyProviders = geographyMatches(directProviders, locations.source, locations.destination);
-    const scheduleProviders = geographyProviders.filter((provider) =>
-      isTimeWithinServiceHours(
-        provider,
-        params.departure_time,
-        params.trip_type === "round_trip" ? params.return_time || undefined : undefined,
-        resolvedDate.iso!,
-      )
-    );
 
-    // Providers set different minimum ages (50, 55, 60, 65). "I'm a senior" cannot decide those,
-    // so ask for the exact age instead of silently hiding the provider behind verification.
+    // An unknown rider fact no longer stops the search. Providers it would decide come back as
+    // needing verification with the fact named, so the rider always gets a list plus one
+    // well-chosen question instead of an interrogation before any results.
     const rider = params.rider_eligibility || {};
-    const ageUnknown = !Number.isFinite(Number(rider.age));
-    if (ageUnknown && !rider.declined && scheduleProviders.some((provider) => requiresRiderAge(provider.eligibility_reqs))) {
-      return {
-        success: true,
-        data: {
-          status: "clarification_required",
-          reason_code: "rider_age_missing",
-          message:
-            "How old is the rider? Providers here set different minimum ages (50, 55, 60, and 65 all appear in this area), so I need the exact age rather than “senior” to tell which ones qualify.",
-          source_address: locations.source.formatted_address,
-          destination_address: locations.destination.formatted_address,
-        },
-      };
-    }
+    const context: SearchContext = {
+      directProviders,
+      totalProviderCount: providers.length,
+      source: locations.source,
+      destination: locations.destination,
+    };
+    const stageParams: SearchStageParams = {
+      travel_date: resolvedDate.iso,
+      departure_time: params.departure_time,
+      return_time: params.return_time,
+      trip_type: params.trip_type,
+      rider,
+    };
+    const staged = searchProviders(context, stageParams);
+    const geographyProviders = staged.geography.both;
+    const scheduleProviders = staged.schedule;
 
-    const evaluatedProviders = scheduleProviders.map((provider) => {
-      const evaluation = evaluateEligibility(provider.eligibility_reqs, rider);
-      return {
-        ...provider,
-        eligibility_status: evaluation.status,
-        eligibility_reason: evaluation.reason,
-        match_criteria: {
-          algorithm: "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
-          passed: [
-            { label: "Origin inside service area", detail: locations.source.formatted_address },
-            { label: "Destination inside service area", detail: locations.destination.formatted_address },
-            {
-              label: "Service hours include requested trip window",
-              detail: params.trip_type === "round_trip"
-                ? `${resolvedDate.display}; outbound ${params.departure_time}; return ${params.return_time}`
-                : `${resolvedDate.display}; one-way outbound ${params.departure_time}`,
-            },
-            ...(evaluation.status === "eligible"
-              ? [{ label: "Eligibility matched", detail: evaluation.reason }]
-              : []),
-          ],
-        },
-      } as Provider;
-    });
+    const withMatchCriteria = (provider: EvaluatedProvider): Provider => ({
+      ...provider,
+      match_criteria: {
+        algorithm: "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+        passed: [
+          { label: "Origin inside service area", detail: locations.source.formatted_address },
+          { label: "Destination inside service area", detail: locations.destination.formatted_address },
+          {
+            label: hasServiceHours(provider)
+              ? "Service hours include requested trip window"
+              : "Service hours are not on file — confirm the time with the provider",
+            detail: params.trip_type === "round_trip"
+              ? `${resolvedDate.display}; outbound ${params.departure_time}; return ${params.return_time}`
+              : `${resolvedDate.display}; one-way outbound ${params.departure_time}`,
+          },
+          ...(provider.eligibility_status === "eligible"
+            ? [{ label: "Eligibility matched", detail: provider.eligibility_reason }]
+            : []),
+        ],
+      },
+    } as Provider);
 
-    const eligibleProviders = evaluatedProviders.filter((provider) => provider.eligibility_status === "eligible");
-    const verificationProviders = evaluatedProviders.filter(
-      (provider) => provider.eligibility_status === "verification_required",
+    const eligibleProviders = staged.eligible.map(withMatchCriteria);
+    const verificationProviders = staged.verification.map(withMatchCriteria);
+    const ineligibleProviders = staged.ineligible;
+
+    // Only ask about a fact a real candidate is waiting on, most valuable first.
+    const questionHint = nextQuestion(
+      staged.verification.map((provider) => ({
+        provider_name: String(provider.provider_name || "Unnamed provider"),
+        missing_facts: provider.missing_facts,
+      })),
+      rider,
     );
-    const ineligibleProviders = evaluatedProviders.filter((provider) => provider.eligibility_status === "ineligible");
+
+    // Relaxation runs only when the answer is empty or thin, where the cost of an extra pass is
+    // worth being able to say what would work instead.
+    const alternatives = staged.eligible.length <= 1
+      ? relaxSearch(context, stageParams, staged)
+      : [];
+
+    const providersWithoutHours = [...eligibleProviders, ...verificationProviders]
+      .filter((provider) => !hasServiceHours(provider)).length;
 
     let transitData: Record<string, unknown> | null = null;
     try {
@@ -1046,6 +1352,9 @@ export async function executeFindProviders(
         reason: provider.eligibility_reason,
         requirement: provider.eligibility_reqs,
       })),
+      alternatives,
+      next_question: questionHint,
+      rider_eligibility: rider,
       source_address: locations.source.formatted_address,
       destination_address: locations.destination.formatted_address,
       source_coordinates: { lat: locations.source.lat, lng: locations.source.lng },
@@ -1059,10 +1368,16 @@ export async function executeFindProviders(
         provider_count: directProviders.length,
         fixed_route_fallback_count: providers.length - directProviders.length,
         geography_match_count: geographyProviders.length,
+        geography_origin_only_count: staged.geography.originOnly.length,
+        geography_destination_only_count: staged.geography.destinationOnly.length,
         schedule_match_count: scheduleProviders.length,
         eligible_match_count: eligibleProviders.length,
         verification_required_count: verificationProviders.length,
         ineligible_count: ineligibleProviders.length,
+        // Most provider rows carry no service hours at all, so the schedule filter passed them
+        // through unchecked. The rider must be told the time is unconfirmed, not that it works.
+        providers_without_service_hours: providersWithoutHours,
+        alternatives_found: alternatives.length,
       },
       public_transit: transitData,
     };
