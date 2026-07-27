@@ -15,6 +15,16 @@ const check = (name, ok, detail) => { results.push({ name, ok }); console.log(`$
 /** Cards must live in the transcript, not in a panel beside it. */
 const CARDS = '.chat-messages article[data-provider-kind="callable"], .chat-messages article[data-provider-kind="verification-required"]';
 
+/** The welcome dialog covers the page on load; dismiss it before touching the chat. */
+async function dismissWelcome(page) {
+  const dialog = page.locator('[role="dialog"][aria-labelledby="welcome-title"]');
+  // It mounts after the app boots, so wait for it rather than checking too early.
+  const appeared = await dialog.waitFor({ state: 'visible', timeout: 30000 }).then(() => true, () => false);
+  if (!appeared) return;
+  await page.getByRole('button', { name: 'Get started' }).click();
+  await dialog.waitFor({ state: 'detached', timeout: 10000 });
+}
+
 async function open() {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const replies = [];
@@ -24,6 +34,7 @@ async function open() {
     }
   });
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await dismissWelcome(page);
   const ta = page.locator('textarea[placeholder="Type your message..."]');
   await ta.waitFor({ state: 'visible', timeout: 30000 });
   await page.waitForFunction(() => { const i = document.querySelector('textarea[placeholder="Type your message..."]'); return i && !i.disabled; }, null, { timeout: 30000 });
@@ -135,6 +146,7 @@ try {
       try { examples = (await r.json())?.data || []; } catch {}
     });
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await dismissWelcome(page);
     await page.locator('text=Click to play').first().waitFor({ state: 'visible', timeout: 30000 });
 
     // Replay snapshots carry providers but no travel date or time. Pick an example that actually

@@ -37,6 +37,16 @@ function unqualifiedProviderCounts(text) {
 const browser = await chromium.launch({ headless: true });
 const results = [];
 
+/** The welcome dialog covers the page on load; dismiss it before touching the chat. */
+async function dismissWelcome(page) {
+  const dialog = page.locator('[role="dialog"][aria-labelledby="welcome-title"]');
+  // It mounts after the app boots, so wait for it rather than checking too early.
+  const appeared = await dialog.waitFor({ state: 'visible', timeout: 30000 }).then(() => true, () => false);
+  if (!appeared) return;
+  await page.getByRole('button', { name: 'Get started' }).click();
+  await dialog.waitFor({ state: 'detached', timeout: 10000 });
+}
+
 async function openChat() {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const chatResponses = [];
@@ -47,6 +57,7 @@ async function openChat() {
     } catch { /* non-JSON body */ }
   });
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await dismissWelcome(page);
   const textarea = page.locator('textarea[placeholder="Type your message..."]');
   await textarea.waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForFunction(() => {

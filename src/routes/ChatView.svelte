@@ -3,6 +3,7 @@
   import { fade, fly } from 'svelte/transition';
   import { derived } from 'svelte/store';
   import Chat from '../components/Chat.svelte';
+  import WelcomeDialog from '../components/WelcomeDialog.svelte';
   import ProviderResults from '../components/ProviderResults.svelte';
   import ProviderListPanel from '../components/ProviderListPanel.svelte';
   import { Map, TileLayer, Marker, GeoJSON, Polyline } from 'sveaflet';
@@ -944,6 +945,8 @@
 </script>
 
 {#if mounted}
+  <!-- What OPTIMAT is, and where to send feedback, shown once on load. -->
+  <WelcomeDialog />
   <PageShell
     title="AI Chat Assistant"
     description="Converse with the assistant and review providers"
