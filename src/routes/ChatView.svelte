@@ -40,14 +40,6 @@
   // Providers that matched location and schedule but whose eligibility could not be confirmed.
   // They are listed apart from recommendations instead of disappearing from the results.
   $: verificationProviders = normalizeProviderList(providerData?.verification_required);
-  // Every option the search actually found, including the ones whose eligibility still needs
-  // checking. Counting only the confirmed ones read as "1 provider found" on a trip where three
-  // paratransit services were available pending an eligibility check — the rider saw a single
-  // walking itinerary and no reason to look further. The breakdown beside it says how many are
-  // unconfirmed, so nothing is overstated.
-  $: providerResultCount = (Array.isArray(providerData?.data) ? providerData.data.length : 0) +
-    verificationProviders.length +
-    (publicTransitProvider ? 1 : 0);
   // Variations of the trip that would return providers when the trip as asked does not: another
   // day, a nearby time, one way instead of round trip, or a provider covering one end only.
   $: tripAlternatives = Array.isArray(providerData?.alternatives) ? providerData.alternatives : [];
@@ -65,6 +57,123 @@
     }
     return 'Providers cover this trip and time, but none match the eligibility details given so far.';
   })();
+
+  // ── Call sheet readiness ────────────────────────────────────────────────
+  // This panel exists for one moment: the rider is ready to pick up the phone and book. It is
+  // therefore shown only once the assistant has pinned the trip down completely and has providers
+  // worth calling. Rendering it during the back-and-forth turned it into a running scratchpad of
+  // partial searches, which is not something anyone can act on.
+
+  $: tripSummary = {
+    origin: typeof providerData?.source_address === 'string' ? providerData.source_address : null,
+    destination: typeof providerData?.destination_address === 'string' ? providerData.destination_address : null,
+    dateDisplay: typeof providerData?.travel_date_display === 'string' ? providerData.travel_date_display : null,
+    date: typeof providerData?.travel_date === 'string' ? providerData.travel_date : null,
+    time: typeof providerData?.departure_time === 'string' ? providerData.departure_time : null,
+    arriveBy: providerData?.outbound_time_intent === 'arrive_by',
+    tripType: typeof providerData?.trip_type === 'string' ? providerData.trip_type : null,
+    returnTime: typeof providerData?.return_time === 'string' ? providerData.return_time : null
+  };
+
+  $: searchCompleted = providerData?.status === 'complete';
+
+  // Every field a provider will ask for on the phone.
+  $: tripFullySpecified = Boolean(
+    searchCompleted &&
+    tripSummary.origin &&
+    tripSummary.destination &&
+    tripSummary.dateDisplay &&
+    tripSummary.time &&
+    tripSummary.tripType &&
+    (tripSummary.tripType !== 'round_trip' || tripSummary.returnTime)
+  );
+
+  // Providers worth dialling: ones the rider qualifies for, then ones whose eligibility they will
+  // settle on the call. Both are callable; only the second needs a caveat.
+  $: callableProviders = [
+    ...(Array.isArray(providerData?.data) ? providerData.data : []).map((provider) => ({ provider, qualified: true })),
+    ...verificationProviders.map((provider) => ({ provider, qualified: false }))
+  ];
+
+  $: callSheetReady = tripFullySpecified && callableProviders.length > 0;
+  $: searchFoundNothing = tripFullySpecified && callableProviders.length === 0;
+
+  /** What the assistant still needs before this trip can be booked. */
+  $: missingTripFacts = (() => {
+    const missing = [];
+    if (!tripSummary.origin) missing.push('where the trip starts');
+    if (!tripSummary.destination) missing.push('where it is going');
+    if (!tripSummary.dateDisplay) missing.push('the travel date');
+    if (!tripSummary.time) missing.push('the pickup time');
+    if (!tripSummary.tripType) missing.push('one way or round trip');
+    if (tripSummary.tripType === 'round_trip' && !tripSummary.returnTime) missing.push('the return time');
+    return missing;
+  })();
+
+  const RIDER_FACT_LABELS = {
+    age: 'your age',
+    disabled: 'whether you have a disability',
+    ada_certified: 'ADA certification',
+    veteran: 'veteran status',
+    residence_city: 'where you live'
+  };
+
+  function advanceNoticeText(provider) {
+    const schedule = parseObject(provider?.schedule_type);
+    const notice = schedule && typeof schedule === 'object' ? schedule.advance_notice : null;
+    return typeof notice === 'string' && notice.trim() ? notice.trim() : null;
+  }
+
+  /** Turn "7 days" or "at least 1 day" into the date the rider has to call by. */
+  function bookByDate(provider, travelDate) {
+    const notice = advanceNoticeText(provider);
+    if (!notice || !travelDate) return null;
+    const days = Number(notice.match(/(\d+)\s*day/i)?.[1]);
+    if (!Number.isFinite(days)) return null;
+    const [year, month, day] = travelDate.split('-').map(Number);
+    if (!year || !month || !day) return null;
+    const deadline = new Date(Date.UTC(year, month - 1, day - days));
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric'
+    }).format(deadline);
+  }
+
+  function fareText(provider) {
+    const fare = parseObject(provider?.fare);
+    if (!fare || typeof fare !== 'object') return null;
+    if (fare.type === 'free') return 'Free';
+    const cost = typeof fare.cost === 'string' ? fare.cost.trim() : null;
+    if (!cost) return null;
+    return fare.payment ? `${cost} · pay by ${fare.payment}` : cost;
+  }
+
+  function missingFactsSentence(provider) {
+    const facts = Array.isArray(provider?.missing_facts) ? provider.missing_facts : [];
+    if (facts.length === 0) return 'whether you qualify for this service.';
+    return `whether you qualify — it depends on ${facts.map((fact) => RIDER_FACT_LABELS[fact] || fact).join(' and ')}.`;
+  }
+
+  /** The trip, phrased the way the rider should read it down the phone. */
+  $: callScript = (() => {
+    if (!tripFullySpecified) return null;
+    const when = tripSummary.arriveBy ? `arriving by ${tripSummary.time}` : `pickup at ${tripSummary.time}`;
+    const leg = tripSummary.tripType === 'round_trip'
+      ? `round trip, returning at ${tripSummary.returnTime}`
+      : 'one way';
+    return `${tripSummary.dateDisplay}, ${when}, from ${tripSummary.origin} to ${tripSummary.destination}, ${leg}.`;
+  })();
+
+  let copiedScript = false;
+  async function copyCallScript() {
+    if (!callScript) return;
+    try {
+      await navigator.clipboard.writeText(callScript);
+      copiedScript = true;
+      setTimeout(() => { copiedScript = false; }, 2000);
+    } catch {
+      copiedScript = false;
+    }
+  }
 
   const originPing = derived(pings, $pings => $pings.find(p => p.type === PingTypes.ORIGIN && p.visible));
   const destinationPing = derived(pings, $pings => $pings.find(p => p.type === PingTypes.DESTINATION && p.visible));
@@ -1193,11 +1302,17 @@
 
               <div class="flex flex-shrink-0 items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-2" aria-label="Provider results count">
                 <div class="text-xs font-semibold text-foreground">
-                  {providerResultCount} {providerResultCount === 1 ? 'provider' : 'providers'} found
-                  {#if verificationProviders.length > 0}
-                    <span class="ml-1 font-normal text-amber-700">
-                      · {verificationProviders.length} need{verificationProviders.length === 1 ? 's' : ''} verification
-                    </span>
+                  {#if callSheetReady}
+                    Ready to book · {callableProviders.length} to call
+                    {#if verificationProviders.length > 0}
+                      <span class="ml-1 font-normal text-amber-700">
+                        · {verificationProviders.length} need{verificationProviders.length === 1 ? 's' : ''} verification
+                      </span>
+                    {/if}
+                  {:else if searchFoundNothing}
+                    No provider can take this trip
+                  {:else}
+                    Still working out the trip
                   {/if}
                 </div>
                 {#if publicTransitProvider}
@@ -1205,134 +1320,155 @@
                 {/if}
               </div>
 
+              {#if callSheetReady}
+                <!-- The trip as the provider will need to hear it, so the rider can read it out. -->
+                <div class="flex-shrink-0 border-b border-border/40 bg-primary/5 px-3 py-2" aria-label="Trip to book">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 text-xs">
+                      <div class="font-semibold text-foreground">
+                        {tripSummary.dateDisplay} · {tripSummary.arriveBy ? 'arrive by' : 'pickup'} {tripSummary.time}
+                        <span class="font-normal text-muted-foreground">
+                          · {tripSummary.tripType === 'round_trip' ? `round trip, back at ${tripSummary.returnTime}` : 'one way'}
+                        </span>
+                      </div>
+                      <div class="mt-0.5 truncate text-muted-foreground" title="{tripSummary.origin} → {tripSummary.destination}">
+                        {tripSummary.origin} → {tripSummary.destination}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary transition hover:bg-primary/15"
+                      on:click={copyCallScript}
+                    >
+                      {copiedScript ? 'Copied' : 'Copy trip details'}
+                    </button>
+                  </div>
+                  <p class="mt-1.5 text-[11px] text-muted-foreground">
+                    OPTIMAT can't book for you — call a provider below and read them these details.
+                  </p>
+                </div>
+              {/if}
+
               <div class="flex-1 overflow-y-auto p-2">
-                {#if (providerData.data && providerData.data.length > 0) || publicTransitProvider || verificationProviders.length > 0}
-                  <!-- Provider Cards Grid -->
-                  <div class="grid grid-cols-2 gap-2">
-                    {#each providerData.data as provider, idx (provider.provider_id || idx)}
-                      <article
-                        class="min-h-[18rem] max-h-80 overflow-y-auto text-left rounded-lg border p-3 transition flex flex-col {
-                          isProviderSelected(provider, selectedProvider)
-                            ? 'bg-primary/10 border-primary shadow-md ring-1 ring-primary/50'
-                            : 'bg-card border-border/60 hover:bg-muted/50 hover:border-border'
-                        }"
-                      >
-                        <!-- Provider Name & Type -->
-                        <div class="flex items-center justify-between gap-1 mb-1.5">
-                          <div class="flex items-center gap-2 min-w-0">
-                            <span class="text-base shrink-0">{getProviderTypeIcon(provider.provider_type)}</span>
-                            <span class="font-semibold text-sm text-foreground truncate">{provider.provider_name}</span>
-                          </div>
+                {#if !callSheetReady && !searchFoundNothing}
+                  <!-- Not enough of the trip is settled for anyone to be worth calling yet. -->
+                  <div class="flex h-full items-center justify-center">
+                    <div class="max-w-md rounded-lg border border-border/60 bg-background/70 p-5 text-center" aria-label="Trip not ready to book">
+                      <div class="text-sm font-medium text-foreground">Still working out your trip</div>
+                      <p class="mt-2 text-xs text-muted-foreground">
+                        Providers appear here once the trip is pinned down, so you have everything you need before you pick up the phone.
+                      </p>
+                      {#if missingTripFacts.length > 0}
+                        <div class="mt-3 rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-left">
+                          <div class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Still needed</div>
+                          <ul class="mt-1 space-y-0.5 text-[11px] text-foreground">
+                            {#each missingTripFacts as fact}
+                              <li>· {fact}</li>
+                            {/each}
+                          </ul>
                         </div>
-                        <button
-                          type="button"
-                          class="mb-2 w-fit rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/15 transition"
-                          on:click={() => selectProvider(provider)}
-                        >
-                          {isProviderSelected(provider, selectedProvider)
-                            ? 'Hide area'
-                            : 'Show area'}
-                        </button>
-
-                        <!-- Provider Info -->
-                        <div class="space-y-2 text-xs flex-1">
-                          {#if getProviderPhone(provider)}
-                            <div class="flex items-center gap-1.5">
-                              <span class="text-muted-foreground shrink-0">📞</span>
-                              <a
-                                href="tel:{getProviderPhone(provider).replace(/[^\d+]/g, '')}"
-                                class="text-primary hover:underline truncate"
-                                on:click|stopPropagation
-                              >
-                                {getProviderPhone(provider)}
-                              </a>
+                      {/if}
+                      {#if tripSummary.origin && tripSummary.destination}
+                        <div class="mt-3 text-[11px] text-muted-foreground">
+                          {tripSummary.origin} → {tripSummary.destination}
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                {:else if callSheetReady}
+                  <div class="space-y-2">
+                    {#each callableProviders as entry, idx (entry.provider.provider_id || `call-${idx}`)}
+                      {@const provider = entry.provider}
+                      {@const phone = getProviderPhone(provider)}
+                      {@const deadline = bookByDate(provider, tripSummary.date)}
+                      {@const notice = advanceNoticeText(provider)}
+                      {@const fare = fareText(provider)}
+                      <article
+                        class="rounded-lg border p-3 text-left transition {
+                          entry.qualified
+                            ? 'border-border/60 bg-card hover:border-border'
+                            : 'border-amber-200 bg-amber-50/40 dark:border-amber-900 dark:bg-amber-950/20'
+                        }"
+                        data-provider-kind={entry.qualified ? 'callable' : 'verification-required'}
+                      >
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="flex min-w-0 items-center gap-2">
+                            <span class="shrink-0 text-base">{getProviderTypeIcon(provider.provider_type)}</span>
+                            <div class="min-w-0">
+                              <div class="truncate text-sm font-semibold text-foreground">{provider.provider_name}</div>
+                              {#if provider.routing_type}
+                                <div class="text-[10px] uppercase tracking-wide text-muted-foreground">{provider.routing_type}</div>
+                              {/if}
                             </div>
-                          {/if}
-
-                          {#if getProviderEmail(provider)}
-                            <div class="flex items-center gap-1.5">
-                              <span class="text-muted-foreground shrink-0">✉️</span>
-                              <a
-                                href="mailto:{getProviderEmail(provider)}"
-                                class="text-primary hover:underline truncate"
-                                on:click|stopPropagation
-                              >
-                                {getProviderEmail(provider)}
-                              </a>
-                            </div>
-                          {/if}
-
-                          {#if normalizeWebsite(provider.website)}
-                            <div class="flex items-center gap-1.5">
-                              <span class="text-muted-foreground shrink-0">🌐</span>
-                              <a
-                                href="{normalizeWebsite(provider.website)}"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-primary hover:underline"
-                                on:click|stopPropagation
-                              >
-                                Website
-                              </a>
-                            </div>
-                          {/if}
-
-                          {#if formatEligibilitySections(provider.eligibility_reqs).length > 0}
-                            <div class="rounded-md border border-border/50 bg-background/70 px-2 py-1.5">
-                              <div class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                                Eligibility
-                              </div>
-                              <div class="space-y-1 text-foreground">
-                                {#each formatEligibilitySections(provider.eligibility_reqs) as eligibilityLine}
-                                  <div class="leading-snug">{eligibilityLine}</div>
-                                {/each}
-                              </div>
-                            </div>
-                          {/if}
-
-                          <div class="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-emerald-800">
-                            <div class="text-[10px] font-semibold uppercase tracking-wide mb-1">
-                              Why It Matched
-                            </div>
-                            <ul class="space-y-0.5">
-                              {#each getProviderMatchCriteria(provider) as criterion}
-                                <li class="leading-snug">✓ {criterion}</li>
-                              {/each}
-                            </ul>
-                            <details class="mt-1.5 text-[11px]">
-                              <summary class="cursor-pointer font-medium">Filtering logic</summary>
-                              <p class="mt-1 leading-snug">{getFilterAlgorithmText(provider)}</p>
-                            </details>
                           </div>
-
-                          {#if formatServiceHours(provider.service_hours)}
-                            <div class="flex items-center gap-1.5 text-muted-foreground">
-                              <span class="shrink-0">🕐</span>
-                              <span>{formatServiceHours(provider.service_hours)}</span>
-                            </div>
+                          {#if entry.qualified}
+                            <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">You qualify</span>
+                          {:else}
+                            <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">Confirm eligibility</span>
                           {/if}
+                        </div>
 
-                          {#if getBookingNotice(provider)}
-                            <div class="flex items-center gap-1.5 text-amber-600">
-                              <span class="shrink-0">⏰</span>
-                              <span class="font-medium">{getBookingNotice(provider)}</span>
-                            </div>
+                        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          {#if phone}
+                            <a
+                              href="tel:{phone.replace(/[^\d+]/g, '')}"
+                              class="text-base font-semibold text-primary hover:underline"
+                              on:click|stopPropagation
+                            >
+                              📞 {phone}
+                            </a>
+                          {:else}
+                            <span class="text-xs text-muted-foreground">No phone number on file — see their website below</span>
                           {/if}
+                          {#if fare}
+                            <span class="text-xs text-foreground">{fare}</span>
+                          {/if}
+                        </div>
 
-                          {#if getProviderMetadataRows(provider).length > 0}
-                            <div class="rounded-md border border-border/50 bg-muted/30 px-2 py-1.5">
-                              <div class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                                Provider Metadata
+                        {#if deadline}
+                          <div class="mt-1.5 text-[11px] font-medium text-foreground">
+                            Call by {deadline}
+                            <span class="font-normal text-muted-foreground">· needs {notice} notice</span>
+                          </div>
+                        {:else if notice}
+                          <div class="mt-1.5 text-[11px] text-muted-foreground">Needs {notice} advance notice</div>
+                        {/if}
+
+                        {#if !entry.qualified}
+                          <div class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                            <span class="font-semibold">Ask when you call:</span> {missingFactsSentence(provider)}
+                            {#if formatEligibilitySections(provider.eligibility_reqs).length > 0}
+                              <div class="mt-1 text-amber-800 dark:text-amber-300">
+                                {formatEligibilitySections(provider.eligibility_reqs).join(' · ')}
                               </div>
-                              <dl class="space-y-1">
-                                {#each getProviderMetadataRows(provider) as row}
-                                  <div class="grid grid-cols-[5.5rem_1fr] gap-2">
-                                    <dt class="text-muted-foreground">{row.label}</dt>
-                                    <dd class="text-foreground break-words">{row.value}</dd>
-                                  </div>
-                                {/each}
-                              </dl>
-                            </div>
+                            {/if}
+                          </div>
+                        {/if}
+
+                        {#if !provider.service_hours_known}
+                          <div class="mt-1.5 text-[11px] text-muted-foreground">
+                            Their operating hours aren't on file — confirm {tripSummary.time} works.
+                          </div>
+                        {/if}
+
+                        <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px]">
+                          <button
+                            type="button"
+                            class="rounded-md bg-muted px-2 py-1 font-medium text-foreground transition hover:bg-muted/70"
+                            on:click={() => selectProvider(provider)}
+                          >
+                            {isProviderSelected(provider, selectedProvider) ? 'Hide area' : 'Show service area'}
+                          </button>
+                          {#if normalizeWebsite(provider.website)}
+                            <a
+                              href="{normalizeWebsite(provider.website)}"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="text-primary hover:underline"
+                              on:click|stopPropagation
+                            >
+                              Website
+                            </a>
                           {/if}
                         </div>
                       </article>
@@ -1425,99 +1561,6 @@
                     {/if}
                   </div>
 
-                  {#if verificationProviders.length > 0}
-                    <section class="mt-3" aria-label="Providers needing eligibility verification">
-                      <div class="mb-2 flex items-center gap-2">
-                        <h3 class="text-xs font-semibold text-foreground">Needs eligibility verification</h3>
-                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-                          {verificationProviders.length}
-                        </span>
-                      </div>
-                      <p class="mb-2 text-[11px] text-muted-foreground">
-                        These serve the trip on the requested date and time. Confirm eligibility with the provider before booking.
-                      </p>
-                      <div class="grid grid-cols-2 gap-2">
-                        {#each verificationProviders as provider, idx (provider.provider_id || `verify-${idx}`)}
-                          <article
-                            class="flex flex-col rounded-lg border p-3 text-left transition {
-                              isProviderSelected(provider, selectedProvider)
-                                ? 'border-amber-500 bg-amber-50 shadow-md ring-1 ring-amber-400/50 dark:bg-amber-950/30'
-                                : 'border-amber-200 bg-card hover:border-amber-400 hover:bg-amber-50/50 dark:border-amber-900'
-                            }"
-                            data-provider-kind="verification-required"
-                          >
-                            <div class="mb-1.5 flex items-start justify-between gap-2">
-                              <div class="flex min-w-0 items-center gap-2">
-                                <span class="shrink-0 text-base">{getProviderTypeIcon(provider.provider_type)}</span>
-                                <span class="truncate text-sm font-semibold text-foreground">{provider.provider_name}</span>
-                              </div>
-                              <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-                                Verify
-                              </span>
-                            </div>
-
-                            <button
-                              type="button"
-                              class="mb-2 w-fit rounded-md bg-amber-600/10 px-2 py-1 text-[11px] font-medium text-amber-800 transition hover:bg-amber-600/15"
-                              on:click={() => selectProvider(provider)}
-                            >
-                              {isProviderSelected(provider, selectedProvider) ? 'Hide area' : 'Show area'}
-                            </button>
-
-                            <div class="flex-1 space-y-2 text-xs">
-                              {#if provider.eligibility_reason}
-                                <div class="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-amber-900">
-                                  <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide">Why it needs checking</div>
-                                  <div class="leading-snug">{provider.eligibility_reason}</div>
-                                </div>
-                              {/if}
-
-                              {#if formatEligibilitySections(provider.eligibility_reqs).length > 0}
-                                <div class="rounded-md border border-border/50 bg-background/70 px-2 py-1.5">
-                                  <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                    Provider requirement
-                                  </div>
-                                  <div class="space-y-1 text-foreground">
-                                    {#each formatEligibilitySections(provider.eligibility_reqs) as eligibilityLine}
-                                      <div class="leading-snug">{eligibilityLine}</div>
-                                    {/each}
-                                  </div>
-                                </div>
-                              {/if}
-
-                              {#if getProviderPhone(provider)}
-                                <div class="flex items-center gap-1.5">
-                                  <span class="shrink-0 text-muted-foreground">📞</span>
-                                  <a
-                                    href="tel:{getProviderPhone(provider).replace(/[^\d+]/g, '')}"
-                                    class="truncate text-primary hover:underline"
-                                    on:click|stopPropagation
-                                  >
-                                    {getProviderPhone(provider)}
-                                  </a>
-                                </div>
-                              {/if}
-
-                              {#if normalizeWebsite(provider.website)}
-                                <div class="flex items-center gap-1.5">
-                                  <span class="shrink-0 text-muted-foreground">🌐</span>
-                                  <a
-                                    href="{normalizeWebsite(provider.website)}"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="text-primary hover:underline"
-                                    on:click|stopPropagation
-                                  >
-                                    Website
-                                  </a>
-                                </div>
-                              {/if}
-                            </div>
-                          </article>
-                        {/each}
-                      </div>
-                    </section>
-                  {/if}
                 {:else}
                   <div class="flex h-full items-center justify-center">
                     <div class="max-w-md rounded-lg border border-border/60 bg-background/70 p-5 text-center">

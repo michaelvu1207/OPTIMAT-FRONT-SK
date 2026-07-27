@@ -113,18 +113,16 @@ try {
     await providerCards.first().waitFor({ state: 'visible', timeout: 30_000 });
     check('provider results are rendered in the panel', await providerCards.count() > 0, 'no provider cards visible');
 
-    // The headline count must account for every option the search returned. Counting only the
-    // confirmed ones showed "1 provider found" on a trip with three providers pending an
-    // eligibility check, which reads as a dead end.
-    const expected = (search?.data?.data || []).length +
-      (search?.data?.verification_required || []).length +
-      (search?.data?.public_transit ? 1 : 0);
+    // The panel is a call sheet, so its headline counts the providers the rider will actually
+    // phone: those they qualify for plus those whose eligibility they will settle on the call.
+    // Public transit is a real option but not one you ring, so it is surfaced separately.
+    const callable = (search?.data?.data || []).length + (search?.data?.verification_required || []).length;
     const headline = await page.locator('[aria-label="Provider results count"]').first().innerText().catch(() => '');
-    const shown = Number((headline.match(/(\d+)\s+providers?\s+found/i) || [])[1] ?? NaN);
+    const shown = Number((headline.match(/(\d+)\s+to call/i) || [])[1] ?? NaN);
     check(
-      'headline count includes providers pending eligibility checks',
-      shown === expected,
-      `panel says ${shown}, search returned ${expected} (${(search?.data?.data || []).length} eligible + ${(search?.data?.verification_required || []).length} to verify + transit)`,
+      'headline counts every provider to call, including ones pending eligibility checks',
+      shown === callable,
+      `panel says "${headline.replace(/\s+/g, ' ').trim()}", search returned ${callable} callable (${(search?.data?.data || []).length} eligible + ${(search?.data?.verification_required || []).length} to verify)`,
     );
     await page.screenshot({ path: `${SHOTS}/redesign-01-results.png`, fullPage: true });
 

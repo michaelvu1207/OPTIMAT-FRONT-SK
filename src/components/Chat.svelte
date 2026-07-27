@@ -1811,7 +1811,7 @@ How can I assist you today?`,
                     <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2" aria-label="Provider search results">
                       <div class="flex items-center justify-between gap-3">
                         <div class="text-xs text-muted-foreground">
-                          Providers found: <span class="font-medium text-foreground">{providerSummary.count}</span>
+                          Options found: <span class="font-medium text-foreground">{providerSummary.count}</span>
                           {#if providerSummary.verificationCount > 0}
                             <span class="text-amber-700">
                               · {providerSummary.verificationCount} to verify
