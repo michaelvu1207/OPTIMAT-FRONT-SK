@@ -1,0 +1,127 @@
+{
+  "comment": "Ten rider conversations driven through the real UI and saved as chat examples. Written the way older riders actually talk: the reason comes before the request, the key constraint arrives late, addresses are described rather than named, and eligibility surfaces as an aside about a walker or a hip. Each one puts a different kind of pressure on the assistant — a recurring medical trip it cannot book, a destination outside every service area, a pickup before anyone opens, a rider who will not give an age, and a direct request to make the booking.",
+  "coverage": {
+    "comment": "Trips are spread across the operators rather than clustered in one city, so the set exercises different service areas, fare structures and eligibility rules.",
+    "east county": "Bay Point to Antioch — Tri Delta Transit, TDT Senior Paratransit, TDT ADA Paratransit",
+    "west county": "Richmond and San Pablo — R-Transit, Richmond Moves, San Pablo Senior & Disabled, Easy Ride (El Cerrito)",
+    "north west county": "Hercules to Martinez — WestCAT Senior Dial-A-Ride, WestCAT Paratransit",
+    "central county": "Concord to Walnut Creek, Pleasant Hill — LINK Paratransit, County Connection, GoGo Concord, Walnut Creek Mini Bus, Pleasant Hill Van Service",
+    "lamorinda": "Lafayette — Lamorinda Spirit, Seniors Around Town",
+    "san ramon valley": "San Ramon — Senior Express Van, Go San Ramon!",
+    "tri-valley": "Dublin to Pleasanton — Wheels Dial-a-Ride, Wheels Go Tri-Valley",
+    "regional and county-wide": "Mobility Matters, One-Seat Regional Ride and East Bay Paratransit appear across several of these trips",
+    "out of area": "Pleasant Hill to San Francisco — deliberately outside every service area"
+  },
+  "examples": [
+    {
+      "id": "dialysis-recurring",
+      "title": "Dialysis three mornings a week after losing a ride",
+      "category": "booking",
+      "tags": "dialysis, recurring trip, medical, early morning, lost caregiver",
+      "description": "A rider needs the same trip three times a week at 6am. Tests whether the assistant is honest that OPTIMAT finds providers for one trip at a time rather than standing orders, and whether it still names who handles recurring medical trips and how early they run.",
+      "turns": [
+        "Hello there. I'm 78 and I go for dialysis three mornings a week, Monday Wednesday Friday, over at the center in Antioch. My son's been driving me but he started a new job and he just can't anymore. I haven't driven since my stroke. Is there something that could pick me up regular like that?",
+        "The hard part is I have to be in the chair by six in the morning. Let's say this Wednesday, August 12th, from my place in Bay Point.",
+        "Not disabled exactly, but I do get around slow. I'm not one of those ADA folks, never applied for anything like that."
+      ]
+    },
+    {
+      "id": "walker-vague-address",
+      "title": "Describes the clinic instead of naming it, and uses a walker",
+      "category": "general",
+      "tags": "walker, mobility aid, vague destination, door-to-door",
+      "description": "The rider describes the destination the way a person does — 'the Kaiser on Nevin' — and mentions a walker as an aside. Tests place resolution and whether the assistant surfaces door-to-door versus curb-to-curb, which is the detail that actually decides if this trip works.",
+      "turns": [
+        "I need to get over to my doctor. It's the Kaiser on Nevin, in Richmond. I'm right by the Civic Center there.",
+        "I'm 82. I use a walker now since I fell last spring — can the driver help me get in and out? That's really my worry. I'd want to go the 12th of August, late morning, and I don't need a ride back, my daughter's picking me up."
+      ]
+    },
+    {
+      "id": "unknown-return-time",
+      "title": "Cardiology appointment with no idea when it will end",
+      "category": "booking",
+      "tags": "return trip, uncertain duration, medical appointment, will-call",
+      "description": "A real and constant paratransit problem: the rider cannot name a return time because the appointment length is unknown. Tests whether the assistant explains how return trips are actually handled instead of demanding a time the rider does not have.",
+      "turns": [
+        "I've got a cardiology appointment Tuesday the 11th of August, ten in the morning, at John Muir in Walnut Creek. I'd be coming from my house in Concord.",
+        "I'm 74, and no, nothing like a wheelchair. Here's my trouble — I never know how long they'll keep me in there. Some visits it's an hour, some it's most of the day. How am I supposed to say when I want picking up?"
+      ]
+    },
+    {
+      "id": "asks-assistant-to-book",
+      "title": "Asks the assistant to go ahead and book it",
+      "category": "booking",
+      "tags": "handoff, no booking, boundary, phone number",
+      "description": "The rider does the natural thing and asks the assistant to make the booking, then offers personal details. Tests the invariant that OPTIMAT never books and never collects booking details, and that it hands off with a phone number and deadline rather than just refusing.",
+      "turns": [
+        "I need a ride from San Ramon City Hall to the medical center there on August 12th, around ten in the morning, just the one way. I'm 72, live in San Ramon, nothing wrong with me but the years.",
+        "That first one sounds right. Go ahead and book it for me would you? I can give you my address and my phone number, and my Medicare number's around here somewhere if they need it."
+      ]
+    },
+    {
+      "id": "withholds-age",
+      "title": "Will not tell a computer her age",
+      "category": "eligibility",
+      "tags": "privacy, declines eligibility, west county, WestCAT, verification",
+      "description": "The rider refuses to give an age, which is exactly the fact that decides several providers. Tests that the search still returns a usable list with eligibility flagged for the provider to confirm, instead of stalling on the question. Exercises west county, where WestCAT runs the dial-a-ride and paratransit service.",
+      "turns": [
+        "I'll be honest with you, I'd rather not be telling a computer my age. I'm a senior, that ought to be enough for anybody. I need to get from my place in Hercules over to the Kaiser in Martinez, the 12th of August, around ten in the morning.",
+        "No, I don't care to say. Can you not just tell me who might take me?"
+      ]
+    },
+    {
+      "id": "sunday-church",
+      "title": "Getting back to Sunday services after giving up driving",
+      "category": "transit",
+      "tags": "sunday, weekend service, schedule constraint, social isolation",
+      "description": "A non-medical trip that matters as much as a medical one. Most local services are weekday-only, so this tests whether the assistant names the schedule as the constraint and says which days would work rather than reporting a bare no.",
+      "turns": [
+        "I've been missing my church since I gave up the car. I'm 80, over in El Cerrito, and I'd dearly like to get to Sunday service — it's at eight in the morning, near the Plaza there. Is there anything at all that runs on a Sunday?",
+        "No wheelchair, no. Just slow. And I've lived in El Cerrito thirty-one years."
+      ]
+    },
+    {
+      "id": "out-of-area-specialist",
+      "title": "Specialist across the bay, and BART is no longer an option",
+      "category": "transit",
+      "tags": "out of coverage, partial coverage, san francisco, balance, alternatives",
+      "description": "Pleasant Hill to San Francisco is outside every provider's service area. Tests the most important failure case: explaining that no change of date or time fixes coverage, naming which providers reach which end of the trip, and offering a real alternative.",
+      "turns": [
+        "My specialist is over at UCSF in San Francisco and I'm way out in Pleasant Hill. I'm 76. I used to take BART but I won't anymore, not with my balance the way it is — those escalators frighten me. The appointment's August 12th at nine in the morning. Is there a van that goes all that way?"
+      ]
+    },
+    {
+      "id": "fixed-income-cost",
+      "title": "On Social Security and needs to know the fare first",
+      "category": "eligibility",
+      "tags": "cost, fixed income, fare, groceries, round trip, Lamorinda",
+      "description": "Cost is the deciding factor, not availability. Tests whether the assistant leads with fares and any free or volunteer-driver option instead of listing providers and leaving the rider to ask what it costs. Exercises the Lamorinda communities, served by Lamorinda Spirit and Seniors Around Town.",
+      "turns": [
+        "I'm on a fixed income — Social Security and that's the whole of it. I need to get to the grocery store and back home again. I'm in Lafayette, I'm 71.",
+        "What's this going to run me? I can't be paying twenty dollars each way, that's the honest truth. Say Wednesday the 12th, mid-morning, and back a couple hours later."
+      ]
+    },
+    {
+      "id": "before-service-hours",
+      "title": "Hospital procedure at 6:30am, before anyone opens",
+      "category": "booking",
+      "tags": "early morning, service hours, schedule constraint, procedure, Tri-Valley, Wheels",
+      "description": "A 6:30am pickup falls outside most local service hours now that they are on file. Tests whether the assistant says which services do run that early, states the hours of the ones that do not, and flags any provider whose hours are unknown rather than implying the time is fine. Exercises the Tri-Valley, served by Wheels Dial-a-Ride.",
+      "turns": [
+        "They want me at the hospital at half past six in the morning for a procedure on the 12th of August. It's ValleyCare in Pleasanton, and I'm over in Dublin. I'm 79 years old. Who on earth runs that early?",
+        "I've been in Dublin twenty years. And no, I'm not ADA certified or whatever that is — I've never applied for anything."
+      ]
+    },
+    {
+      "id": "what-is-paratransit",
+      "title": "Neighbor mentioned paratransit and she does not know what it is",
+      "category": "general",
+      "tags": "explainer, eligibility, arthritis, first-time rider, application, San Pablo",
+      "description": "No trip yet — the rider wants to understand what paratransit is and whether she would qualify at all. Tests whether the assistant can teach plainly, be honest that some programs need an application, and move toward a real trip without interrogating her first. Exercises San Pablo, which runs its own senior and disabled transportation program with an enrollment requirement.",
+      "turns": [
+        "My neighbor down the street says there's something called paratransit I might be able to use. I'm 84. My arthritis is pretty bad these days but I'm not in a wheelchair or anything like that, so I don't know that I'd even be allowed. I don't really understand what it is. Could you explain it to me?",
+        "I'm in San Pablo, if that matters. I mostly need to get to my appointments and over to the market once a week."
+      ]
+    }
+  ]
+}

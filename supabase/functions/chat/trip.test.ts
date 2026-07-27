@@ -200,3 +200,37 @@ Deno.test("Richmond defaults do not create a false city mismatch", () => {
   const mismatch = getLocationMismatch("Richmond City Hall", "450 Civic Center Plaza, Richmond, CA 94804, USA");
   assert(mismatch === null, "Richmond, California should remain in service context");
 });
+
+Deno.test("dates spoken the way riders say them resolve correctly", () => {
+  // Found by recording example conversations in a rider's own voice: every eval scenario had
+  // used machine phrasing ("August 12, 2026"), so none of this was exercised.
+  const clock = new Date("2026-07-27T19:00:00Z");
+
+  // "the Nth of Month" previously failed outright.
+  assertEquals(resolveTravelDate("the 12th of August", clock).iso, "2026-08-12");
+  assertEquals(resolveTravelDate("the 11th of August", clock).iso, "2026-08-11");
+
+  // Worse than failing: a named weekday used to beat the day of the month, so a rider asking
+  // for August 11 was quietly given July 28.
+  assertEquals(resolveTravelDate("Tuesday the 11th of August", clock).iso, "2026-08-11");
+  assertEquals(resolveTravelDate("Wednesday the 12th", clock).iso, "2026-08-12");
+
+  // A bare day of the month means its next occurrence.
+  assertEquals(resolveTravelDate("the 3rd", clock).iso, "2026-08-03");
+  assertEquals(resolveTravelDate("the 29th", clock).iso, "2026-07-29");
+
+  // Weekday-only phrasing is unchanged.
+  assertEquals(resolveTravelDate("Sunday", clock).iso, "2026-08-02");
+  assertEquals(resolveTravelDate("next Tuesday", clock).iso, "2026-08-04");
+  assertEquals(resolveTravelDate("tomorrow", clock).iso, "2026-07-28");
+});
+
+Deno.test("a weekday that contradicts the date is asked about, not guessed", () => {
+  const clock = new Date("2026-07-27T19:00:00Z");
+  const contradiction = resolveTravelDate("Monday the 12th of August", clock);
+  assertEquals(contradiction.ok, false, "August 12 is a Wednesday, so this cannot be resolved silently");
+  assertStringIncludes(contradiction.error || "", "is a Wednesday, not a Monday");
+
+  // Agreement is accepted without complaint.
+  assertEquals(resolveTravelDate("Wednesday, August 12, 2026", clock).iso, "2026-08-12");
+});

@@ -82,13 +82,18 @@ export function verifyResponse(response: string, state: TripState): ResponseProb
     });
   }
 
-  const maximumAvailable = search.eligible.length + search.verification.length +
-    (search.public_transit?.available ? 1 : 0);
-  const overstated = counts.find((count) => count.value > maximumAvailable);
+  // The ceiling is every provider the search touched, not only the usable ones. Counting just the
+  // available ones rejected accurate sentences like "all three providers require ADA
+  // certification" whenever those three had been ruled out — the rider then lost the model's
+  // explanation and got generated prose instead. Inventing providers is still caught, because a
+  // count above everything the search saw cannot come from the data.
+  const maximumDiscussed = search.eligible.length + search.verification.length +
+    search.excluded.length + (search.public_transit?.available ? 1 : 0);
+  const overstated = counts.find((count) => count.value > maximumDiscussed);
   if (overstated) {
     problems.push({
       code: "overstated_count",
-      detail: `The message says "${overstated.phrase}" but at most ${maximumAvailable} option(s) were found.`,
+      detail: `The message says "${overstated.phrase}" but the search only found ${maximumDiscussed} provider(s) in total.`,
     });
   }
 
@@ -104,14 +109,29 @@ export function verifyResponse(response: string, state: TripState): ResponseProb
     }
   }
 
-  // A ruled-out provider may be discussed, but not in a line that reads as a recommendation.
-  const NEGATIVE = /\b(not|isn'?t|doesn'?t|don'?t|cannot|can'?t|unfortunately|ruled out|excluded|ineligible|requires|restricted|limited|only)\b/i;
+  // A ruled-out provider may be discussed — explaining why it will not work is exactly what a
+  // rider needs — so this only fires when the provider is named in something that reads as a
+  // live recommendation with nothing anywhere nearby saying it is unavailable.
+  //
+  // The first version matched negation per line against a short word list, and rejected correct
+  // answers such as "None of the three can take you — they all require ADA certification"
+  // ("none" and "require" were both absent from the list). Every rejection costs the rider the
+  // model's answer and substitutes generated prose, so this errs heavily toward accepting.
+  const NEGATIVE =
+    /\b(no|none|neither|nor|not|n'?t|never|cannot|unfortunately|rule[ds]? out|ruled out|exclude[ds]?|ineligible|require[sd]?|needs?|restricted|limited|only|unless|would need|doesn'?t qualify|isn'?t (?:an )?option|off the table)\b/i;
+  const AFFIRMATIVE_RECOMMENDATION =
+    /\b(call|phone|book|reserve|your best|i'?d recommend|recommend|can take you|will take you|use them|go with|best fit|easiest)\b/i;
+
+  const paragraphs = text.split(/\n\s*\n/);
   for (const note of search.excluded) {
-    const mentions = text.split(/\n|(?<=\.)\s+/).filter((line) => line.includes(note.name));
-    if (mentions.length > 0 && !mentions.some((line) => NEGATIVE.test(line))) {
+    const mentions = paragraphs.filter((paragraph) => paragraph.includes(note.name));
+    const presentedAsAvailable = mentions.some(
+      (paragraph) => AFFIRMATIVE_RECOMMENDATION.test(paragraph) && !NEGATIVE.test(paragraph),
+    );
+    if (presentedAsAvailable) {
       problems.push({
         code: "excluded_recommended",
-        detail: `${note.name} was ruled out (${note.reason || "eligibility did not match"}) but is presented without saying so.`,
+        detail: `${note.name} was ruled out (${note.reason || "eligibility did not match"}) but is presented as if the rider could use it.`,
       });
     }
   }

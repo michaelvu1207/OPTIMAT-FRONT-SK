@@ -50,12 +50,37 @@ Deno.test("qualified counts describing different buckets are not a contradiction
   assertEquals(codes(verifyResponse(response, state(search))), []);
 });
 
-Deno.test("claiming more providers than were found is rejected", () => {
+Deno.test("claiming more providers than the search found is rejected", () => {
   const problems = verifyResponse(
     "I found 5 providers for your trip.",
     state(digest({ eligible: [{ name: "Go San Ramon!" }] })),
   );
   assert(codes(problems).includes("overstated_count"));
+});
+
+Deno.test("counting providers in order to rule them out is not overstating", () => {
+  // The live failure this covers: every provider was ruled out for want of ADA certification, and
+  // the model's accurate "all three providers require ADA certification" was rejected twice
+  // because the ceiling counted only usable providers. The rider lost the explanation.
+  const search = digest({
+    eligible: [],
+    excluded: [
+      { name: "Wheels Dial-a-Ride", reason: "Requires ADA certification." },
+      { name: "LINK Paratransit", reason: "Requires ADA certification." },
+      { name: "One-Seat Regional Ride", reason: "Requires ADA certification." },
+    ],
+    public_transit: { available: true, duration_text: "47 mins" },
+  });
+
+  for (const response of [
+    "With no ADA certification all three providers are out — Wheels Dial-a-Ride, LINK Paratransit and One-Seat Regional Ride each require it.",
+    "Unfortunately none of the 3 providers that run that early will take you without ADA certification.",
+  ]) {
+    assertEquals(codes(verifyResponse(response, state(search))), [], `should accept: ${response.slice(0, 50)}`);
+  }
+
+  // A count beyond everything the search saw is still invention.
+  assert(codes(verifyResponse("There are 9 providers for this trip.", state(search))).includes("overstated_count"));
 });
 
 Deno.test("a booking claim is rejected even with no search on record", () => {
@@ -88,7 +113,7 @@ Deno.test("a ruled-out provider cannot be presented as available", () => {
   });
 
   const problems = verifyResponse(
-    "Go San Ramon! can take you. Mobility Matters offers free volunteer drivers.",
+    "Go San Ramon! can take you.\n\nCall Mobility Matters at (925) 284-6161 — free volunteer drivers, your best option.",
     state(search),
   );
   assert(codes(problems).includes("excluded_recommended"));
@@ -101,6 +126,27 @@ Deno.test("a ruled-out provider cannot be presented as available", () => {
     )),
     [],
   );
+});
+
+Deno.test("explaining that every provider is ruled out is not itself a violation", () => {
+  // The live failure this covers: a rider who was not ADA-certified got a correct answer naming
+  // all three ruled-out providers, which was rejected twice and replaced with generated prose,
+  // because the negation list held "requires" but neither "none" nor "require".
+  const search = digest({
+    excluded: [
+      { name: "Wheels Dial-a-Ride", reason: "Requires ADA certification." },
+      { name: "LINK Paratransit", reason: "Requires ADA certification." },
+      { name: "One-Seat Regional Ride", reason: "Requires ADA certification." },
+    ],
+  });
+
+  for (const response of [
+    "None of the three can take you — Wheels Dial-a-Ride, LINK Paratransit and One-Seat Regional Ride all require ADA certification.",
+    "Unfortunately Wheels Dial-a-Ride, LINK Paratransit and One-Seat Regional Ride each need ADA certification, which you said you don't have.",
+    "Wheels Dial-a-Ride, LINK Paratransit and One-Seat Regional Ride are off the table without ADA certification.\n\nPublic transit makes the trip in about 47 minutes.",
+  ]) {
+    assertEquals(codes(verifyResponse(response, state(search))), [], `should accept: ${response.slice(0, 60)}`);
+  }
 });
 
 Deno.test("the correction prompt names each discrepancy and asks for a rewrite", () => {

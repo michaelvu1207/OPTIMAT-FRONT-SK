@@ -322,6 +322,42 @@ export function resolveTravelDate(
     }
   }
 
+  // "the 12th of August" — the way a date is more often spoken than written. Ordinal suffixes
+  // have already been stripped above, so this sees "the 12 of august".
+  if (!resolved) {
+    const monthPattern = Array.from(MONTH_ALIASES.keys()).sort((a, b) => b.length - a.length).join("|");
+    const ofMonthMatch = normalized.match(new RegExp(`\\b(\\d{1,2})\\s+of\\s+(${monthPattern})\\.?(?:[^\\d]{0,4}(\\d{4}))?`, "i"));
+    if (ofMonthMatch) {
+      const day = Number(ofMonthMatch[1]);
+      const month = MONTH_ALIASES.get(ofMonthMatch[2].toLowerCase())!;
+      const hasYear = Boolean(ofMonthMatch[3]);
+      const year = hasYear ? Number(ofMonthMatch[3]) : serviceDate.year;
+      let candidate = isoDate(year, month, day);
+      if (!hasYear && candidate && candidate < todayIso) candidate = isoDate(year + 1, month, day);
+      resolved = candidate;
+    }
+  }
+
+  // A bare day of the month — "the 12th" — means the next time that date comes around.
+  if (!resolved) {
+    const dayOnlyMatch = normalized.match(/\bthe\s+(\d{1,2})\b/);
+    if (dayOnlyMatch) {
+      const day = Number(dayOnlyMatch[1]);
+      if (day >= 1 && day <= 31) {
+        let candidate = isoDate(serviceDate.year, serviceDate.month, day);
+        if (!candidate || candidate < todayIso) {
+          const nextMonth = serviceDate.month === 12 ? 1 : serviceDate.month + 1;
+          const nextYear = serviceDate.month === 12 ? serviceDate.year + 1 : serviceDate.year;
+          candidate = isoDate(nextYear, nextMonth, day);
+        }
+        resolved = candidate;
+      }
+    }
+  }
+
+  // A weekday on its own. Checked last: a rider who says "Tuesday the 11th of August" is naming a
+  // specific date and only incidentally its weekday, and resolving the weekday instead silently
+  // produced a trip on the wrong day.
   if (!resolved) {
     const weekdayIndex = WEEKDAYS.findIndex((weekday) => new RegExp(`\\b${weekday}\\b`, "i").test(normalized));
     if (weekdayIndex >= 0) {
@@ -330,6 +366,27 @@ export function resolveTravelDate(
       if (daysAhead === 0 || /\bnext\b/.test(normalized)) daysAhead += 7;
       const target = addDays(serviceDate.year, serviceDate.month, serviceDate.day, daysAhead);
       resolved = isoDate(target.year, target.month, target.day);
+    }
+  }
+
+  // When a rider names both a weekday and a date that disagree, one of them is a mistake and
+  // guessing which would put them in a vehicle on the wrong day. Ask instead.
+  if (resolved) {
+    const namedWeekday = WEEKDAYS.findIndex((weekday) => new RegExp(`\\b${weekday}\\b`, "i").test(normalized));
+    if (namedWeekday >= 0) {
+      const [year, month, day] = resolved.split("-").map(Number);
+      const actualWeekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+      if (actualWeekday !== namedWeekday) {
+        const capitalize = (value: string) => value[0].toUpperCase() + value.slice(1);
+        return {
+          ok: false,
+          iso: null,
+          display: null,
+          error: `${formatTravelDate(resolved)} is a ${capitalize(WEEKDAYS[actualWeekday])}, not a ${
+            capitalize(WEEKDAYS[namedWeekday])
+          }. Which did you mean?`,
+        };
+      }
     }
   }
 
