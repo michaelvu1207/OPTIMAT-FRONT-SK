@@ -33,6 +33,7 @@
 		"@supabase/supabase-js": "^2.89.0",
 		"@tailwindcss/typography": "^0.5.19",
 		"bits-ui": "^2.14.4",
+		"dompurify": "^3.4.12",
 		"leaflet": "^1.9.4",
 		"marked": "^17.0.1",
 		"paneforge": "^1.0.2",

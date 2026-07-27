@@ -20,97 +20,42 @@ import {
   TABLES,
 } from "../_shared/supabase.ts";
 import { toolDefinitions, executeTool, storeToolCall, ToolResult } from "./tools.ts";
+import { getServiceClockContext, SERVICE_TIME_ZONE } from "./trip.ts";
+import {
+  buildCoverageResponse,
+  buildDateResolutionResponse,
+  buildNoProviderResponse,
+  ensurePublicTransitProviderSummary,
+  ensureVerificationSummary,
+} from "./responses.ts";
 
-// System prompt for the chat assistant (synced with OPTIMAT-CHATAPI)
-const SYSTEM_PROMPT = `You are a helpful assistant developed by OPTIMAT, a team that provides transportation services for people with disabilities and seniors.
-You can find paratransit providers that can serve a trip between an origin (pickup) and destination (drop-off) address. The find_providers tool requires departure_time and return_time parameters to filter providers by their service hours.
+const SYSTEM_PROMPT = `You are OPTIMAT's Bay Area transportation assistant. Use current OPTIMAT provider data and tool results; never invent dates, locations, eligibility, schedules, routes, or booking capabilities.
 
-Before calling find_providers, you MUST ask the user for:
-1. Their eligibility context - ask about age/senior status, disability or ADA certification, veteran status, and where they live. If they don't qualify for any category or prefer not to say, that's fine - just note "none" or "unknown" for eligibility. This is REQUIRED before searching.
-2. What time they want to be picked up to go to their destination (this is the departure_time)
-3. What time they want to return back to their origin/home (this is the return_time)
+Location rules:
+- OPTIMAT's default service context is the California Bay Area. “Richmond” always means Richmond, California unless the user explicitly names another state. Never ask which Richmond or which state.
+- If a location is vague, use search_addresses_from_user_query.
+- As soon as origin and destination are known, call check_trip_coverage before asking for date, times, return details, or eligibility. If it reports not_covered or a city mismatch, explain that immediately and do not continue a provider search until the location is corrected.
 
-IMPORTANT: You must have the user's eligibility context (or confirmation they prefer not to share) before calling find_providers. The tool filters by trip geography and service hours, but it does not filter by eligibility. It returns each provider's eligibility requirements. You must compare those requirements to the user's situation and recommend providers in plain English.
+Full provider-search rules:
+- Required facts are: origin, destination, travel date, outbound time, outbound time intent (depart_at or arrive_by), trip type (one_way or round_trip), and eligibility context.
+- Pass the user's date words exactly as travel_date_raw. The server—not you—resolves “today,” “tomorrow,” weekdays, month/day, and the year.
+- Whenever the user provides or changes a date phrase, call resolve_trip_date before repeating it, naming its weekday, or inferring its year. Never calculate dates yourself.
+- Never reuse an earlier trip's explicit date to reinterpret a later relative date.
+- A one-way trip never needs a return time. Ask for return_time only for a round trip.
+- Eligibility context includes the rider's exact age, disability, ADA certification, veteran status, and residence city. Use null for facts not stated. If the rider declines, set declined=true.
+- Ask "How old are you?" and pass the number. Never ask "are you a senior?" and never treat "senior" as an age: providers in this area set minimums of 50, 55, 60, and 65, so only an exact age decides them.
+- Only providers in result.data are eligible recommendations. Providers in result.verification_required matched location and schedule but their eligibility could not be confirmed — list them separately as needing confirmation with the provider, and never drop them silently. Never recommend result.excluded_providers.
+- Fixed-route agencies are not door-to-door providers. When public_transit is returned, present it as a found transportation provider option labeled “Public Transit,” while clearly distinguishing it from direct-ride providers.
+- The diagnostics identify whether geography, schedule, or eligibility caused zero results. State the first definitive reason; do not give a generic list of guesses.
+- Public transit times are valid only when returned by the tool for the requested travel date and depart/arrive intent.
 
-When reviewing returned providers:
-- Recommend providers only when the returned eligibility text appears to match the user's situation.
-- If a provider may match but needs an application, proof, ADA approval, residency proof, or a provider decision, say that clearly.
-- If a provider does not appear to match, do not present it as a recommendation; at most mention it as not likely eligible if useful.
-- Preserve AND/OR logic from provider text. For example, "senior or disabled AND Concord resident" means both a category match and Concord residency are needed.
+Provider handoff rules:
+- OPTIMAT does not book rides. Do not ask for the rider's name, home address, phone number, gate code, or other booking details.
+- When a user selects a provider, use get_provider_info and give the external booking method, advance notice, eligibility/application requirement, phone, and website from the tool data.
+- Do not say a booking is complete or that OPTIMAT will send information to a provider.
 
-Make sure to mention that you must book 1-3 days in advance for most providers.
-You can also provide public transit routing information for the same trip.
-You can find addresses from a user query using the function search_addresses_from_user_query if the user doesn't know the exact address. If the user doesn't provide an exact address, immediately use that function to find addresses.
-
-For general questions about transportation providers, accessibility, eligibility, or other topics not covered by our internal data, use the general_provider_question tool to search the web for relevant information.
-
-Please do not make up information, only use the information provided by the user.
-
-When you need data, call the provided tools directly (do NOT write pseudo function_calls markup). Always call tools rather than describing them.
-
-When booking a trip, gather these details (send short, separate messages if needed):
-- Your name, home address, and phone number.
-- The pickup address (origin).
-- The destination address.
-- Any special driver instructions (gate codes, directions, mall area, etc.).
-- Travel date.
-- What time they want to be picked up to go to the destination.
-- What time they want to return back home.
-- Whether they qualify for any eligibility categories (seniors 60+, disabled/ADA certified, veterans, or area residents). Be sensitive when asking - explain that some services are specifically designed for certain populations and knowing this helps find the most appropriate options.
-- Their preferred booking style (fixed schedules, book in advance, or real-time booking).
-- Whether you travel with an attendant, companion, or service animal.
-- Mobility aids for you or your companion (wheelchair, walker, cane, scooter, etc.).
-
-When you get the trip information, summarize the trip including:
-1. The best provider recommendations based on location, service hours, and your reasoning over each provider's eligibility requirements.
-2. Public transit routing options (if available).
-3. Pickup and destination addresses.
-4. If a provider was filtered out due to service hours, mention that some providers may not operate at the requested times.
-5. Make sure to mention that you must book 1-3 days in advance for most providers.
-6. Add a 30 minute buffer to the requested pickup/drop-off time.
-7. For each recommended provider, include the eligibility reason and any proof/application step shown in the provider data.
-Format it concisely.
-
-Please send multiple short messages to the user to ask for the information.
-If the user already provided the information, you can skip asking for it.
-
-If the user asks for information about a specific provider, you must ask for the provider name.
-The provider name must be matched to one of the following:
-        "AC Transit",
-        "BART",
-        "County Connection",
-        "East Bay Paratransit",
-        "Easy Ride Paratransit Services (El Cerrito)",
-        "GoGo Concord",
-        "Go San Ramon!",
-        "Lamorinda Spirit",
-        "LINK Paratransit",
-        "Mobility Matters",
-        "One-Seat Regional Ride",
-        "Pleasant Hill Van Service",
-        "Richmond Moves",
-        "Rossmoor Dial-A-Bus",
-        "R-Transit (Richmond)",
-        "San Pablo Senior & Disabled Transportation",
-        "Senior Express Van (San Ramon)",
-        "Seniors Around Town (Orinda)",
-        "TDT ADA Paratransit",
-        "TDT Senior Paratransit",
-        "Tri Delta Transit",
-        "Walnut Creek Lyft Self Access Pass",
-        "Walnut Creek Lyft Concierge Pass",
-        "Walnut Creek Mini Bus",
-        "WestCAT",
-        "WestCAT Senior Dial-A-Ride",
-        "WestCAT Paratransit",
-        "Wheels Dial-a-Ride",
-        "Wheels Go Tri-Valley"
-
-    Ask for clarification if the provider name is not one of the above. Then use the provided tool to get the provider information.
-    After you get the trip information, summarize the entire trip information.
-
-    Don't format responses in markdown. Be very concise with your responses.
-`;
+For provider facts not in internal data, use general_provider_question and keep the query in California Bay Area context.
+Call tools directly when needed. Keep responses concise and clear.`;
 
 // Types
 interface ChatRequest {
@@ -137,11 +82,33 @@ interface ChatResponse {
 function getProviderSearchData(attachments: Attachment[]): Record<string, unknown> | null {
   for (let i = attachments.length - 1; i >= 0; i--) {
     const attachment = attachments[i];
-    if (attachment.type === "provider_search" && attachment.data && typeof attachment.data === "object") {
+    if (
+      attachment.type === "provider_search" &&
+      attachment.metadata?.tool_name === "find_providers" &&
+      attachment.data &&
+      typeof attachment.data === "object"
+    ) {
       return attachment.data as Record<string, unknown>;
     }
   }
 
+  return null;
+}
+
+function getToolData(
+  attachments: Attachment[],
+  toolName: string,
+): Record<string, unknown> | null {
+  for (let i = attachments.length - 1; i >= 0; i--) {
+    const attachment = attachments[i];
+    if (
+      attachment.metadata?.tool_name === toolName &&
+      attachment.data &&
+      typeof attachment.data === "object"
+    ) {
+      return attachment.data as Record<string, unknown>;
+    }
+  }
   return null;
 }
 
@@ -188,45 +155,14 @@ function sanitizeAttachmentForChat(attachment: Attachment): Attachment {
   };
 }
 
-function buildNoProviderResponse(providerSearch: Record<string, unknown>): string | null {
-  const providers = Array.isArray(providerSearch.data) ? providerSearch.data : [];
-  const totalFound =
-    typeof providerSearch.total_found === "number" ? providerSearch.total_found : providers.length;
-
-  if (totalFound !== 0) return null;
-
-  const sourceAddress =
-    typeof providerSearch.source_address === "string" ? providerSearch.source_address : "the pickup address";
-  const destinationAddress =
-    typeof providerSearch.destination_address === "string"
-      ? providerSearch.destination_address
-      : "the destination address";
-  const hasPublicTransit = Boolean(providerSearch.public_transit);
-
-  const lines = [
-    "I couldn't find any providers in our current data that serve both ends of this trip.",
-    "",
-    `Pickup: ${sourceAddress}`,
-    `Destination: ${destinationAddress}`,
-  ];
-
-  if (hasPublicTransit) {
-    lines.push("", "Public transit routing may still be available for this trip. Open the results to review the transit option.");
-  }
-
-  lines.push("", "This means no provider service area matched both addresses after geocoding and service-hour filtering. I won't recommend a specific provider unless it appears in the filtered results.");
-
-  return lines.join("\n");
-}
-
 // Bedrock model ID for Claude Haiku 4.5
 const BEDROCK_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0";
 
 // Maximum number of tool call iterations to prevent infinite loops
-const MAX_TOOL_ITERATIONS = 10;
+const MAX_TOOL_ITERATIONS = 6;
 
 // Convert tool definitions to Bedrock format
-function convertToolsToBedrockFormat(tools: typeof toolDefinitions) {
+function convertToolsToBedrockFormat(tools: typeof toolDefinitions): any[] {
   return tools.map((tool) => ({
     toolSpec: {
       name: tool.name,
@@ -361,7 +297,7 @@ serve(async (req: Request) => {
     const bedrockTools = convertToolsToBedrockFormat(toolDefinitions);
 
     // Process with Claude via Bedrock (with tool calling loop)
-    let currentMessages = convertMessagesToBedrockFormat(messageHistory);
+    let currentMessages: any[] = convertMessagesToBedrockFormat(messageHistory);
     let iterations = 0;
     let finalResponse = "";
 
@@ -371,7 +307,9 @@ serve(async (req: Request) => {
       // Call Bedrock Converse API
       const command = new ConverseCommand({
         modelId: BEDROCK_MODEL_ID,
-        system: [{ text: SYSTEM_PROMPT }],
+        system: [{
+          text: `${SYSTEM_PROMPT}\n\nCurrent service clock: ${getServiceClockContext()}\nAll relative dates must be resolved in ${SERVICE_TIME_ZONE}.`,
+        }],
         messages: currentMessages,
         toolConfig: {
           tools: bedrockTools,
@@ -384,7 +322,7 @@ serve(async (req: Request) => {
       const response = await bedrockClient.send(command);
 
       // Extract content from response
-      const outputContent = response.output?.message?.content || [];
+      const outputContent: any[] = response.output?.message?.content || [];
 
       // Check for tool use blocks
       const toolUseBlocks = outputContent.filter(
@@ -397,7 +335,7 @@ serve(async (req: Request) => {
       );
 
       if (textBlocks.length > 0) {
-        finalResponse = textBlocks.map((b: { text: string }) => b.text).join("\n");
+        finalResponse = textBlocks.map((block) => String(block.text || "")).join("\n");
       }
 
       // If no tool calls or stop reason is end_turn, we're done
@@ -415,6 +353,7 @@ serve(async (req: Request) => {
 
       for (const block of toolUseBlocks) {
         const toolUse = block.toolUse;
+        if (!toolUse?.name || !toolUse.toolUseId) continue;
         console.log(`Executing tool: ${toolUse.name}`, toolUse.input);
 
         const result: ToolResult = await executeTool(
@@ -430,7 +369,7 @@ serve(async (req: Request) => {
         // Add to attachments based on tool type
         if (result.success && result.data) {
           let attachmentType = "tool_result";
-          if (toolUse.name === "find_providers") {
+          if (toolUse.name === "find_providers" || toolUse.name === "check_trip_coverage") {
             attachmentType = "provider_search";
           } else if (toolUse.name === "search_addresses_from_user_query") {
             attachmentType = "address_search";
@@ -474,10 +413,19 @@ serve(async (req: Request) => {
     }
 
     const responseAttachments = compactAttachments(attachments);
+    const coverage = getToolData(responseAttachments, "check_trip_coverage");
+    const dateResolution = getToolData(responseAttachments, "resolve_trip_date");
     const providerSearch = getProviderSearchData(responseAttachments);
-    const noProviderResponse = providerSearch ? buildNoProviderResponse(providerSearch) : null;
-    if (noProviderResponse) {
-      finalResponse = noProviderResponse;
+    const deterministicResponse =
+      buildCoverageResponse(coverage) ||
+      (providerSearch ? buildNoProviderResponse(providerSearch) : null) ||
+      (!providerSearch ? buildDateResolutionResponse(dateResolution) : null);
+    if (deterministicResponse) {
+      finalResponse = deterministicResponse;
+    }
+    if (providerSearch) {
+      finalResponse = ensurePublicTransitProviderSummary(finalResponse, providerSearch);
+      finalResponse = ensureVerificationSummary(finalResponse, providerSearch);
     }
 
     // Save assistant response to database

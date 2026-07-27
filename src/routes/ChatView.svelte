@@ -8,6 +8,7 @@
   import { Map, TileLayer, Marker, GeoJSON, Polyline } from 'sveaflet';
   import { pingManager, PingTypes, pings, mapFocus } from '../lib/pingManager.js';
   import { serviceZoneManager, visibleServiceZones } from '../lib/serviceZoneManager.js';
+  import { decodePolyline } from '../lib/utils/decodePolyline';
   import PageShell from '$lib/components/PageShell.svelte';
   import { Button } from '$lib/components/ui/button';
   import * as Resizable from '$lib/components/ui/resizable/index.js';
@@ -32,6 +33,15 @@
 
   // Provider bar state
   let selectedProvider = null;
+  let transitRouteCoordinates = [];
+  let transitRouteSegments = [];
+
+  $: publicTransitProvider = createPublicTransitProvider(providerData?.public_transit);
+  $: providerResultCount = (Array.isArray(providerData?.data) ? providerData.data.length : 0) +
+    (publicTransitProvider ? 1 : 0);
+  // Providers that matched location and schedule but whose eligibility could not be confirmed.
+  // They are listed apart from recommendations instead of disappearing from the results.
+  $: verificationProviders = normalizeProviderList(providerData?.verification_required);
 
   const originPing = derived(pings, $pings => $pings.find(p => p.type === PingTypes.ORIGIN && p.visible));
   const destinationPing = derived(pings, $pings => $pings.find(p => p.type === PingTypes.DESTINATION && p.visible));
@@ -184,6 +194,11 @@
     }
   }
 
+  function normalizeProviderList(value) {
+    const parsed = safeParsePayload(value);
+    return Array.isArray(parsed) ? parsed : [];
+  }
+
   function normalizeProviderSearchPayload(rawPayload) {
     let payload = safeParsePayload(rawPayload);
     if (!payload || typeof payload !== 'object') return null;
@@ -220,6 +235,122 @@
       destination: payload.destination || nested?.destination || null,
       public_transit: payload.public_transit || nested?.public_transit || null
     };
+  }
+
+  function hasPublicTransitResult(publicTransit) {
+    if (!publicTransit) return false;
+    if (typeof publicTransit === 'string') return publicTransit.trim().length > 0;
+    if (typeof publicTransit !== 'object') return false;
+    return Boolean(
+      publicTransit.overview_polyline ||
+      publicTransit.polyline ||
+      publicTransit.journey_description ||
+      publicTransit.summary ||
+      publicTransit.duration_text ||
+      (Array.isArray(publicTransit.steps) && publicTransit.steps.length > 0) ||
+      (Array.isArray(publicTransit.routes) && publicTransit.routes.length > 0)
+    );
+  }
+
+  function createPublicTransitProvider(publicTransit) {
+    if (!hasPublicTransitResult(publicTransit)) return null;
+    return {
+      provider_id: 'public-transit',
+      provider_name: 'Public Transit',
+      provider_type: 'fixed-route',
+      is_public_transit: true,
+      public_transit: publicTransit
+    };
+  }
+
+  function getProviderId(provider) {
+    return provider?.is_public_transit ? 'public-transit' : provider?.provider_id || provider?.id;
+  }
+
+  function isProviderSelected(provider, currentSelectedProvider = selectedProvider) {
+    const providerId = getProviderId(provider);
+    return providerId != null && getProviderId(currentSelectedProvider) === providerId;
+  }
+
+  function getTransitLines(publicTransit = providerData?.public_transit) {
+    if (!publicTransit || typeof publicTransit !== 'object') return [];
+    const lines = (Array.isArray(publicTransit.steps) ? publicTransit.steps : [])
+      .map((step) => step?.transit_details?.line_name)
+      .filter((line) => typeof line === 'string' && line.trim())
+      .map((line) => line.trim());
+    return [...new Set(lines)];
+  }
+
+  function getTransitSteps(publicTransit = providerData?.public_transit) {
+    return Array.isArray(publicTransit?.steps) ? publicTransit.steps : [];
+  }
+
+  function stripTransitInstruction(value) {
+    if (typeof value !== 'string') return '';
+    return value
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .trim();
+  }
+
+  function getTransitRouteData(publicTransit) {
+    if (!publicTransit || typeof publicTransit !== 'object') {
+      return { coordinates: [], segments: [] };
+    }
+
+    const segments = getTransitSteps(publicTransit)
+      .map((step, index) => {
+        const coordinates = decodePolyline(step?.polyline || '');
+        if (coordinates.length < 2) return null;
+        const mode = String(step?.travel_mode || '').toUpperCase();
+        const requestedColor = step?.transit_details?.line_color;
+        const color = /^#[0-9a-f]{6}$/i.test(requestedColor || '') ? requestedColor : '#1a73e8';
+        return {
+          id: `transit-step-${index}`,
+          coordinates,
+          mode,
+          color: mode === 'WALKING' ? '#64748b' : color,
+          dashArray: mode === 'WALKING' ? '4, 7' : null
+        };
+      })
+      .filter(Boolean);
+
+    const overview = decodePolyline(publicTransit.overview_polyline || publicTransit.polyline || '');
+    const coordinates = overview.length >= 2
+      ? overview
+      : segments.flatMap((segment, index) => index === 0 ? segment.coordinates : segment.coordinates.slice(1));
+
+    return { coordinates, segments };
+  }
+
+  function focusOnTransitRoute(coordinates) {
+    const validCoordinates = coordinates.filter((coordinate) =>
+      Array.isArray(coordinate) && Number.isFinite(coordinate[0]) && Number.isFinite(coordinate[1])
+    );
+    if (validCoordinates.length < 2) {
+      pingManager.focusOnAllPings();
+      return;
+    }
+
+    const latitudes = validCoordinates.map((coordinate) => coordinate[0]);
+    const longitudes = validCoordinates.map((coordinate) => coordinate[1]);
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+    const span = Math.max(maxLat - minLat, maxLng - minLng, 0.002);
+
+    mapCenter = [(minLat + maxLat) / 2, (minLng + maxLng) / 2];
+    mapZoom = Math.max(8, Math.min(16, Math.floor(Math.log2(360 / span))));
+    mapRenderNonce += 1;
+  }
+
+  function clearTransitRoute() {
+    transitRouteCoordinates = [];
+    transitRouteSegments = [];
   }
 
   async function geocodeAddress(address) {
@@ -287,6 +418,8 @@
     providerData = normalizeProviderSearchPayload(event.detail);
     showProviderResults = true;
     viewMode = 'providers';
+    selectedProvider = null;
+    clearTransitRoute();
     if (providerData?.data && Array.isArray(providerData.data)) {
       highlightedProviders = new Set(providerData.data.map((p) => p.provider_id));
     }
@@ -365,6 +498,8 @@
     viewMode = 'chat';
     highlightedProviders = new Set();
     serviceZoneManager.clearAllServiceZones();
+    selectedProvider = null;
+    clearTransitRoute();
     pingManager.removePingsByType(PingTypes.ORIGIN);
     pingManager.removePingsByType(PingTypes.DESTINATION);
     chatComponent?.resumeExamplePlayback?.();
@@ -375,6 +510,8 @@
     showProviderResults = false;
     highlightedProviders = new Set();
     serviceZoneManager.clearAllServiceZones();
+    selectedProvider = null;
+    clearTransitRoute();
     pingManager.removePingsByType(PingTypes.ORIGIN);
     pingManager.removePingsByType(PingTypes.DESTINATION);
     chatComponent?.resumeExamplePlayback?.();
@@ -384,6 +521,8 @@
     pingManager.clearAllPings();
     highlightedProviders = new Set();
     serviceZoneManager.clearAllServiceZones();
+    selectedProvider = null;
+    clearTransitRoute();
     showProviderResults = false;
     viewMode = 'chat';
   }
@@ -431,13 +570,15 @@
 
   // Provider bar helper functions
   function selectProvider(provider) {
-    const providerId = provider.provider_id || provider.id;
-    const selectedId = selectedProvider?.provider_id || selectedProvider?.id;
+    const providerId = getProviderId(provider);
+    const selectedId = getProviderId(selectedProvider);
 
     // Toggle selection - click again to deselect
     if (selectedId === providerId) {
       selectedProvider = null;
       serviceZoneManager.clearAllServiceZones();
+      clearTransitRoute();
+      pingManager.focusOnAllPings();
     } else {
       selectedProvider = provider;
       showProviderZoneOnMap(provider);
@@ -446,8 +587,17 @@
 
   async function showProviderZoneOnMap(provider) {
     if (!provider) return;
-    const providerId = provider.provider_id || provider.id;
+    const providerId = getProviderId(provider);
     serviceZoneManager.clearAllServiceZones();
+    clearTransitRoute();
+
+    if (provider.is_public_transit) {
+      const route = getTransitRouteData(provider.public_transit);
+      transitRouteCoordinates = route.coordinates;
+      transitRouteSegments = route.segments;
+      focusOnTransitRoute(route.coordinates);
+      return;
+    }
 
     let serviceZone = provider.service_zone;
     if (!serviceZone && providerId != null) {
@@ -695,6 +845,39 @@
     return null;
   }
 
+  function parseObject(value) {
+    if (!value || typeof value !== 'string') return value;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
+  function getProviderPhone(provider) {
+    if (typeof provider?.phone === 'string' && provider.phone.trim()) return provider.phone.trim();
+    const booking = parseObject(provider?.booking);
+    if (!booking || typeof booking !== 'object') return null;
+    const direct = pickFirstNonEmptyString(booking.phone, booking.call, booking.contact);
+    if (direct) return direct;
+    const details = pickFirstNonEmptyString(booking.details, booking.instructions);
+    return details?.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/)?.[0] || null;
+  }
+
+  function getProviderEmail(provider) {
+    const contacts = parseObject(provider?.contacts);
+    if (!Array.isArray(contacts)) return null;
+    return contacts.map((contact) => contact?.email).find((email) => typeof email === 'string' && email.includes('@')) || null;
+  }
+
+  function normalizeWebsite(value) {
+    if (typeof value !== 'string' || !value.trim()) return null;
+    const website = value.trim();
+    if (/^https?:\/\//i.test(website)) return website;
+    if (/^[a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(website)) return `https://${website}`;
+    return null;
+  }
+
   function normalizeScheduleType(scheduleTypeValue) {
     if (!scheduleTypeValue) return null;
 
@@ -856,6 +1039,24 @@
               </select>
             </div>
 
+            {#if transitRouteCoordinates.length > 1 && selectedProvider?.is_public_transit}
+              <div
+                class="absolute right-2 top-2 z-10 max-w-56 rounded-lg border border-blue-200 bg-background/95 px-3 py-2 shadow-md backdrop-blur"
+                data-testid="transit-route-summary"
+              >
+                <div class="flex items-center gap-2 text-xs font-semibold text-foreground">
+                  <span class="h-2.5 w-2.5 rounded-full bg-[#1a73e8]"></span>
+                  Public Transit Route
+                </div>
+                <div class="mt-1 text-[11px] text-muted-foreground">
+                  {[providerData?.public_transit?.duration_text, providerData?.public_transit?.distance_text].filter(Boolean).join(' · ')}
+                </div>
+                {#if getTransitLines().length > 0}
+                  <div class="mt-1 text-[10px] text-blue-700">{getTransitLines().join(' → ')}</div>
+                {/if}
+              </div>
+            {/if}
+
             <div class="absolute inset-0" in:fade={{ duration: 400 }}>
               {#key mapKey}
                 <Map options={{ center: mapCenter, zoom: mapZoom }}>
@@ -902,7 +1103,46 @@
                     {/if}
                   {/each}
 
-                  {#if $connectionLine.show}
+                  {#if transitRouteCoordinates.length > 1}
+                    <Polyline
+                      latLngs={transitRouteCoordinates}
+                      options={{
+                        color: '#ffffff',
+                        weight: 10,
+                        opacity: 0.95,
+                        lineCap: 'round',
+                        lineJoin: 'round',
+                        className: 'public-transit-route-casing'
+                      }}
+                    />
+                    <Polyline
+                      latLngs={transitRouteCoordinates}
+                      options={{
+                        color: '#1a73e8',
+                        weight: transitRouteSegments.length > 0 ? 4 : 6,
+                        opacity: transitRouteSegments.length > 0 ? 0.32 : 0.95,
+                        lineCap: 'round',
+                        lineJoin: 'round',
+                        className: 'public-transit-route'
+                      }}
+                    />
+                    {#each transitRouteSegments as segment (segment.id)}
+                      <Polyline
+                        latLngs={segment.coordinates}
+                        options={{
+                          color: segment.color,
+                          weight: segment.mode === 'WALKING' ? 5 : 6,
+                          opacity: 0.95,
+                          dashArray: segment.dashArray,
+                          lineCap: 'round',
+                          lineJoin: 'round',
+                          className: `public-transit-segment public-transit-segment-${segment.mode.toLowerCase()}`
+                        }}
+                      />
+                    {/each}
+                  {/if}
+
+                  {#if $connectionLine.show && transitRouteCoordinates.length === 0}
                     <Polyline
                       latLngs={$connectionLine.coordinates}
                       options={{ color: '#6366f1', weight: 3, opacity: 0.8, dashArray: '10, 5' }}
@@ -928,14 +1168,28 @@
             {#if providerData}
               <!-- Provider Results View -->
 
+              <div class="flex flex-shrink-0 items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-2" aria-label="Provider results count">
+                <div class="text-xs font-semibold text-foreground">
+                  {providerResultCount} {providerResultCount === 1 ? 'provider' : 'providers'} found
+                  {#if verificationProviders.length > 0}
+                    <span class="ml-1 font-normal text-amber-700">
+                      · {verificationProviders.length} need{verificationProviders.length === 1 ? 's' : ''} verification
+                    </span>
+                  {/if}
+                </div>
+                {#if publicTransitProvider}
+                  <div class="text-[10px] font-medium text-blue-700">Includes public transit</div>
+                {/if}
+              </div>
+
               <div class="flex-1 overflow-y-auto p-2">
-                {#if providerData.data && providerData.data.length > 0}
+                {#if (providerData.data && providerData.data.length > 0) || publicTransitProvider || verificationProviders.length > 0}
                   <!-- Provider Cards Grid -->
                   <div class="grid grid-cols-2 gap-2">
                     {#each providerData.data as provider, idx (provider.provider_id || idx)}
                       <article
                         class="min-h-[18rem] max-h-80 overflow-y-auto text-left rounded-lg border p-3 transition flex flex-col {
-                          selectedProvider && (selectedProvider.provider_id || selectedProvider.id) === (provider.provider_id || provider.id)
+                          isProviderSelected(provider, selectedProvider)
                             ? 'bg-primary/10 border-primary shadow-md ring-1 ring-primary/50'
                             : 'bg-card border-border/60 hover:bg-muted/50 hover:border-border'
                         }"
@@ -952,31 +1206,44 @@
                           class="mb-2 w-fit rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/15 transition"
                           on:click={() => selectProvider(provider)}
                         >
-                          {selectedProvider && (selectedProvider.provider_id || selectedProvider.id) === (provider.provider_id || provider.id)
+                          {isProviderSelected(provider, selectedProvider)
                             ? 'Hide area'
                             : 'Show area'}
                         </button>
 
                         <!-- Provider Info -->
                         <div class="space-y-2 text-xs flex-1">
-                          {#if provider.phone}
+                          {#if getProviderPhone(provider)}
                             <div class="flex items-center gap-1.5">
                               <span class="text-muted-foreground shrink-0">📞</span>
                               <a
-                                href="tel:{provider.phone}"
+                                href="tel:{getProviderPhone(provider).replace(/[^\d+]/g, '')}"
                                 class="text-primary hover:underline truncate"
                                 on:click|stopPropagation
                               >
-                                {provider.phone}
+                                {getProviderPhone(provider)}
                               </a>
                             </div>
                           {/if}
 
-                          {#if provider.website}
+                          {#if getProviderEmail(provider)}
+                            <div class="flex items-center gap-1.5">
+                              <span class="text-muted-foreground shrink-0">✉️</span>
+                              <a
+                                href="mailto:{getProviderEmail(provider)}"
+                                class="text-primary hover:underline truncate"
+                                on:click|stopPropagation
+                              >
+                                {getProviderEmail(provider)}
+                              </a>
+                            </div>
+                          {/if}
+
+                          {#if normalizeWebsite(provider.website)}
                             <div class="flex items-center gap-1.5">
                               <span class="text-muted-foreground shrink-0">🌐</span>
                               <a
-                                href="{provider.website}"
+                                href="{normalizeWebsite(provider.website)}"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 class="text-primary hover:underline"
@@ -1048,20 +1315,186 @@
                       </article>
                     {/each}
 
-                    {#if providerData.public_transit && (
-                      providerData.public_transit.journey_description ||
-                      providerData.public_transit.summary ||
-                      (providerData.public_transit.steps && providerData.public_transit.steps.length > 0) ||
-                      (providerData.public_transit.routes && providerData.public_transit.routes.length > 0)
-                    )}
-                      <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <div class="flex items-center gap-2 text-blue-700 text-sm font-medium">
-                          <span>🚇</span>
-                          <span>Public Transit Also Available</span>
+                    {#if publicTransitProvider}
+                      <article
+                        class="min-h-[18rem] max-h-80 overflow-y-auto rounded-lg border p-3 transition flex flex-col {isProviderSelected(publicTransitProvider, selectedProvider) ? 'border-blue-500 bg-blue-50 shadow-md ring-1 ring-blue-400/50 dark:bg-blue-950/30' : 'border-blue-200 bg-card hover:border-blue-400 hover:bg-blue-50/50 dark:border-blue-900'}"
+                        data-provider-kind="public-transit"
+                      >
+                        <div class="flex items-start justify-between gap-2">
+                          <div class="flex min-w-0 items-center gap-2">
+                            <span class="text-base shrink-0">🚇</span>
+                            <div>
+                              <div class="font-semibold text-sm text-foreground">Public Transit</div>
+                              <div class="text-[10px] font-medium uppercase tracking-wide text-blue-700">Fixed-route itinerary</div>
+                            </div>
+                          </div>
+                          <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">Available</span>
                         </div>
-                      </div>
+
+                        <button
+                          type="button"
+                          class="my-2 w-fit rounded-md bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition hover:bg-blue-700"
+                          on:click={() => selectProvider(publicTransitProvider)}
+                        >
+                          {isProviderSelected(publicTransitProvider, selectedProvider) ? 'Hide route' : 'Show route'}
+                        </button>
+
+                        <div class="space-y-2 text-xs flex-1">
+                          <div class="grid grid-cols-2 gap-2">
+                            {#if providerData.public_transit.duration_text}
+                              <div class="rounded-md border border-blue-100 bg-background/80 px-2 py-1.5">
+                                <div class="text-[10px] uppercase tracking-wide text-muted-foreground">Travel time</div>
+                                <div class="mt-0.5 font-semibold text-foreground">{providerData.public_transit.duration_text}</div>
+                              </div>
+                            {/if}
+                            {#if providerData.public_transit.distance_text}
+                              <div class="rounded-md border border-blue-100 bg-background/80 px-2 py-1.5">
+                                <div class="text-[10px] uppercase tracking-wide text-muted-foreground">Distance</div>
+                                <div class="mt-0.5 font-semibold text-foreground">{providerData.public_transit.distance_text}</div>
+                              </div>
+                            {/if}
+                          </div>
+
+                          {#if providerData.public_transit.departure_time || providerData.public_transit.arrival_time}
+                            <div class="flex items-center gap-1.5 text-muted-foreground">
+                              <span>🕐</span>
+                              <span>
+                                {providerData.public_transit.departure_time || 'Departure'}
+                                → {providerData.public_transit.arrival_time || 'Arrival'}
+                              </span>
+                            </div>
+                          {/if}
+
+                          {#if getTransitLines().length > 0}
+                            <div>
+                              <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Lines</div>
+                              <div class="flex flex-wrap gap-1">
+                                {#each getTransitLines() as line}
+                                  <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-800">{line}</span>
+                                {/each}
+                              </div>
+                            </div>
+                          {/if}
+
+                          {#if getTransitSteps().length > 0}
+                            <div class="rounded-md border border-border/50 bg-background/70 px-2 py-1.5">
+                              <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Route steps</div>
+                              <ol class="space-y-1">
+                                {#each getTransitSteps().slice(0, 5) as step, index}
+                                  <li class="grid grid-cols-[1rem_1fr] gap-1.5 leading-snug">
+                                    <span class="text-blue-600">{index + 1}.</span>
+                                    <span>
+                                      {step.transit_details?.line_name || stripTransitInstruction(step.instruction) || step.travel_mode}
+                                      {#if step.duration_text}<span class="text-muted-foreground"> · {step.duration_text}</span>{/if}
+                                    </span>
+                                  </li>
+                                {/each}
+                              </ol>
+                            </div>
+                          {/if}
+
+                          <div class="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-emerald-800">
+                            <div class="text-[10px] font-semibold uppercase tracking-wide mb-1">Why It Matched</div>
+                            <div class="leading-snug">✓ A transit itinerary is available for this trip and requested travel time.</div>
+                          </div>
+                        </div>
+                      </article>
                     {/if}
                   </div>
+
+                  {#if verificationProviders.length > 0}
+                    <section class="mt-3" aria-label="Providers needing eligibility verification">
+                      <div class="mb-2 flex items-center gap-2">
+                        <h3 class="text-xs font-semibold text-foreground">Needs eligibility verification</h3>
+                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                          {verificationProviders.length}
+                        </span>
+                      </div>
+                      <p class="mb-2 text-[11px] text-muted-foreground">
+                        These serve the trip on the requested date and time. Confirm eligibility with the provider before booking.
+                      </p>
+                      <div class="grid grid-cols-2 gap-2">
+                        {#each verificationProviders as provider, idx (provider.provider_id || `verify-${idx}`)}
+                          <article
+                            class="flex flex-col rounded-lg border p-3 text-left transition {
+                              isProviderSelected(provider, selectedProvider)
+                                ? 'border-amber-500 bg-amber-50 shadow-md ring-1 ring-amber-400/50 dark:bg-amber-950/30'
+                                : 'border-amber-200 bg-card hover:border-amber-400 hover:bg-amber-50/50 dark:border-amber-900'
+                            }"
+                            data-provider-kind="verification-required"
+                          >
+                            <div class="mb-1.5 flex items-start justify-between gap-2">
+                              <div class="flex min-w-0 items-center gap-2">
+                                <span class="shrink-0 text-base">{getProviderTypeIcon(provider.provider_type)}</span>
+                                <span class="truncate text-sm font-semibold text-foreground">{provider.provider_name}</span>
+                              </div>
+                              <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                                Verify
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              class="mb-2 w-fit rounded-md bg-amber-600/10 px-2 py-1 text-[11px] font-medium text-amber-800 transition hover:bg-amber-600/15"
+                              on:click={() => selectProvider(provider)}
+                            >
+                              {isProviderSelected(provider, selectedProvider) ? 'Hide area' : 'Show area'}
+                            </button>
+
+                            <div class="flex-1 space-y-2 text-xs">
+                              {#if provider.eligibility_reason}
+                                <div class="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-amber-900">
+                                  <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide">Why it needs checking</div>
+                                  <div class="leading-snug">{provider.eligibility_reason}</div>
+                                </div>
+                              {/if}
+
+                              {#if formatEligibilitySections(provider.eligibility_reqs).length > 0}
+                                <div class="rounded-md border border-border/50 bg-background/70 px-2 py-1.5">
+                                  <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Provider requirement
+                                  </div>
+                                  <div class="space-y-1 text-foreground">
+                                    {#each formatEligibilitySections(provider.eligibility_reqs) as eligibilityLine}
+                                      <div class="leading-snug">{eligibilityLine}</div>
+                                    {/each}
+                                  </div>
+                                </div>
+                              {/if}
+
+                              {#if getProviderPhone(provider)}
+                                <div class="flex items-center gap-1.5">
+                                  <span class="shrink-0 text-muted-foreground">📞</span>
+                                  <a
+                                    href="tel:{getProviderPhone(provider).replace(/[^\d+]/g, '')}"
+                                    class="truncate text-primary hover:underline"
+                                    on:click|stopPropagation
+                                  >
+                                    {getProviderPhone(provider)}
+                                  </a>
+                                </div>
+                              {/if}
+
+                              {#if normalizeWebsite(provider.website)}
+                                <div class="flex items-center gap-1.5">
+                                  <span class="shrink-0 text-muted-foreground">🌐</span>
+                                  <a
+                                    href="{normalizeWebsite(provider.website)}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="text-primary hover:underline"
+                                    on:click|stopPropagation
+                                  >
+                                    Website
+                                  </a>
+                                </div>
+                              {/if}
+                            </div>
+                          </article>
+                        {/each}
+                      </div>
+                    </section>
+                  {/if}
                 {:else}
                   <div class="flex h-full items-center justify-center">
                     <div class="max-w-md rounded-lg border border-border/60 bg-background/70 p-5 text-center">

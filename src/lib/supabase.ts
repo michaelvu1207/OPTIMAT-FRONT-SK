@@ -108,6 +108,7 @@ export async function fetchEdgeFunction<T = unknown>(
     params?: Record<string, string>;
     timeoutMs?: number;
     useApiFunctionsHost?: boolean;
+    signal?: AbortSignal;
   } = {}
 ): Promise<EdgeFunctionResponse<T>> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -127,15 +128,16 @@ export async function fetchEdgeFunction<T = unknown>(
       url += `?${searchParams.toString()}`;
     }
 
-    const controller = options.timeoutMs ? new AbortController() : null;
-    const timeoutId = controller
-      ? window.setTimeout(() => controller.abort(), options.timeoutMs)
-      : null;
+    const signals = [
+      options.signal,
+      options.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined,
+    ].filter((signal): signal is AbortSignal => Boolean(signal));
+    const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
 
     const fetchOptions: RequestInit = {
       method: options.method || 'GET',
       headers: getAuthHeaders(),
-      signal: controller?.signal,
+      signal,
     };
 
     // Add body for POST/PUT requests
@@ -144,7 +146,6 @@ export async function fetchEdgeFunction<T = unknown>(
     }
 
     const response = await fetch(url, fetchOptions);
-    if (timeoutId) window.clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -170,6 +171,12 @@ export async function fetchEdgeFunction<T = unknown>(
     const data = JSON.parse(text) as T;
     return { data, error: null };
   } catch (err) {
+    if (options.signal?.aborted) {
+      return { data: null, error: new DOMException('Request cancelled', 'AbortError') };
+    }
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      return { data: null, error: new Error('Request timed out. Please try again.') };
+    }
     return {
       data: null,
       error: err instanceof Error ? err : new Error(String(err)),

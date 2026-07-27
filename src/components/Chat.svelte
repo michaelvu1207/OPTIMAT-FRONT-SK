@@ -1,30 +1,101 @@
 <script>
-    import { onMount, createEventDispatcher } from 'svelte';
+    import { onMount, createEventDispatcher, tick } from 'svelte';
     import { fade, fly, slide } from 'svelte/transition';
     import MicIcon from '@lucide/svelte/icons/mic';
     import SquareIcon from '@lucide/svelte/icons/square';
     import { serviceZoneManager } from '../lib/serviceZoneManager.js';
     import { marked } from 'marked';
+    import createDOMPurify from 'dompurify';
+    import { browser } from '$app/environment';
     import {
         checkChatHealth,
         createConversation,
         sendChatMessage,
-        getConversationMessages,
         saveConversationAsExample,
         getProviderServiceZone,
         transcribeAudio,
     } from '$lib/api';
 
-    // Configure marked for safe rendering
+    const escapeHtml = (value) => String(value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+
+    function safeLinkHref(value) {
+      const href = String(value || '').trim();
+      return /^(https?:|mailto:|tel:)/i.test(href) ? href : null;
+    }
+
+    // Marked creates the formatting, while raw HTML and unsafe protocols are
+    // rejected here and DOMPurify performs the final browser-side sanitation.
     marked.setOptions({
         breaks: true,
         gfm: true
     });
+    marked.use({
+      renderer: {
+        html(token) {
+          return escapeHtml(token.text);
+        },
+        link(token) {
+          const href = safeLinkHref(token.href);
+          const label = this.parser.parseInline(token.tokens || []);
+          if (!href) return label;
+          const external = /^https?:/i.test(href);
+          return `<a href="${escapeHtml(href)}"${external ? ' target="_blank" rel="noopener noreferrer"' : ''}>${label}</a>`;
+        },
+        image(token) {
+          const href = /^https?:/i.test(String(token.href || '')) ? token.href : null;
+          return href ? `<img src="${escapeHtml(href)}" alt="${escapeHtml(token.text || '')}">` : escapeHtml(token.text || '');
+        }
+      }
+    });
+
+    const purifier = browser ? createDOMPurify(window) : null;
+
+    function linkifyContactText(html) {
+      if (!browser) return html;
+      const documentFragment = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+      const walker = documentFragment.createTreeWalker(documentFragment.body, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      const contactPattern = /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4})/gi;
+
+      for (const node of nodes) {
+        if (node.parentElement?.closest('a, code, pre')) continue;
+        const text = node.textContent || '';
+        contactPattern.lastIndex = 0;
+        if (!contactPattern.test(text)) continue;
+        contactPattern.lastIndex = 0;
+        const fragment = documentFragment.createDocumentFragment();
+        let lastIndex = 0;
+        for (const match of text.matchAll(contactPattern)) {
+          const value = match[0];
+          const start = match.index || 0;
+          fragment.append(text.slice(lastIndex, start));
+          const anchor = documentFragment.createElement('a');
+          const isEmail = value.includes('@');
+          const digits = value.replace(/\D/g, '');
+          anchor.href = isEmail ? `mailto:${value}` : `tel:${digits.length === 10 ? `+1${digits}` : `+${digits}`}`;
+          anchor.textContent = value;
+          fragment.append(anchor);
+          lastIndex = start + value.length;
+        }
+        fragment.append(text.slice(lastIndex));
+        node.replaceWith(fragment);
+      }
+      return documentFragment.body.innerHTML;
+    }
 
     // Render markdown to HTML
     function renderMarkdown(content) {
         if (!content) return '';
-        return marked.parse(content);
+        const rendered = marked.parse(content);
+        if (!purifier) return rendered;
+        const sanitized = purifier.sanitize(rendered, { ADD_ATTR: ['target', 'rel'] });
+        return purifier.sanitize(linkifyContactText(sanitized), { ADD_ATTR: ['target', 'rel'] });
     }
 
     export let onProvidersFound = null;
@@ -170,6 +241,12 @@ How can I assist you today?`,
     let mediaRecorder = null;
     let recordingStream = null;
     let audioChunks = [];
+    let messageInputElement = null;
+    let sendButtonElement = null;
+    let composerElement = null;
+    let activeChatController = null;
+    let statusMessage = '';
+    let shouldRestoreComposerFocus = true;
     
     // Save as example functionality
     let savingAsExample = false;
@@ -457,6 +534,80 @@ How can I assist you today?`,
         }) || null;
     }
 
+    function findProviderSearchProgressAttachment(attachments) {
+        if (!Array.isArray(attachments)) return null;
+
+        return attachments.find(att => {
+            if (att.type !== 'provider_search') return false;
+            const status = safeParseAttachmentData(att.data)?.status;
+            return ['covered', 'not_covered', 'clarification_required'].includes(status);
+        }) || null;
+    }
+
+    function getProviderSearchProgress(messageId) {
+        const attachments = getMessageAttachments(messageId);
+        const progressAttachment = findProviderSearchProgressAttachment(attachments);
+        const data = safeParseAttachmentData(progressAttachment?.data);
+        if (!data || typeof data !== 'object') return null;
+
+        const sourceAddress = data.source_address || data.resolved_source || data.requested_source || '';
+        const destinationAddress = data.destination_address || data.resolved_destination || data.requested_destination || '';
+
+        if (data.status === 'covered') {
+            return {
+                state: 'in_progress',
+                title: 'Provider search in progress',
+                badge: 'Waiting for details',
+                detail: 'Coverage check passed. Add the requested trip details to continue the provider search.',
+                sourceAddress,
+                destinationAddress
+            };
+        }
+
+        if (data.status === 'clarification_required') {
+            return {
+                state: 'paused',
+                title: 'Provider search needs confirmation',
+                badge: 'Action required',
+                detail: data.reason_code === 'location_city_mismatch'
+                    ? 'Confirm the corrected location before the provider search can continue.'
+                    : data.reason_code === 'rider_age_missing'
+                      ? 'Providers here set different minimum ages, so the exact rider age is needed to finish the search.'
+                      : 'Confirm the requested information before the provider search can continue.',
+                sourceAddress,
+                destinationAddress
+            };
+        }
+
+        if (data.status === 'not_covered') {
+            return {
+                state: 'stopped',
+                title: 'Provider search stopped',
+                badge: 'No coverage',
+                detail: 'No matching provider service area covers both locations. Changing the trip time will not resolve this.',
+                sourceAddress,
+                destinationAddress
+            };
+        }
+
+        return null;
+    }
+
+    function hasPublicTransitResult(publicTransit) {
+        if (!publicTransit) return false;
+        if (typeof publicTransit === 'string') return publicTransit.trim().length > 0;
+        if (typeof publicTransit !== 'object') return false;
+        return Boolean(
+            publicTransit.overview_polyline ||
+            publicTransit.polyline ||
+            publicTransit.journey_description ||
+            publicTransit.summary ||
+            publicTransit.duration_text ||
+            (Array.isArray(publicTransit.steps) && publicTransit.steps.length > 0) ||
+            (Array.isArray(publicTransit.routes) && publicTransit.routes.length > 0)
+        );
+    }
+
     function getProviderSummary(messageId) {
         const attachments = messageAttachments.get(messageId);
         if (!attachments) return null;
@@ -477,14 +628,17 @@ How can I assist you today?`,
 
         const providers = Array.isArray(data?.data) ? data.data : [];
         const publicTransit = data?.public_transit;
-        
+        const hasPublicTransit = hasPublicTransitResult(publicTransit);
+        const verificationProviders = Array.isArray(data?.verification_required) ? data.verification_required : [];
+
         return {
-            count: providers.length,
+            count: providers.length + (hasPublicTransit ? 1 : 0),
+            verificationCount: verificationProviders.length,
             sourceAddress: data.source_address,
             destinationAddress: data.destination_address,
             providers: providers.slice(0, 3), // Show first 3
             moreCount: Math.max(0, providers.length - 3),
-            hasPublicTransit: publicTransit && publicTransit.routes && publicTransit.routes.length > 0,
+            hasPublicTransit,
             allProviders: providers, // Keep reference to all providers
             publicTransit: publicTransit
         };
@@ -811,29 +965,33 @@ How can I assist you today?`,
         return false;
       } finally {
         initializing = false;
+        await tick();
+        focusComposerIfAppropriate();
       }
     }
 
-    async function waitForPersistedAssistantMessage(conversationId, assistantCountBefore, timeoutMs = 90000) {
-      const deadline = Date.now() + timeoutMs;
-
-      while (Date.now() < deadline) {
-        const { data, error } = await getConversationMessages(conversationId);
-        if (!error && Array.isArray(data?.messages)) {
-          const assistantMessages = data.messages.filter((message) => normalizeChatRole(message.role) === 'ai');
-          if (assistantMessages.length > assistantCountBefore) {
-            const latest = assistantMessages[assistantMessages.length - 1];
-            return {
-              message: latest.content || '',
-              attachments: Array.isArray(latest.attachments) ? latest.attachments : []
-            };
-          }
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+    function focusComposerIfAppropriate() {
+      if (!messageInputElement || typeof document === 'undefined' || !shouldRestoreComposerFocus) return;
+      const activeElement = document.activeElement;
+      const canRestoreFocus =
+        !activeElement ||
+        activeElement === document.body ||
+        activeElement === messageInputElement ||
+        activeElement === sendButtonElement;
+      if (canRestoreFocus) {
+        messageInputElement.focus({ preventScroll: true });
       }
+    }
 
-      throw new Error('Timed out waiting for the assistant response.');
+    function trackIntentionalFocusTarget(event) {
+      if (!composerElement || !(event.target instanceof Node)) return;
+      shouldRestoreComposerFocus = composerElement.contains(event.target);
+    }
+
+    function cancelActiveRequest() {
+      if (!activeChatController) return;
+      statusMessage = 'Response stopped. You can edit or send another message.';
+      activeChatController.abort();
     }
   
     onMount(() => {
@@ -853,11 +1011,15 @@ How can I assist you today?`,
       };
 
       window.addEventListener('keydown', handleKeydown);
+      document.addEventListener('pointerdown', trackIntentionalFocusTarget, true);
 
       return () => {
         clearInterval(interval);
         window.removeEventListener('keydown', handleKeydown);
+        document.removeEventListener('pointerdown', trackIntentionalFocusTarget, true);
         cleanupRecording();
+        activeChatController?.abort();
+        activeChatController = null;
         // Clean up auto-play timer on component destroy
         if (autoPlayTimer) {
           clearInterval(autoPlayTimer);
@@ -867,7 +1029,7 @@ How can I assist you today?`,
     });
   
     async function handleSubmit() {
-      if (!userInput.trim() || !serverOnline || initializing || !conversationId) {
+      if (loading || !userInput.trim() || !serverOnline || initializing || !conversationId) {
         if (!conversationId && !initializing) {
             error = "Conversation not initialized. Please wait or refresh.";
         }
@@ -879,32 +1041,44 @@ How can I assist you today?`,
       streamingMessage = '';
       currentTool = null;
       error = null;
+      statusMessage = '';
+      const controller = new AbortController();
+      activeChatController = controller;
 
       const newMessage = {
         role: 'human',
         content: userInput,
         id: `human-${Date.now()}`
       };
-      const assistantCountBefore = messages.filter((message) => normalizeChatRole(message.role) === 'ai').length;
-
       messages = [...messages, newMessage];
       userInput = '';
       scrollToBottom();
 
       try {
-        sendChatMessage(conversationId, newMessage.content).catch((apiError) => {
-          console.error('Chat request error:', apiError);
-        });
-        const chatResponse = await waitForPersistedAssistantMessage(conversationId, assistantCountBefore);
+        const { data: chatResponse, error: apiError } = await sendChatMessage(
+          conversationId,
+          newMessage.content,
+          { signal: controller.signal, timeoutMs: 45000 }
+        );
+        if (apiError) throw apiError;
+        if (!chatResponse) throw new Error('The chat server returned no response.');
 
         // Add final message
         const responseContent = chatResponse?.message || chatResponse?.response || '';
         const pendingAttachments = Array.isArray(chatResponse?.attachments) ? chatResponse.attachments : [];
 
-        if (responseContent.trim()) {
+        // A turn that returns results but no prose still has to render its results.
+        const hasProviderResults = Boolean(findProviderResultsAttachment(pendingAttachments));
+        const displayContent = responseContent.trim()
+          ? responseContent
+          : hasProviderResults
+            ? 'Here are the results for this trip. The provider details are in the results panel.'
+            : '';
+
+        if (displayContent) {
           const finalMessage = {
             role: 'ai',
-            content: responseContent,
+            content: displayContent,
             id: `ai-${Date.now()}`
           };
           messages = [...messages, finalMessage];
@@ -913,22 +1087,35 @@ How can I assist you today?`,
           if (pendingAttachments.length > 0) {
             messageAttachments.set(finalMessage.id, pendingAttachments);
             messageAttachments = messageAttachments;
-
-            // Update the bottom provider bar with latest results
-            updateLatestProviderResults(pendingAttachments);
           }
+        }
+
+        // Update the bottom provider bar and the results panel regardless of prose.
+        if (pendingAttachments.length > 0) {
+          updateLatestProviderResults(pendingAttachments);
+        }
+
+        if (!displayContent) {
+          throw new Error('The chat server returned an empty response. Please try again.');
         }
 
         scrollToBottom();
 
       } catch (e) {
-        error = e.message;
-        console.error('Chat error:', e);
+        if (e?.name === 'AbortError' || controller.signal.aborted) {
+          statusMessage = statusMessage || 'Response stopped.';
+        } else {
+          error = e.message;
+          console.error('Chat error:', e);
+        }
       } finally {
+        if (activeChatController === controller) activeChatController = null;
         loading = false;
         isStreaming = false;
         streamingMessage = '';
         currentTool = null;
+        await tick();
+        focusComposerIfAppropriate();
       }
     }
 
@@ -1612,16 +1799,22 @@ How can I assist you today?`,
 
               {#if hasAttachments(message.id)}
                 {@const providerSummary = getProviderSummary(message.id)}
+                {@const providerSearchProgress = getProviderSearchProgress(message.id)}
                 {@const addressPlaces = getAddressPlaces(message.id)}
                 {@const providerInfo = getAttachmentData(message.id, 'provider_info')}
                 {@const webSearch = getAttachmentData(message.id, 'web_search')}
 
                 <div class="mt-3 space-y-2">
                   {#if providerSummary}
-                    <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
+                    <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2" aria-label="Provider search results">
                       <div class="flex items-center justify-between gap-3">
                         <div class="text-xs text-muted-foreground">
                           Providers found: <span class="font-medium text-foreground">{providerSummary.count}</span>
+                          {#if providerSummary.verificationCount > 0}
+                            <span class="text-amber-700">
+                              · {providerSummary.verificationCount} to verify
+                            </span>
+                          {/if}
                         </div>
 	                        <button
 	                          type="button"
@@ -1637,6 +1830,44 @@ How can I assist you today?`,
                           {providerSummary.sourceAddress} → {providerSummary.destinationAddress}
                         </div>
                       {/if}
+                    </div>
+                  {:else if providerSearchProgress}
+                    <div
+                      class="rounded-lg border px-3 py-2.5 {providerSearchProgress.state === 'in_progress' ? 'border-blue-200/80 bg-blue-50/70 dark:border-blue-800/70 dark:bg-blue-950/30' : providerSearchProgress.state === 'paused' ? 'border-amber-200/80 bg-amber-50/70 dark:border-amber-800/70 dark:bg-amber-950/30' : 'border-slate-200/80 bg-slate-50/70 dark:border-slate-700/70 dark:bg-slate-900/30'}"
+                      aria-label="Provider search status"
+                      data-provider-search-state={providerSearchProgress.state}
+                    >
+                      <div class="flex items-start gap-2.5">
+                        <div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center" aria-hidden="true">
+                          {#if providerSearchProgress.state === 'in_progress'}
+                            <div class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+                          {:else if providerSearchProgress.state === 'paused'}
+                            <div class="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">!</div>
+                          {:else}
+                            <div class="flex h-4 w-4 items-center justify-center rounded-full bg-slate-500 text-[9px] font-bold text-white">×</div>
+                          {/if}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                            <div class="text-xs font-semibold text-foreground">{providerSearchProgress.title}</div>
+                            <div class="rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                              {providerSearchProgress.badge}
+                            </div>
+                          </div>
+                          <div class="mt-1 text-[11px] leading-4 text-muted-foreground">
+                            {providerSearchProgress.detail}
+                          </div>
+                          <div class="mt-2 flex gap-1" aria-hidden="true">
+                            <div class="h-1 flex-1 rounded-full {providerSearchProgress.state === 'paused' ? 'bg-amber-400' : providerSearchProgress.state === 'stopped' ? 'bg-slate-400' : 'bg-blue-500'}"></div>
+                            <div class="h-1 flex-1 rounded-full {providerSearchProgress.state === 'in_progress' ? 'animate-pulse bg-blue-300 dark:bg-blue-700' : 'bg-border'}"></div>
+                          </div>
+                          {#if providerSearchProgress.sourceAddress || providerSearchProgress.destinationAddress}
+                            <div class="mt-2 text-[11px] text-muted-foreground line-clamp-2">
+                              {providerSearchProgress.sourceAddress} → {providerSearchProgress.destinationAddress}
+                            </div>
+                          {/if}
+                        </div>
+                      </div>
                     </div>
                   {/if}
 
@@ -1785,11 +2016,17 @@ How can I assist you today?`,
           {error}
         </div>
       {/if}
+      {#if statusMessage}
+        <div class="bg-muted border border-border/60 text-muted-foreground p-3 rounded-lg text-sm" aria-live="polite">
+          {statusMessage}
+        </div>
+      {/if}
     </div>
 
     <!-- Input form (hidden during example viewing) -->
     {#if !isViewingExample}
 	      <form
+	        bind:this={composerElement}
 	        onsubmit={(e) => {
 	          e.preventDefault();
 	          handleSubmit();
@@ -1798,14 +2035,16 @@ How can I assist you today?`,
 	      >
         <div class="flex gap-2">
           <textarea
+            bind:this={messageInputElement}
             bind:value={userInput}
             placeholder={serverOnline ? "Type your message..." : "Chat unavailable"}
             class="flex-1 resize-none rounded-lg border border-border/60 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
-            disabled={loading || !serverOnline}
+            disabled={!serverOnline || initializing}
+            aria-busy={loading}
 	            onkeydown={(e) => {
 	              if (e.key === 'Enter' && !e.shiftKey) {
 	                e.preventDefault();
-                handleSubmit();
+                if (!loading) handleSubmit();
               }
             }}
           ></textarea>
@@ -1830,14 +2069,17 @@ How can I assist you today?`,
             {/if}
           </button>
           <button
-            type="submit"
-            disabled={loading || !serverOnline || !userInput.trim()}
+            bind:this={sendButtonElement}
+            type="button"
+            onclick={loading ? cancelActiveRequest : handleSubmit}
+            disabled={!loading && (!serverOnline || !userInput.trim())}
+            aria-label={loading ? 'Stop generating response' : 'Send message'}
             class="self-end px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium h-fit"
           >
             {#if loading}
               <div class="flex items-center gap-2">
-                <div class="animate-spin rounded-full h-3 w-3 border-2 border-primary-foreground border-t-transparent"></div>
-                <span>Send</span>
+                <SquareIcon size={13} strokeWidth={2.5} />
+                <span>Stop</span>
               </div>
             {:else}
               Send

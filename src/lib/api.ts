@@ -493,7 +493,8 @@ export async function deleteConversation(
  */
 export async function sendChatMessage(
   conversationId: string,
-  message: string
+  message: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<{ data: ChatResponse | null; error: Error | null }> {
   const { data, error } = await fetchEdgeFunction<ChatResponse>('chat', {
     method: 'POST',
@@ -501,8 +502,9 @@ export async function sendChatMessage(
       conversation_id: conversationId,
       message,
     },
-    timeoutMs: 20000,
+    timeoutMs: options.timeoutMs ?? 45000,
     useApiFunctionsHost: true,
+    signal: options.signal,
   });
 
   if (!data || error) return { data, error };
