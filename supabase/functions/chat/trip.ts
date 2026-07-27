@@ -12,22 +12,28 @@ export interface RiderEligibility {
   declined?: boolean;
 }
 
+/**
+ * Who decides eligibility, and why it is no longer decided here.
+ *
+ * This module used to parse `eligibility_reqs` prose with regular expressions and return a
+ * verdict. That worked on the common shape ("Senior (65+) or disabled (18+). And must be a
+ * Concord resident.") and failed on everything that needed world knowledge. The clearest case:
+ * Mobility Matters requires a "Contra Costa County resident", which was checked against a
+ * hand-written set of city names — so a 70-year-old in Alamo or Rodeo, both plainly in Contra
+ * Costa County, came back INELIGIBLE and was dropped from the results. No list of towns is ever
+ * finished, and every gap silently denies a rider a ride they qualify for.
+ *
+ * The verdict now comes from the assistant, which reads the same prose and already knows which
+ * communities are in the county. The server's job is narrower and enforceable: it decides which
+ * providers are candidates (geography and service hours — real computation), then checks that
+ * the assistant returned a verdict for every one of them. See `assess_eligibility` in tools.ts.
+ */
 export type EligibilityStatus = "eligible" | "ineligible" | "verification_required";
 
 /** Rider facts an eligibility rule can turn on. */
 export type RiderFact = "age" | "disabled" | "ada_certified" | "veteran" | "residence_city";
 
-export interface EligibilityEvaluation {
-  status: EligibilityStatus;
-  reason: string;
-  requirement: string;
-  /**
-   * Facts the rider has not stated that would settle this requirement. Empty when the verdict
-   * is already decided, or when the requirement text cannot be interpreted at all — in which
-   * case no answer from the rider would help and only the provider can confirm.
-   */
-  missing_facts: RiderFact[];
-}
+export const RIDER_FACTS: RiderFact[] = ["age", "disabled", "ada_certified", "veteran", "residence_city"];
 
 export interface ResolvedTravelDate {
   ok: boolean;
@@ -69,143 +75,25 @@ const MONTH_ALIASES = new Map<string, number>([
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
-export const BAY_AREA_CITIES = [
-  "Alameda",
-  "Albany",
-  "American Canyon",
-  "Antioch",
-  "Atherton",
-  "Belmont",
-  "Belvedere",
-  "Benicia",
-  "Berkeley",
-  "Brentwood",
-  "Brisbane",
-  "Burlingame",
-  "Calistoga",
-  "Campbell",
-  "Clayton",
-  "Cloverdale",
-  "Colma",
-  "Concord",
-  "Corte Madera",
-  "Cotati",
-  "Cupertino",
-  "Daly City",
-  "Danville",
-  "Dixon",
-  "Dublin",
-  "East Palo Alto",
-  "El Cerrito",
-  "Emeryville",
-  "Fairfax",
-  "Fairfield",
-  "Foster City",
-  "Fremont",
-  "Gilroy",
-  "Half Moon Bay",
-  "Hayward",
-  "Healdsburg",
-  "Hercules",
-  "Hillsborough",
-  "Lafayette",
-  "Larkspur",
-  "Livermore",
-  "Los Altos",
-  "Los Altos Hills",
-  "Los Gatos",
-  "Martinez",
-  "Menlo Park",
-  "Mill Valley",
-  "Millbrae",
-  "Milpitas",
-  "Moraga",
-  "Morgan Hill",
-  "Mountain View",
-  "Napa",
-  "Newark",
-  "Novato",
-  "Oakland",
-  "Oakley",
-  "Orinda",
-  "Pacifica",
-  "Palo Alto",
-  "Petaluma",
-  "Piedmont",
-  "Pinole",
-  "Pittsburg",
-  "Pleasant Hill",
-  "Pleasanton",
-  "Portola Valley",
-  "Redwood City",
-  "Richmond",
-  "Rio Vista",
-  "Rohnert Park",
-  "Ross",
-  "San Anselmo",
-  "San Bruno",
-  "San Carlos",
-  "San Francisco",
-  "San Jose",
-  "San Leandro",
-  "San Mateo",
-  "San Pablo",
-  "San Rafael",
-  "San Ramon",
-  "Santa Clara",
-  "Santa Rosa",
-  "Saratoga",
-  "Sausalito",
-  "Sebastopol",
-  "Sonoma",
-  "South San Francisco",
-  "St. Helena",
-  "Suisun City",
-  "Sunnyvale",
-  "Tiburon",
-  "Union City",
-  "Vacaville",
-  "Vallejo",
-  "Walnut Creek",
-  "Windsor",
-  "Woodside",
-  "Yountville",
-  "Bay Point",
-  "El Sobrante",
-  "Kensington",
-  "North Richmond",
-].sort((a, b) => b.length - a.length);
-
-const CONTRA_COSTA_CITIES = new Set(
-  [
-    "Antioch",
-    "Bay Point",
-    "Brentwood",
-    "Clayton",
-    "Concord",
-    "Danville",
-    "El Cerrito",
-    "El Sobrante",
-    "Hercules",
-    "Kensington",
-    "Lafayette",
-    "Martinez",
-    "Moraga",
-    "North Richmond",
-    "Oakley",
-    "Orinda",
-    "Pinole",
-    "Pittsburg",
-    "Pleasant Hill",
-    "Richmond",
-    "San Pablo",
-    "San Ramon",
-    "Walnut Creek",
-  ].map(normalizeCity),
-);
-
 function normalizeCity(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Compare the city the rider named against the city the geocoder actually landed in.
+ *
+ * Both sides are now authoritative strings — the assistant reports the rider's own wording, and
+ * Google reports the locality of the matched place — so this is a normalized equality test and
+ * nothing more. It replaces a 105-entry city list that was scanned longest-name-first, which
+ * meant a street named after another town won: asking for "Danville" and correctly resolving to
+ * "2601 San Ramon Valley Blvd, Danville" reported a mismatch with San Ramon and stopped the
+ * search. It also could not see Alamo, Rodeo, Crockett or Discovery Bay at all.
+ */
+export function citiesMatch(requested: string | null | undefined, resolved: string | null | undefined): boolean {
+  const a = normalizeCity(String(requested || ""));
+  const b = normalizeCity(String(resolved || ""));
+  if (!a || !b) return true;
+  return a === b;
 }
 
 function getServiceDateParts(now: Date, timeZone = SERVICE_TIME_ZONE) {
@@ -411,264 +299,3 @@ export function resolveTravelDate(
   return { ok: true, iso: resolved, display: formatTravelDate(resolved), error: null };
 }
 
-function requirementText(requirements: unknown): string {
-  if (requirements === null || requirements === undefined) return "";
-  if (typeof requirements === "string") {
-    const trimmed = requirements.trim();
-    // The JSONB column holds either prose or a JSON-encoded list of rule objects.
-    if (/^[[{]/.test(trimmed)) {
-      try {
-        return requirementText(JSON.parse(trimmed));
-      } catch {
-        return trimmed;
-      }
-    }
-    return trimmed;
-  }
-  // Separate structured rules are alternatives: matching any one of them qualifies.
-  if (Array.isArray(requirements)) {
-    return requirements.map(requirementText).filter(Boolean).join(" or ");
-  }
-  if (typeof requirements === "object") {
-    const record = requirements as Record<string, unknown>;
-    const nested = record.eligibility ?? record.eligibility_text ?? record.eligibility_reqs;
-    if (nested !== undefined && nested !== null) return requirementText(nested);
-    if (typeof record.type === "string" && record.type.trim()) return record.type.trim();
-    return JSON.stringify(record);
-  }
-  return String(requirements);
-}
-
-function riderResidenceMatches(text: string, residenceCity: string): boolean | null {
-  const normalizedResidence = normalizeCity(residenceCity);
-  if (/contra costa county resident/.test(text)) return CONTRA_COSTA_CITIES.has(normalizedResidence);
-
-  const namedCommunities = ["Rossmoor"];
-  const mentionedCommunity = namedCommunities.find((community) =>
-    new RegExp(`\\b${community}\\b`, "i").test(text)
-  );
-  if (mentionedCommunity) return normalizeCity(mentionedCommunity) === normalizedResidence;
-
-  const mentionedCities = BAY_AREA_CITIES.filter((city) =>
-    new RegExp(`\\b${city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text),
-  );
-  if (mentionedCities.length === 0) return null;
-  return mentionedCities.some((city) => normalizeCity(city) === normalizedResidence);
-}
-
-export function evaluateEligibility(requirements: unknown, rider: RiderEligibility = {}): EligibilityEvaluation {
-  const requirement = requirementText(requirements);
-  const text = requirement.toLowerCase();
-
-  if (!text || /^(none|n\/a|no eligibility requirements?)\.?$/.test(text) || /open to (the )?general public/.test(text)) {
-    return {
-      status: "eligible",
-      reason: "Open to the general public.",
-      requirement: requirement || "None",
-      missing_facts: [],
-    };
-  }
-
-  const categoryChecks: Array<{ label: string; field: RiderFact; value: boolean | null }> = [];
-  const seniorMatch = text.match(/senior[^\d]{0,12}(\d{2})\s*\+/);
-  if (/\bsenior\b/.test(text)) {
-    const minimumAge = seniorMatch ? Number(seniorMatch[1]) : 60;
-    categoryChecks.push({
-      label: `age ${minimumAge}+`,
-      field: "age",
-      value: Number.isFinite(rider.age) ? Number(rider.age) >= minimumAge : null,
-    });
-  }
-
-  if (/\bveteran\b/.test(text)) {
-    categoryChecks.push({
-      label: "veteran",
-      field: "veteran",
-      value: typeof rider.veteran === "boolean" ? rider.veteran : null,
-    });
-  }
-
-  if (/\bdisabled|disability\b/.test(text)) {
-    const requiresAda = /ada[- ]?(eligible|certif)|certification.*ada/.test(text);
-    const value = requiresAda
-      ? typeof rider.ada_certified === "boolean"
-        ? rider.ada_certified
-        : null
-      : typeof rider.disabled === "boolean"
-        ? rider.disabled || rider.ada_certified === true
-        : typeof rider.ada_certified === "boolean"
-          ? rider.ada_certified
-          : null;
-    categoryChecks.push({
-      label: requiresAda ? "ADA-certified disability" : "disability",
-      field: requiresAda ? "ada_certified" : "disabled",
-      value,
-    });
-  }
-
-  let categoryStatus: boolean | null = true;
-  if (categoryChecks.length > 0) {
-    const usesOr = /\bor\b/.test(text);
-    if (usesOr) {
-      categoryStatus = categoryChecks.some((check) => check.value === true)
-        ? true
-        : categoryChecks.some((check) => check.value === null)
-          ? null
-          : false;
-    } else {
-      categoryStatus = categoryChecks.some((check) => check.value === false)
-        ? false
-        : categoryChecks.some((check) => check.value === null)
-          ? null
-          : true;
-    }
-  }
-
-  const requiresResidency = /\bresiden(?:t|ts|cy)\b/.test(text);
-  let residencyStatus: boolean | null = true;
-  if (requiresResidency) {
-    residencyStatus = rider.residence_city?.trim()
-      ? riderResidenceMatches(text, rider.residence_city)
-      : null;
-  }
-
-  // Requirement text that states something but names no category or residency rule cannot be
-  // decided here. Unknown must never read as eligible, and no rider answer would settle it.
-  if (categoryChecks.length === 0 && !requiresResidency) {
-    return {
-      status: "verification_required",
-      reason: "This provider's eligibility requirement could not be interpreted automatically; confirm it with the provider.",
-      requirement,
-      missing_facts: [],
-    };
-  }
-
-  if (categoryStatus === false || residencyStatus === false) {
-    const failed: string[] = [];
-    if (categoryStatus === false) failed.push(categoryChecks.map((check) => check.label).join(" or "));
-    if (residencyStatus === false) failed.push("residency");
-    return {
-      status: "ineligible",
-      reason: `The rider does not match the provider's ${failed.join(" and ")} requirement.`,
-      requirement,
-      missing_facts: [],
-    };
-  }
-
-  if (categoryStatus === null || residencyStatus === null) {
-    const missing: RiderFact[] = [];
-    if (categoryStatus === null) {
-      for (const check of categoryChecks) {
-        if (check.value === null) missing.push(check.field);
-      }
-    }
-    if (residencyStatus === null) missing.push("residence_city");
-    return {
-      status: "verification_required",
-      reason: rider.declined
-        ? "The rider declined to confirm eligibility, so this must be checked with the provider."
-        : "More information or provider verification is needed to confirm eligibility.",
-      requirement,
-      missing_facts: rider.declined ? [] : missing,
-    };
-  }
-
-  return {
-    status: "eligible",
-    reason: "The rider information matches the stated eligibility requirements.",
-    requirement,
-    missing_facts: [],
-  };
-}
-
-const RIDER_FACT_QUESTIONS: Record<RiderFact, string> = {
-  age: "the rider's exact age in years",
-  disabled: "whether the rider has a disability",
-  ada_certified: "whether the rider is ADA-certified",
-  veteran: "whether the rider is a veteran",
-  residence_city: "which city the rider lives in",
-};
-
-export interface QuestionCandidate {
-  provider_name: string;
-  missing_facts: RiderFact[];
-}
-
-export interface NextQuestionHint {
-  field: RiderFact;
-  question: string;
-  why: string;
-  candidates_if_known: number;
-  provider_names: string[];
-}
-
-/**
- * Pick the single unknown rider fact that would settle the most undecided providers.
- *
- * Question order used to be whatever order the validator happened to reject in, which is why a
- * rider could be asked about senior status when every candidate was ADA-only. Here the only
- * questions asked are ones with a candidate riding on the answer, most valuable first.
- */
-export function nextQuestion(candidates: QuestionCandidate[], rider: RiderEligibility = {}): NextQuestionHint | null {
-  if (rider.declined) return null;
-
-  const known: Record<RiderFact, boolean> = {
-    age: Number.isFinite(rider.age),
-    disabled: typeof rider.disabled === "boolean",
-    ada_certified: typeof rider.ada_certified === "boolean",
-    veteran: typeof rider.veteran === "boolean",
-    residence_city: Boolean(rider.residence_city?.trim()),
-  };
-
-  const byField = new Map<RiderFact, string[]>();
-  for (const candidate of candidates) {
-    for (const field of candidate.missing_facts) {
-      if (known[field]) continue;
-      const names = byField.get(field) || [];
-      if (!names.includes(candidate.provider_name)) names.push(candidate.provider_name);
-      byField.set(field, names);
-    }
-  }
-  if (byField.size === 0) return null;
-
-  // Ties break on the fixed order below rather than on map insertion, so the same candidate set
-  // always produces the same question.
-  const priority: RiderFact[] = ["age", "disabled", "ada_certified", "veteran", "residence_city"];
-  const best = [...byField.entries()].sort((a, b) => {
-    if (b[1].length !== a[1].length) return b[1].length - a[1].length;
-    return priority.indexOf(a[0]) - priority.indexOf(b[0]);
-  })[0];
-
-  const [field, providerNames] = best;
-  return {
-    field,
-    question: RIDER_FACT_QUESTIONS[field],
-    why: `${providerNames.length} provider${providerNames.length === 1 ? "" : "s"} on this trip (${providerNames.join(", ")}) can only be decided once this is known`,
-    candidates_if_known: providerNames.length,
-    provider_names: providerNames,
-  };
-}
-
-export function extractBayAreaCity(value: string): string | null {
-  const text = String(value || "");
-  return (
-    BAY_AREA_CITIES.find((city) =>
-      new RegExp(`\\b${city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text),
-    ) || null
-  );
-}
-
-export function getLocationMismatch(
-  requestedAddress: string,
-  resolvedAddress: string,
-): { requestedCity: string; resolvedCity: string; message: string } | null {
-  const requestedCity = extractBayAreaCity(requestedAddress);
-  const resolvedCity = extractBayAreaCity(resolvedAddress);
-  if (!requestedCity || !resolvedCity || normalizeCity(requestedCity) === normalizeCity(resolvedCity)) return null;
-
-  return {
-    requestedCity,
-    resolvedCity,
-    message: `“${requestedAddress}” resolved to ${resolvedAddress}, which is in ${resolvedCity}, not ${requestedCity}. Please confirm the destination before I search providers.`,
-  };
-}

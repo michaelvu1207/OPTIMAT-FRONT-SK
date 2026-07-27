@@ -15,6 +15,19 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
+/**
+ * The attachment carrying rider-facing results.
+ *
+ * find_providers stops at candidates now; the eligibility verdicts, and so the provider cards,
+ * arrive with assess_eligibility. Older recorded transcripts still have them on find_providers.
+ */
+function resultsAttachment(attachments) {
+  const list = attachments || [];
+  return list.find((a) => a?.metadata?.tool_name === 'assess_eligibility')
+    || list.find((a) => a?.metadata?.tool_name === 'find_providers' && Array.isArray(a?.data?.data));
+}
+
+
 const baseUrl = process.argv[2] || 'http://127.0.0.1:4173/';
 const SHOTS = 'tests/chat/rendered';
 mkdirSync(SHOTS, { recursive: true });
@@ -115,7 +128,7 @@ try {
       'I need a one-way ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026, departing at noon. I am 68, I live in Richmond, not disabled, not ADA-certified, not a veteran.');
     const first = await waitForTurn(chatResponses, 1);
 
-    const search = (first.attachments || []).find((a) => a?.metadata?.tool_name === 'find_providers');
+    const search = resultsAttachment(first.attachments);
     check('search ran and returned providers', Boolean(search) && (search.data.data || []).length > 0,
       `attachments: ${(first.attachments || []).map((a) => a?.metadata?.tool_name).join(', ') || 'none'}`);
     assertHygiene('turn 1', first.message);
@@ -169,7 +182,7 @@ try {
     check('offers an alternative or fallback', offersSomething, `said: ${turn.message.slice(0, 160)}`);
     assertHygiene('no-coverage turn', turn.message);
 
-    const search = (turn.attachments || []).find((a) => a?.metadata?.tool_name === 'find_providers');
+    const search = resultsAttachment(turn.attachments);
     const alternatives = search?.data?.alternatives || [];
     if (alternatives.length > 0) {
       // Alternatives are prose now: the reply has to actually say what would work instead.

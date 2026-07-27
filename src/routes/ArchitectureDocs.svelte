@@ -211,8 +211,8 @@
       <h3>Available tools</h3>
       <ul>
         <li><code>find_providers</code> → attachment <code>provider_search</code></li>
+        <li><code>assess_eligibility</code> → attachment <code>provider_search</code></li>
         <li><code>search_addresses_from_user_query</code> → attachment <code>address_search</code></li>
-        <li><code>get_provider_info</code> → attachment <code>provider_info</code></li>
         <li><code>general_provider_question</code> → attachment <code>web_search</code></li>
       </ul>
 
@@ -275,16 +275,21 @@
         <li><strong>Persisted to</strong>: <code>optimat.search_addresses_calls</code> (query + raw places payload).</li>
       </ul>
 
-      <h3 id="tool-get-provider-info"><code>get_provider_info</code></h3>
+      <h3 id="tool-assess-eligibility"><code>assess_eligibility</code></h3>
       <p>
-        Purpose: look up a provider by name and return the provider record so the assistant can answer “What’s the phone number for WestCAT?”
-        (or similar) using internal data.
+        Purpose: record the assistant’s eligibility verdict for each candidate <code>find_providers</code> returned, and assemble the
+        rider-facing result from them. The server decides service area and hours; who qualifies is read off each provider’s own
+        requirement text by the assistant, which can judge things a fixed rule cannot — that a rider in Alamo or Rodeo is a Contra
+        Costa County resident, for instance.
       </p>
       <ul>
-        <li><strong>Inputs</strong>: <code>provider_name</code> (required).</li>
-        <li><strong>Database query</strong>: case-insensitive partial match on <code>optimat.providers.provider_name</code> (returns up to 5).</li>
-        <li><strong>Output shaping</strong>: removes <code>service_zone</code> from the returned record(s).</li>
-        <li><strong>Persisted to</strong>: <code>optimat.get_provider_info_calls</code> (provider_id inferred from result where possible).</li>
+        <li><strong>Inputs</strong>: <code>assessments[]</code> of <code>provider_name</code>, <code>verdict</code>, <code>reason</code>, and optional <code>missing_fact</code>.</li>
+        <li>
+          <strong>Validation</strong>: every candidate from the last search must have a verdict, and every name must be one of them.
+          An incomplete or invented call is rejected with the candidate list, so a provider is never dropped by omission.
+        </li>
+        <li><strong>Output</strong>: the search result with <code>data</code> (qualified), <code>verification_required</code>, and <code>excluded_providers</code> filled in — the shape the provider cards render from.</li>
+        <li><strong>Persisted to</strong>: <code>optimat.find_providers_calls</code>, alongside the search it grades.</li>
       </ul>
 
       <h3 id="tool-general-provider-question"><code>general_provider_question</code></h3>
@@ -316,7 +321,8 @@
         <li><strong>conversations</strong> and <strong>messages</strong>: chat sessions and message history.</li>
         <li>
           <strong>tool call tables</strong>: <code>find_providers_calls</code>, <code>search_addresses_calls</code>,
-          <code>get_provider_info_calls</code>, <code>general_question_calls</code>.
+          <code>general_question_calls</code>. <code>get_provider_info_calls</code> still holds historical rows and is
+          read by the replay and transcript endpoints, but nothing writes to it since that tool was removed.
         </li>
       </ul>
 

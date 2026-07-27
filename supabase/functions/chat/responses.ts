@@ -109,32 +109,17 @@ export function verifyResponse(response: string, state: TripState): ResponseProb
     }
   }
 
-  // A ruled-out provider may be discussed — explaining why it will not work is exactly what a
-  // rider needs — so this only fires when the provider is named in something that reads as a
-  // live recommendation with nothing anywhere nearby saying it is unavailable.
+  // A check for "is a ruled-out provider being recommended?" used to live here. It tested each
+  // paragraph against a list of affirmative words and a list of negation words, and every
+  // rejection cost the rider the model's own answer in favour of generated prose. Its own
+  // comments recorded it rejecting correct sentences — "None of the three can take you — they
+  // all require ADA certification" read as a recommendation until "none" and "require" were
+  // added to the list, and the next correct phrasing failed the same way.
   //
-  // The first version matched negation per line against a short word list, and rejected correct
-  // answers such as "None of the three can take you — they all require ADA certification"
-  // ("none" and "require" were both absent from the list). Every rejection costs the rider the
-  // model's answer and substitutes generated prose, so this errs heavily toward accepting.
-  const NEGATIVE =
-    /\b(no|none|neither|nor|not|n'?t|never|cannot|unfortunately|rule[ds]? out|ruled out|exclude[ds]?|ineligible|require[sd]?|needs?|restricted|limited|only|unless|would need|doesn'?t qualify|isn'?t (?:an )?option|off the table)\b/i;
-  const AFFIRMATIVE_RECOMMENDATION =
-    /\b(call|phone|book|reserve|your best|i'?d recommend|recommend|can take you|will take you|use them|go with|best fit|easiest)\b/i;
-
-  const paragraphs = text.split(/\n\s*\n/);
-  for (const note of search.excluded) {
-    const mentions = paragraphs.filter((paragraph) => paragraph.includes(note.name));
-    const presentedAsAvailable = mentions.some(
-      (paragraph) => AFFIRMATIVE_RECOMMENDATION.test(paragraph) && !NEGATIVE.test(paragraph),
-    );
-    if (presentedAsAvailable) {
-      problems.push({
-        code: "excluded_recommended",
-        detail: `${note.name} was ruled out (${note.reason || "eligibility did not match"}) but is presented as if the rider could use it.`,
-      });
-    }
-  }
+  // The exclusions it guarded are now the assistant's own verdicts, recorded through
+  // assess_eligibility a moment earlier, rather than a parser's guess it might disagree with.
+  // What remains here are the checks the server can settle: whether a booking was claimed, and
+  // whether the arithmetic in the message matches the search.
 
   return problems;
 }
