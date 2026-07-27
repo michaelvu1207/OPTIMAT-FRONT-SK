@@ -95,20 +95,15 @@
     ...verificationProviders.map((provider) => ({ provider, qualified: false }))
   ];
 
-  $: callSheetReady = tripFullySpecified && callableProviders.length > 0;
-  $: searchFoundNothing = tripFullySpecified && callableProviders.length === 0;
+  // The panel appears only once the assistant has actually come back with something. There is no
+  // in-between state: a half-finished search told riders their trip still needed a date and time
+  // they had already given, because replayed and coverage-only payloads carry neither.
+  $: hasCallableResults = callableProviders.length > 0 || Boolean(publicTransitProvider);
+  $: searchFoundNothing = searchCompleted && callableProviders.length === 0 && !publicTransitProvider;
+  $: showResultsPanel = Boolean(providerData) && (hasCallableResults || searchFoundNothing);
 
-  /** What the assistant still needs before this trip can be booked. */
-  $: missingTripFacts = (() => {
-    const missing = [];
-    if (!tripSummary.origin) missing.push('where the trip starts');
-    if (!tripSummary.destination) missing.push('where it is going');
-    if (!tripSummary.dateDisplay) missing.push('the travel date');
-    if (!tripSummary.time) missing.push('the pickup time');
-    if (!tripSummary.tripType) missing.push('one way or round trip');
-    if (tripSummary.tripType === 'round_trip' && !tripSummary.returnTime) missing.push('the return time');
-    return missing;
-  })();
+  // The trip bar is only worth showing when every field a dispatcher asks for is known.
+  $: callSheetReady = tripFullySpecified && callableProviders.length > 0;
 
   const RIDER_FACT_LABELS = {
     age: 'your age',
@@ -1297,12 +1292,12 @@
 
           <!-- Bottom: Results/Examples Panel -->
           <Resizable.Pane defaultSize={providerData ? 40 : 30} minSize={20} class="flex flex-col overflow-hidden bg-card border-t border-border/40">
-            {#if providerData}
+            {#if showResultsPanel}
               <!-- Provider Results View -->
 
               <div class="flex flex-shrink-0 items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-2" aria-label="Provider results count">
                 <div class="text-xs font-semibold text-foreground">
-                  {#if callSheetReady}
+                  {#if callableProviders.length > 0}
                     Ready to book · {callableProviders.length} to call
                     {#if verificationProviders.length > 0}
                       <span class="ml-1 font-normal text-amber-700">
@@ -1312,7 +1307,7 @@
                   {:else if searchFoundNothing}
                     No provider can take this trip
                   {:else}
-                    Still working out the trip
+                    Public transit only
                   {/if}
                 </div>
                 {#if publicTransitProvider}
@@ -1350,32 +1345,7 @@
               {/if}
 
               <div class="flex-1 overflow-y-auto p-2">
-                {#if !callSheetReady && !searchFoundNothing}
-                  <!-- Not enough of the trip is settled for anyone to be worth calling yet. -->
-                  <div class="flex h-full items-center justify-center">
-                    <div class="max-w-md rounded-lg border border-border/60 bg-background/70 p-5 text-center" aria-label="Trip not ready to book">
-                      <div class="text-sm font-medium text-foreground">Still working out your trip</div>
-                      <p class="mt-2 text-xs text-muted-foreground">
-                        Providers appear here once the trip is pinned down, so you have everything you need before you pick up the phone.
-                      </p>
-                      {#if missingTripFacts.length > 0}
-                        <div class="mt-3 rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-left">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Still needed</div>
-                          <ul class="mt-1 space-y-0.5 text-[11px] text-foreground">
-                            {#each missingTripFacts as fact}
-                              <li>· {fact}</li>
-                            {/each}
-                          </ul>
-                        </div>
-                      {/if}
-                      {#if tripSummary.origin && tripSummary.destination}
-                        <div class="mt-3 text-[11px] text-muted-foreground">
-                          {tripSummary.origin} → {tripSummary.destination}
-                        </div>
-                      {/if}
-                    </div>
-                  </div>
-                {:else if callSheetReady}
+                {#if callableProviders.length > 0 || publicTransitProvider}
                   <div class="space-y-2">
                     {#each callableProviders as entry, idx (entry.provider.provider_id || `call-${idx}`)}
                       {@const provider = entry.provider}

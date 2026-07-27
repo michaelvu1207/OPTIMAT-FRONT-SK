@@ -38,17 +38,20 @@ try {
   {
     const { page, ta, replies } = await open();
     await send(page, ta, 'I need to get over to my doctor. It is the Kaiser on Nevin, in Richmond. I am right by the Civic Center there.', replies, 1);
-    // Two legitimate not-ready presentations: no search has run at all (the panel stays on
-    // Examples), or a search ran but the trip is still incomplete (the "still working out" panel).
-    // What must never happen is a call sheet built from a half-specified trip.
+    // The panel must not appear at all before the assistant returns results. There is no
+    // intermediate state: a half-finished search previously claimed the trip still needed a date
+    // and time the rider had already given.
     const notReady = page.locator('[aria-label="Trip not ready to book"]');
-    const examples = page.locator('text=EXAMPLES');
+    const header = page.locator('[aria-label="Provider results count"]');
     const callCards = page.locator('article[data-provider-kind="callable"], article[data-provider-kind="verification-required"]');
     const tripBar = page.locator('[aria-label="Trip to book"]');
-    check('does not present a call sheet yet', await callCards.count() === 0 && await tripBar.count() === 0,
-      `${await callCards.count()} call cards and ${await tripBar.count()} trip bars rendered too early`);
-    check('panel shows a not-ready state rather than empty results',
-      (await notReady.count()) > 0 || (await examples.count()) > 0, 'neither the not-ready panel nor examples were shown');
+    check('no results panel before results exist',
+      await header.count() === 0 && await callCards.count() === 0 && await tripBar.count() === 0,
+      `header=${await header.count()} cards=${await callCards.count()} tripBar=${await tripBar.count()}`);
+    check('the removed "still working out" state never appears', await notReady.count() === 0,
+      'the intermediate panel is still rendering');
+    check('panel stays on examples until there is something to show',
+      await page.locator('text=EXAMPLES').count() > 0, 'examples panel not shown');
     await page.screenshot({ path: 'tests/chat/rendered/callsheet-1-not-ready.png', fullPage: true });
     await page.close();
   }
@@ -76,6 +79,23 @@ try {
     const telLinks = page.locator('article[data-provider-kind] a[href^="tel:"]');
     check('every card offers a phone number to call', await telLinks.count() >= 1, 'no tel: links rendered');
     await page.screenshot({ path: 'tests/chat/rendered/callsheet-2-ready.png', fullPage: true });
+    await page.close();
+  }
+  // ── Replayed example: providers, but no date/time in the payload ────────
+  console.log('\nState 3 — replaying a saved example');
+  {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    const play = page.locator('text=Click to play').first();
+    await play.waitFor({ state: 'visible', timeout: 30000 });
+    await play.click();
+    // Replay payloads carry providers but no travel date or time, which is what made the old
+    // panel demand facts the rider had already supplied.
+    await page.waitForTimeout(12000);
+    const notReady = page.locator('[aria-label="Trip not ready to book"]');
+    check('a replayed example never asks for a date it already has', await notReady.count() === 0,
+      'the not-ready panel appeared during replay');
+    await page.screenshot({ path: 'tests/chat/rendered/callsheet-3-replay.png', fullPage: true });
     await page.close();
   }
 } finally { await browser.close(); }
