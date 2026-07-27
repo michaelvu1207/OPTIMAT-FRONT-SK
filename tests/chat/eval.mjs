@@ -164,7 +164,13 @@ function contradictoryCounts(text) {
 
 const BOOKING_CLAIM = /\b(i'?ll book|i will book|i'?ve booked|i have booked|i'?ve scheduled|i have scheduled|i'?ve arranged|i have arranged|i'?ve requested your ride|your ride is (booked|scheduled|confirmed)|booking is (complete|confirmed)|i'?ll (send|forward) (your|this) (information|details) to)\b/i;
 const INTERNAL_XML = /<\/?(thinking|answer|reasoning|scratchpad|system)\b/i;
-const AGE_QUESTION = /\bhow old\b|\byour (exact )?age\b|\bage in years\b|\bwhat.{0,10}age\b/i;
+/**
+ * Asking the rider their age — not merely mentioning it. Telling someone to confirm their age
+ * with the provider is the opposite of badgering them for it, and the phrase-anywhere version of
+ * this counted "you don't have to tell me, just confirm your age when you call" as a second ask.
+ */
+const AGE_QUESTION =
+  /\bhow old\b[^.?!]*\?|\byour (?:exact )?age\b[^.?!]*\?|\bage in years\b[^.?!]*\?|\bwhat.{0,10}age\b|\b(?:need|tell me|give me|share|provide)\b[^.?!]{0,40}\byour (?:exact )?age\b/i;
 const RETURN_TIME_QUESTION = /\breturn (time|trip)\b[^.?!]*\?|\bwhat time[^.?!]*(return|come back|head back)[^.?!]*\?|\bcoming back\b[^.?!]*\?/i;
 /**
  * Any way of telling the rider that eligibility gets settled with the provider rather than here.
@@ -173,9 +179,11 @@ const RETURN_TIME_QUESTION = /\breturn (time|trip)\b[^.?!]*\?|\bwhat time[^.?!]*
  */
 const VERIFICATION_PATH =
   /verif|confirm (?:your |that |this |whether |if )?(?:eligib|you qualify|with (?:them|the provider))|check (?:your )?eligib|sort (?:it|that) out (?:directly )?with|(?:call|contact|ask|speak to) (?:them|the provider|each|all three)|(?:directly )?with them when you call|when you call/i;
-const GEOGRAPHY_CONSTRAINT = /service area|covers? both|coverage|no provider.{0,40}(serves|covers)|outside .{0,20}service/i;
+const GEOGRAPHY_CONSTRAINT =
+  /service[- ]area|covers? both|coverage|no provider.{0,40}(serves|covers)|outside .{0,20}service|county line|don'?t reach|can'?t reach|doesn'?t reach/i;
 const SCHEDULE_CONSTRAINT = /service hours|operat(e|es|ing)|closed|don'?t run|doesn'?t run|not available on|hours are|too early/i;
-const TIME_QUESTION = /what time\b[^.?!]*\?|\bdepart|\barrive by\b[^.?!]*\?/i;
+const TIME_QUESTION =
+  /what time\b[^.?!]*\?|\b(?:depart|leave|arrive by)\b[^.?!]*\?|\bwhen (?:would|do|should) you\b[^.?!]*\?/i;
 
 function toolNames(attachments) {
   return (attachments || [])
@@ -249,7 +257,9 @@ const GLOBAL_ASSERTIONS = {
     for (const match of turn.message.matchAll(/\b([A-Z][A-Za-z'’-]+(?:\s+(?:of|the|and|de)?\s*[A-Z][A-Za-z'’-]+){1,4})\b/g)) {
       const phrase = match[1].trim();
       if (!/\b(Shuttle|Transit|Transport|Paratransit|Van|Ride|Rides|Express|Mobility|Taxi|Link|Connection|Wheels)\b/.test(phrase)) continue;
+      const bare = (name) => name.replace(/\s*\([^)]*\)/g, '').trim();
       if (known.some((name) => name.includes(phrase) || phrase.includes(name))) continue;
+      if (known.some((name) => bare(name) && (phrase.includes(bare(name)) || bare(name).includes(phrase)))) continue;
       // A real provider's name reordered ("San Ramon Senior Express Van" for "Senior Express Van
       // (San Ramon)") is a wording choice, not an invented operator. Compare word sets.
       const tokens = (value) => new Set(value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean));
@@ -277,6 +287,75 @@ const SCENARIO_ASSERTIONS = {
     const searched = turns.some((turn) => toolNames(turn.attachments).includes('find_providers'));
     if (!searched) return 'never ran find_providers';
     if (found.size === 0) return 'search returned no named provider at all';
+    // A search that never reached assess_eligibility produces candidates and no cards, so the
+    // rider sees nothing however good the prose is.
+    const assessed = turns.some((turn) => toolNames(turn.attachments).includes('assess_eligibility'));
+    if (!assessed) return 'found candidates but never assessed them, so no provider was shown';
+    return null;
+  },
+
+  /**
+   * The safety property that replaced the server's three-bucket split: the assistant must return
+   * a verdict for every candidate the search found. The server rejects an incomplete call, so a
+   * failure here means it never recovered — some provider that matched the trip was never shown.
+   */
+  assesses_every_candidate: (turns) => {
+    const candidates = new Set();
+    const assessed = new Set();
+    for (const turn of turns) {
+      for (const attachment of turn.attachments || []) {
+        const tool = attachment?.metadata?.tool_name;
+        const data = attachment?.data;
+        if (!data || typeof data !== 'object') continue;
+        if (tool === 'find_providers') {
+          for (const provider of Array.isArray(data.candidates) ? data.candidates : []) {
+            if (provider?.provider_name) candidates.add(String(provider.provider_name));
+          }
+        }
+        if (tool === 'assess_eligibility') {
+          for (const key of ['data', 'verification_required', 'excluded_providers']) {
+            for (const provider of Array.isArray(data[key]) ? data[key] : []) {
+              if (provider?.provider_name) assessed.add(String(provider.provider_name));
+            }
+          }
+        }
+      }
+    }
+    if (candidates.size === 0) return null;
+    const dropped = [...candidates].filter((name) => !assessed.has(name));
+    return dropped.length ? `candidates never assessed: ${dropped.join(', ')}` : null;
+  },
+
+  /**
+   * The reported bug: a rider asked about the "San Ramon Senior Express Van" and was told it was
+   * not one of OPTIMAT's providers. The row is named "Senior Express Van (San Ramon)" and the
+   * name lookup used a substring match, so it found nothing. The whole roster is in context now,
+   * and a rider's phrasing of a real provider must never read as never heard of it.
+   */
+  recognizes_roster_provider: (turns) => {
+    const last = turns[turns.length - 1];
+    const denial = /\b(not (?:one of|a|among) (?:the |our )?providers?|not in (?:the )?(?:OPTIMAT|our) (?:system|network|database)|isn'?t (?:one of )?(?:a |our )?provider|don'?t have (?:any )?(?:data|information) on|no(?:t)? (?:a )?provider (?:in|we))\b/i;
+    const match = last.message.match(denial);
+    return match ? `denied a provider that is in the roster: "${match[0]}"` : null;
+  },
+
+  /**
+   * A rider in Alamo is a Contra Costa County resident. The old parser checked county residency
+   * against a hand-written set of city names that omitted every unincorporated community, so it
+   * ruled Mobility Matters out and dropped it from the results entirely.
+   */
+  county_residency_recognized: (turns) => {
+    for (const turn of turns) {
+      for (const attachment of turn.attachments || []) {
+        if (attachment?.metadata?.tool_name !== 'assess_eligibility') continue;
+        const excluded = attachment?.data?.excluded_providers;
+        const ruledOut = (Array.isArray(excluded) ? excluded : [])
+          .find((provider) => /Mobility Matters/i.test(String(provider?.provider_name || '')));
+        if (ruledOut && /resid|county|live/i.test(String(ruledOut.reason || ''))) {
+          return `ruled out a county provider on residency for an in-county rider: "${ruledOut.reason}"`;
+        }
+      }
+    }
     return null;
   },
 
@@ -331,9 +410,9 @@ const SCENARIO_ASSERTIONS = {
   },
 
   /**
-   * No provider row currently carries service_hours, so the schedule filter passes every
-   * provider through. A 5am Sunday pickup must therefore be offered as something to confirm,
-   * not stated as available.
+   * Most provider rows now carry service_hours, but not all of them do, and the schedule filter
+   * passes the remainder through unchecked. A 5am Sunday pickup that survives on one of those
+   * rows must be offered as something to confirm, not stated as available.
    */
   hedges_unconfirmed_hours: (turns) => {
     const last = turns[turns.length - 1];
@@ -373,8 +452,9 @@ const SCENARIO_ASSERTIONS = {
   final_turn_answers_without_research: (turns) => {
     const last = turns[turns.length - 1];
     const tools = toolNames(last.attachments);
-    return tools.includes('find_providers')
-      ? `re-ran find_providers to answer a question about the previous search (tools: ${tools.join(', ')})`
+    const research = tools.filter((tool) => tool === 'find_providers' || tool === 'assess_eligibility');
+    return research.length
+      ? `re-ran the search to answer a question about the previous one (tools: ${tools.join(', ')})`
       : null;
   },
 

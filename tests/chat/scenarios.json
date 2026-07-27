@@ -9,7 +9,12 @@
         "I'd like to go on August 12, 2026, leaving at 10:00 AM. One way is fine.",
         "I'm 72 years old, I live in San Ramon, I'm not disabled, not ADA-certified, and not a veteran."
       ],
-      "checks": ["finds_providers", "age_asked_at_most_once", "no_return_time_question"]
+      "checks": [
+        "finds_providers",
+        "age_asked_at_most_once",
+        "no_return_time_question",
+        "assesses_every_candidate"
+      ]
     },
     {
       "id": "s02-senior-withholds-age",
@@ -19,7 +24,11 @@
         "I'd rather not say my exact age.",
         "No, I really don't want to give my age. What can you tell me?"
       ],
-      "checks": ["age_asked_at_most_once", "ends_with_usable_answer", "mentions_verification_path"]
+      "checks": [
+        "age_asked_at_most_once",
+        "ends_with_usable_answer",
+        "mentions_verification_path"
+      ]
     },
     {
       "id": "s03-declines-eligibility",
@@ -29,7 +38,10 @@
         "I'd prefer not to answer any personal questions about my age, disability, or veteran status.",
         "Just tell me who might be able to take me."
       ],
-      "checks": ["ends_with_usable_answer", "mentions_verification_path"]
+      "checks": [
+        "ends_with_usable_answer",
+        "mentions_verification_path"
+      ]
     },
     {
       "id": "s04-zero-coverage",
@@ -37,7 +49,11 @@
       "turns": [
         "I need a ride from Diablo Valley College to San Francisco City Hall on August 12, 2026 at 9:00 AM, one way. I'm 70, live in Pleasant Hill, not disabled, not ADA-certified, not a veteran."
       ],
-      "checks": ["names_geography_constraint", "offers_alternative", "no_time_questions_after_coverage_failure"]
+      "checks": [
+        "names_geography_constraint",
+        "offers_alternative",
+        "no_time_questions_after_coverage_failure"
+      ]
     },
     {
       "id": "s05-unconfirmed-hours",
@@ -46,7 +62,11 @@
       "turns": [
         "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on Sunday, August 16, 2026 at 5:00 AM, one way. I'm 70, live in San Ramon, not disabled, not ADA-certified, not a veteran."
       ],
-      "checks": ["hedges_unconfirmed_hours", "names_schedule_constraint", "offers_alternative"]
+      "checks": [
+        "hedges_unconfirmed_hours",
+        "names_schedule_constraint",
+        "offers_alternative"
+      ]
     },
     {
       "id": "s06-ambiguous-place",
@@ -54,7 +74,9 @@
       "turns": [
         "I need a ride from my house in Antioch to DVC in Antioch."
       ],
-      "checks": ["flags_city_mismatch"]
+      "checks": [
+        "flags_city_mismatch"
+      ]
     },
     {
       "id": "s07-richmond-multi-provider",
@@ -62,7 +84,11 @@
       "turns": [
         "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026, departing at noon, round trip returning at 3:00 PM. I'm 68, I live in Richmond, I'm not disabled, not ADA-certified, and not a veteran."
       ],
-      "checks": ["finds_providers", "payload_under_limit"]
+      "checks": [
+        "finds_providers",
+        "payload_under_limit",
+        "assesses_every_candidate"
+      ]
     },
     {
       "id": "s08-one-way-no-return",
@@ -71,7 +97,11 @@
         "One way only: Richmond City Hall to Kaiser Permanente Richmond Medical Center, August 12, 2026 at 2:00 PM.",
         "I'm 68, live in Richmond, not disabled, not ADA-certified, not a veteran."
       ],
-      "checks": ["no_return_time_question", "finds_providers"]
+      "checks": [
+        "no_return_time_question",
+        "finds_providers",
+        "assesses_every_candidate"
+      ]
     },
     {
       "id": "s09-followup-from-memory",
@@ -80,7 +110,10 @@
         "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026 at noon, one way. I'm 68, live in Richmond, not disabled, not ADA-certified, not a veteran.",
         "Which of those did you say I still need to check eligibility for, and why?"
       ],
-      "checks": ["final_turn_answers_without_research", "final_turn_references_prior_search"]
+      "checks": [
+        "final_turn_answers_without_research",
+        "final_turn_references_prior_search"
+      ]
     },
     {
       "id": "s10-off-trip-question",
@@ -88,7 +121,34 @@
       "turns": [
         "Does BART have wheelchair access at every station?"
       ],
-      "checks": ["answers_without_provider_search", "no_trip_interrogation"]
+      "checks": [
+        "answers_without_provider_search",
+        "no_trip_interrogation"
+      ]
+    },
+    {
+      "id": "s11-provider-named-differently",
+      "title": "Rider names a real provider their own way",
+      "turns": [
+        "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on August 12, 2026 at 10:00 AM, one way. I'm 72, I live in San Ramon, not disabled, not ADA-certified, not a veteran.",
+        "Is the San Ramon Senior Express Van a provider for this trip?"
+      ],
+      "checks": [
+        "recognizes_roster_provider",
+        "final_turn_answers_without_research"
+      ]
+    },
+    {
+      "id": "s12-unincorporated-county-resident",
+      "title": "Rider in an unincorporated part of Contra Costa County",
+      "turns": [
+        "I need a ride from Alamo to Walnut Creek on August 12, 2026 at 10:00 AM, one way. I'm 70 years old, I live in Alamo, I'm not disabled, not ADA-certified, and not a veteran."
+      ],
+      "checks": [
+        "county_residency_recognized",
+        "assesses_every_candidate",
+        "ends_with_usable_answer"
+      ]
     }
   ]
 }
