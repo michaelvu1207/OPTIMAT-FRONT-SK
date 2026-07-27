@@ -19,7 +19,14 @@ import {
   createOptimatClient,
   TABLES,
 } from "../_shared/supabase.ts";
-import { toolDefinitions, executeTool, storeToolCall, ToolResult } from "./tools.ts";
+import {
+  emptyTurnContext,
+  executeTool,
+  loadProviderRoster,
+  storeToolCall,
+  toolDefinitions,
+  ToolResult,
+} from "./tools.ts";
 import { getServiceClockContext, SERVICE_TIME_ZONE } from "./trip.ts";
 import {
   buildCorrectionPrompt,
@@ -46,7 +53,9 @@ const SYSTEM_PROMPT =
 Be genuinely useful: work out what the rider needs, explain what you find, and when something will not work say why and what would work instead. Ask a question only when the answer changes what you can tell them, and ask it in your own words.
 
 Rules you must not break:
-- Every provider, date, time, fare, phone number, eligibility rule and route comes from tool results or the verified facts below. Never fill a gap from memory.
+- Every provider, date, time, fare, phone number, eligibility rule and route comes from tool results, the provider roster, or the verified facts below. Never fill a gap from memory.
+- The roster below is every provider OPTIMAT has. Riders rarely use a provider's exact registered name — match what they describe against the roster yourself rather than deciding a service is unknown. Only say OPTIMAT has no data on a service when nothing in the roster is that service.
+- Deciding who qualifies is yours: read each candidate's requirement text against what the rider has told you, and use what you know about the region — someone in Alamo or Rodeo is a Contra Costa County resident. Record every verdict with assess_eligibility. Never claim a rider qualifies for a rule they have not actually met.
 - OPTIMAT does not book rides. Hand off — who to call, and by when. Never say a ride is booked or arranged, never pass rider details to a provider, and never collect a name, address, phone number or gate code.
 - Providers with unconfirmed eligibility still belong in your answer, marked as needing confirmation. Never drop them silently; never present a ruled-out provider as available.
 - Places are in the Bay Area: "Richmond" means Richmond, California. Never ask which state.
@@ -283,14 +292,28 @@ serve(async (req: Request) => {
     // a follow-up about an earlier search without running it again.
     let tripState: TripState = await loadTripState(supabase, body.conversation_id);
 
+    // Thirty providers is small enough to hand over whole, which is cheaper than the tool call it
+    // replaces and cannot fail to find a row. A roster that fails to load is not fatal: the
+    // search tools still work, so the turn continues without it.
+    let providerRoster = "";
+    try {
+      providerRoster = await loadProviderRoster(supabase);
+    } catch (error) {
+      console.error("Could not load provider roster:", error);
+    }
+
     const buildSystemPrompt = (state: TripState): string => {
       const facts = buildFactsBlock(state);
       return [
         SYSTEM_PROMPT,
         `\nCurrent service clock: ${getServiceClockContext()}\nAll relative dates must be resolved in ${SERVICE_TIME_ZONE}.`,
+        providerRoster ? `\n${providerRoster}` : "",
         facts ? `\n${facts}` : "",
       ].join("\n");
     };
+
+    // Carries the candidate set from find_providers to the assess_eligibility call that grades it.
+    const turnContext = emptyTurnContext();
 
     // Process with Claude via Bedrock (with tool calling loop)
     let currentMessages: any[] = convertMessagesToBedrockFormat(messageHistory);
@@ -358,7 +381,8 @@ serve(async (req: Request) => {
           toolUse.name,
           toolUse.input,
           supabase,
-          googleMapsApiKey
+          googleMapsApiKey,
+          turnContext,
         );
 
         // Store tool call in database
@@ -367,12 +391,13 @@ serve(async (req: Request) => {
         // Add to attachments based on tool type
         if (result.success && result.data) {
           let attachmentType = "tool_result";
-          if (toolUse.name === "find_providers" || toolUse.name === "check_trip_coverage") {
+          if (
+            toolUse.name === "find_providers" || toolUse.name === "check_trip_coverage" ||
+            toolUse.name === "assess_eligibility"
+          ) {
             attachmentType = "provider_search";
           } else if (toolUse.name === "search_addresses_from_user_query") {
             attachmentType = "address_search";
-          } else if (toolUse.name === "get_provider_info") {
-            attachmentType = "provider_info";
           } else if (toolUse.name === "general_provider_question") {
             attachmentType = "web_search";
           }

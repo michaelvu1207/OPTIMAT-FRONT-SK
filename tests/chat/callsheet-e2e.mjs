@@ -7,6 +7,19 @@
  * Usage: node tests/chat/callsheet-e2e.mjs [baseUrl]
  */
 import { chromium } from 'playwright';
+
+/**
+ * The attachment carrying rider-facing results.
+ *
+ * find_providers stops at candidates now; the eligibility verdicts, and so the provider cards,
+ * arrive with assess_eligibility. Older recorded transcripts still have them on find_providers.
+ */
+function resultsAttachment(attachments) {
+  const list = attachments || [];
+  return list.find((a) => a?.metadata?.tool_name === 'assess_eligibility')
+    || list.find((a) => a?.metadata?.tool_name === 'find_providers' && Array.isArray(a?.data?.data));
+}
+
 const baseUrl = process.argv[2] || 'http://localhost:4173/';
 const browser = await chromium.launch({ headless: true });
 const results = [];
@@ -74,7 +87,7 @@ try {
   {
     const { page, ta, replies } = await open();
     const reply = await send(page, ta, 'One way from San Ramon City Hall to San Ramon Regional Medical Center on August 12th 2026, pickup at 10:00 AM. I am 72, live in San Ramon, not disabled, not ADA certified, not a veteran.', replies, 1);
-    const search = (reply.attachments || []).find(a => a?.metadata?.tool_name === 'find_providers');
+    const search = resultsAttachment(reply.attachments);
     const expected = (search?.data?.data || []).length + (search?.data?.verification_required || []).length;
 
     const cards = page.locator(CARDS);

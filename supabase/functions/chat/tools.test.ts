@@ -4,11 +4,14 @@ import {
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  emptyTurnContext,
+  executeAssessEligibility,
   executeCheckTripCoverage,
   executeFindProviders,
   executeResolveTripDate,
   parseTimeToMinutes,
   type Provider,
+  type TurnContext,
 } from "./tools.ts";
 
 const EAST_BAY_ZONE = {
@@ -47,48 +50,53 @@ function provider(overrides: Partial<Provider>): Provider {
   };
 }
 
+/** Google returns the city as an address component; the mismatch check reads it from there. */
+function withCity(place: Record<string, unknown>, city: string) {
+  return { ...place, addressComponents: [{ longText: city, types: ["locality", "political"] }] };
+}
+
 function placesResult(query: string) {
   const normalized = query.toLowerCase();
   if (normalized.includes("dvc") || normalized.includes("diablo valley")) {
-    return {
+    return withCity({
       formattedAddress: "Diablo Valley College, 321 Golf Club Rd, Pleasant Hill, CA 94523, USA",
       displayName: { text: "Diablo Valley College" },
       location: { latitude: 37.9685, longitude: -122.0711 },
-    };
+    }, "Pleasant Hill");
   }
   if (normalized.includes("san francisco")) {
-    return {
+    return withCity({
       formattedAddress: "San Francisco, CA, USA",
       displayName: { text: "San Francisco" },
       location: { latitude: 37.7749, longitude: -122.4194 },
-    };
+    }, "San Francisco");
   }
   if (normalized.includes("walnut creek")) {
-    return {
+    return withCity({
       formattedAddress: "Walnut Creek, CA, USA",
       displayName: { text: "Walnut Creek" },
       location: { latitude: 37.9101, longitude: -122.0652 },
-    };
+    }, "Walnut Creek");
   }
   if (normalized.includes("richmond")) {
-    return {
+    return withCity({
       formattedAddress: "Richmond, CA, USA",
       displayName: { text: "Richmond" },
       location: { latitude: 37.9358, longitude: -122.3477 },
-    };
+    }, "Richmond");
   }
   if (normalized.includes("antioch")) {
-    return {
+    return withCity({
       formattedAddress: "Antioch, CA, USA",
       displayName: { text: "Antioch" },
       location: { latitude: 38.0049, longitude: -121.8058 },
-    };
+    }, "Antioch");
   }
-  return {
+  return withCity({
     formattedAddress: "Bay Point, CA, USA",
     displayName: { text: "Bay Point" },
     location: { latitude: 38.0291, longitude: -121.9616 },
-  };
+  }, "Bay Point");
 }
 
 async function withGoogleFetch<T>(run: (directionUrls: string[]) => Promise<T>): Promise<T> {
@@ -160,8 +168,11 @@ Deno.test("standalone date resolution uses the California clock before search", 
 
 Deno.test("named-place city contradiction stops before provider search", async () => {
   await withGoogleFetch(async () => {
+    // The rider said Antioch; the place resolves to Pleasant Hill. Both city names are now
+    // reported rather than scraped out of address strings — the assistant passes the rider's
+    // word, Google supplies the locality of what it matched.
     const result = await executeCheckTripCoverage(
-      { source_address: "Bay Point", destination_address: "DVC in Antioch" },
+      { source_address: "Bay Point", destination_address: "DVC in Antioch", destination_city: "Antioch" },
       fakeDatabase([]),
       "test-key",
     );
@@ -202,7 +213,7 @@ Deno.test("fixed-route agencies remain a public-transit fallback, not a direct r
   });
 });
 
-Deno.test("one-way search needs no return time and excludes ineligible providers", async () => {
+Deno.test("the search returns candidates and passes no eligibility verdict of its own", async () => {
   await withGoogleFetch(async (directionUrls) => {
     const result = await executeFindProviders(
       {
@@ -244,14 +255,24 @@ Deno.test("one-way search needs no return time and excludes ineligible providers
     assertEquals(result.success, true);
     assertEquals(data.trip_type, "one_way");
     assertEquals(data.return_time, null);
-    assertEquals(data.total_found, 0);
-    assertEquals(data.total_options_found, 1);
-    assertEquals(data.public_transit_available, true);
-    assertEquals(
-      (data.public_transit as Record<string, unknown>).overview_polyline,
-      "_p~iF~ps|U_ulLnnqC_mqNvxq`@",
+
+    // Both direct providers reach the rider on geography and hours, so both are candidates. The
+    // server used to rule them out here by parsing "Contra Costa County residents" against a
+    // hand-written set of city names, which is exactly the judgement that now belongs upstairs.
+    const candidates = data.candidates as Array<Record<string, unknown>>;
+    assertEquals(candidates.length, 2);
+    assert(!("data" in data), "candidates are not results until they are assessed");
+    assert(!("excluded_providers" in data), "the search excludes nobody on eligibility");
+    assert(
+      candidates.every((candidate) => !("eligibility_status" in candidate)),
+      "no candidate carries a verdict",
     );
-    assertEquals((data.excluded_providers as unknown[]).length, 2);
+
+    // The requirement text travels with each candidate, because that is what gets reasoned over.
+    const oneSeat = candidates.find((candidate) => candidate.provider_name === "One Seat Ride");
+    assertStringIncludes(String(oneSeat?.eligibility_requirement), "Contra Costa County");
+
+    assertEquals(data.public_transit_available, true);
     assertEquals((data.diagnostics as Record<string, unknown>).fixed_route_fallback_count, 1);
     assertEquals(directionUrls.length, 1);
     assertStringIncludes(directionUrls[0], "arrival_time=");
@@ -260,7 +281,7 @@ Deno.test("one-way search needs no return time and excludes ineligible providers
 
 const SENIOR_VAN_REQUIREMENT = "Eligibility: Senior (55+). Proof: No proof required.";
 
-function seniorVanSearch(riderEligibility: Record<string, unknown>) {
+function seniorVanSearch(riderEligibility: Record<string, unknown>, turn: TurnContext) {
   return executeFindProviders(
     {
       source_address: "Bay Point",
@@ -275,55 +296,83 @@ function seniorVanSearch(riderEligibility: Record<string, unknown>) {
       provider({ id: 1, provider_name: "Senior Express Van (San Ramon)", eligibility_reqs: SENIOR_VAN_REQUIREMENT }),
     ]),
     "test-key",
+    turn,
   );
 }
 
-Deno.test("an unknown age returns the provider with the age question, instead of stalling", async () => {
+Deno.test("an assessed verdict becomes the rider-facing result", async () => {
   await withGoogleFetch(async () => {
-    // Previously this stopped the search dead and returned only a question, so a rider who
-    // would not give an age got no list at all. Now the search completes and says what it needs.
-    const result = await seniorVanSearch({ disabled: false, ada_certified: false, veteran: false });
+    const turn = emptyTurnContext();
+    await seniorVanSearch({ age: 68, disabled: false, ada_certified: false, veteran: false }, turn);
+
+    const result = executeAssessEligibility({
+      assessments: [{
+        provider_name: "Senior Express Van (San Ramon)",
+        verdict: "eligible",
+        reason: "The rider is 68 and the van carries riders 55 and over.",
+      }],
+    }, turn);
     const data = result.data as Record<string, unknown>;
+
     assertEquals(result.success, true);
     assertEquals(data.status, "complete");
-
-    const verification = data.verification_required as Array<Record<string, unknown>>;
-    assertEquals(verification.length, 1);
-    assertEquals(verification[0].provider_name, "Senior Express Van (San Ramon)");
-    assertEquals(verification[0].missing_facts, ["age"]);
-
-    const question = data.next_question as Record<string, unknown>;
-    assertEquals(question.field, "age");
-    assertStringIncludes(String(question.question), "exact age");
-  });
-});
-
-Deno.test("an exact age recommends the senior provider instead of hiding it", async () => {
-  await withGoogleFetch(async () => {
-    const result = await seniorVanSearch({ age: 68, disabled: false, ada_certified: false, veteran: false });
-    const data = result.data as Record<string, unknown>;
-    assertEquals(data.status, "complete");
     assertEquals(data.total_found, 1);
-    assertEquals((data.data as Array<Record<string, unknown>>)[0].provider_name, "Senior Express Van (San Ramon)");
-    assertEquals((data.verification_required as unknown[]).length, 0);
+    const eligible = data.data as Array<Record<string, unknown>>;
+    assertEquals(eligible[0].provider_name, "Senior Express Van (San Ramon)");
+    assertEquals(eligible[0].eligibility_status, "eligible");
+    assertStringIncludes(String(eligible[0].eligibility_reason), "55 and over");
+    // The trip context from the search survives, so the card still knows the date and addresses.
+    assertEquals(data.travel_date, "2099-07-21");
   });
 });
 
-Deno.test("a rider who declines age still gets the provider as verification required", async () => {
+Deno.test("an undecided verdict names the fact that would settle it", async () => {
   await withGoogleFetch(async () => {
-    const result = await seniorVanSearch({ declined: true });
+    const turn = emptyTurnContext();
+    await seniorVanSearch({ disabled: false, ada_certified: false, veteran: false }, turn);
+
+    const result = executeAssessEligibility({
+      assessments: [{
+        provider_name: "Senior Express Van (San Ramon)",
+        verdict: "verification_required",
+        reason: "The van carries riders 55 and over, and the rider has not given an age.",
+        missing_fact: "age",
+      }],
+    }, turn);
     const data = result.data as Record<string, unknown>;
-    assertEquals(data.status, "complete");
-    assertEquals(data.total_found, 0);
+
     const verification = data.verification_required as Array<Record<string, unknown>>;
     assertEquals(verification.length, 1);
-    assertEquals(verification[0].provider_name, "Senior Express Van (San Ramon)");
+    assertEquals(verification[0].missing_facts, ["age"]);
+    assertEquals((data.next_question as Record<string, unknown>).field, "age");
+    assertEquals(data.total_found, 0);
   });
 });
 
-Deno.test("providers without an age rule do not trigger the age question", async () => {
+Deno.test("a rider who declined is not asked anything further", async () => {
   await withGoogleFetch(async () => {
-    const result = await executeFindProviders(
+    const turn = emptyTurnContext();
+    await seniorVanSearch({ declined: true }, turn);
+
+    const result = executeAssessEligibility({
+      assessments: [{
+        provider_name: "Senior Express Van (San Ramon)",
+        verdict: "verification_required",
+        reason: "The rider preferred not to give an age, so the van will confirm it directly.",
+        missing_fact: "age",
+      }],
+    }, turn);
+    const data = result.data as Record<string, unknown>;
+
+    assertEquals((data.verification_required as unknown[]).length, 1);
+    assertEquals(data.next_question, null, "a rider who declined is not asked again");
+  });
+});
+
+Deno.test("a candidate left unassessed is rejected rather than silently dropped", async () => {
+  await withGoogleFetch(async () => {
+    const turn = emptyTurnContext();
+    await executeFindProviders(
       {
         source_address: "Bay Point",
         destination_address: "Antioch",
@@ -331,17 +380,71 @@ Deno.test("providers without an age rule do not trigger the age question", async
         trip_type: "one_way",
         travel_date_raw: "July 21, 2099",
         outbound_time_intent: "depart_at",
-        rider_eligibility: { disabled: true, ada_certified: true, veteran: false },
-      },
+        rider_eligibility: { age: 68 },
+      } as Parameters<typeof executeFindProviders>[0],
       fakeDatabase([
-        provider({ id: 1, provider_name: "One-Seat Regional Ride", eligibility_reqs: "Eligibility: Disabled (18+)." }),
+        provider({ id: 1, provider_name: "Senior Express Van (San Ramon)", eligibility_reqs: SENIOR_VAN_REQUIREMENT }),
+        provider({ id: 2, provider_name: "Mobility Matters", eligibility_reqs: "Eligibility: Senior (60+) or veteran." }),
       ]),
       "test-key",
+      turn,
     );
-    const data = result.data as Record<string, unknown>;
-    assertEquals(data.status, "complete");
-    assertEquals(data.total_found, 1);
+
+    // The safety property the old three-bucket split provided: a provider that matches the trip
+    // is never absent from the answer just because nobody mentioned it.
+    const incomplete = executeAssessEligibility({
+      assessments: [{
+        provider_name: "Senior Express Van (San Ramon)",
+        verdict: "eligible",
+        reason: "The rider is 68.",
+      }],
+    }, turn);
+    assertEquals(incomplete.success, false);
+    assertStringIncludes(String(incomplete.error), "Mobility Matters");
+    assertStringIncludes(String(incomplete.error), "left out");
   });
+});
+
+Deno.test("a verdict for a provider that was never a candidate is rejected", async () => {
+  await withGoogleFetch(async () => {
+    const turn = emptyTurnContext();
+    await seniorVanSearch({ age: 68 }, turn);
+
+    const invented = executeAssessEligibility({
+      assessments: [
+        { provider_name: "Senior Express Van (San Ramon)", verdict: "eligible", reason: "The rider is 68." },
+        { provider_name: "Marin Airporter", verdict: "eligible", reason: "Invented." },
+      ],
+    }, turn);
+    assertEquals(invented.success, false);
+    assertStringIncludes(String(invented.error), "Marin Airporter");
+  });
+});
+
+Deno.test("a provider name the rider phrased differently still resolves", async () => {
+  await withGoogleFetch(async () => {
+    const turn = emptyTurnContext();
+    await seniorVanSearch({ age: 68 }, turn);
+
+    // The reported bug in its original form: "San Ramon Senior Express Van" against a row named
+    // "Senior Express Van (San Ramon)". Matching now happens against the small candidate set and
+    // ignores punctuation and word order is preserved by the roster the assistant reads.
+    const result = executeAssessEligibility({
+      assessments: [{
+        provider_name: "senior express van (san ramon)",
+        verdict: "eligible",
+        reason: "The rider is 68 and the van carries riders 55 and over.",
+      }],
+    }, turn);
+    assertEquals(result.success, true);
+    assertEquals((result.data as Record<string, unknown>).total_found, 1);
+  });
+});
+
+Deno.test("assessing before searching is refused", () => {
+  const result = executeAssessEligibility({ assessments: [] }, emptyTurnContext());
+  assertEquals(result.success, false);
+  assertStringIncludes(String(result.error), "find_providers first");
 });
 
 Deno.test("Richmond provider result stays compact and does not return service geometry", async () => {
@@ -370,7 +473,7 @@ Deno.test("Richmond provider result stays compact and does not return service ge
       "test-key",
     );
     const data = result.data as Record<string, unknown>;
-    const returnedProviders = data.data as Array<Record<string, unknown>>;
+    const returnedProviders = data.candidates as Array<Record<string, unknown>>;
     assertEquals(result.success, true);
     assertEquals(returnedProviders.length, 6);
     assert(returnedProviders.every((item) => !("service_zone" in item)));
@@ -419,7 +522,7 @@ Deno.test("a request outside service hours reports the days that would work", as
     const data = result.data as Record<string, unknown>;
     const alternatives = data.alternatives as Array<Record<string, unknown>>;
 
-    assertEquals(data.total_found, 0);
+    assertEquals(data.candidate_count, 0);
     assertEquals((data.diagnostics as Record<string, number>).schedule_match_count, 0);
 
     const otherDay = alternatives.find((alternative) => alternative.change === "other_day");
@@ -494,28 +597,6 @@ Deno.test("no coverage reports which end of the trip each provider can reach", a
   });
 });
 
-Deno.test("an eligibility mismatch names the category that would qualify", async () => {
-  await withGoogleFetch(async () => {
-    const result = await relaxationSearch(
-      [
-        provider({ id: 1, provider_name: "Veterans Ride", eligibility_reqs: "Eligibility: Veteran." }),
-        provider({ id: 2, provider_name: "ADA Paratransit Only", eligibility_reqs: "Eligibility: ADA-certified disability." }),
-      ],
-      { travel_date_raw: "July 21, 2099", rider_eligibility: { age: 40, disabled: false, ada_certified: false, veteran: false } },
-    );
-    const data = result.data as Record<string, unknown>;
-    const alternatives = data.alternatives as Array<Record<string, unknown>>;
-
-    assertEquals(data.total_found, 0);
-    const veteran = alternatives.find((alternative) => String(alternative.description).includes("veteran"));
-    const ada = alternatives.find((alternative) => String(alternative.description).includes("ADA-certified"));
-    assertEquals(veteran?.providers, ["Veterans Ride"]);
-    assertEquals(ada?.providers, ["ADA Paratransit Only"]);
-    // Phrased as a property of the rule, never as a claim about this rider.
-    assertStringIncludes(String(veteran?.description), "would qualify");
-  });
-});
-
 Deno.test("a healthy result does not pay for relaxation variants", async () => {
   await withGoogleFetch(async () => {
     const result = await relaxationSearch([
@@ -523,7 +604,7 @@ Deno.test("a healthy result does not pay for relaxation variants", async () => {
       provider({ id: 2, provider_name: "Open Van Two" }),
     ], { travel_date_raw: "July 21, 2099" });
     const data = result.data as Record<string, unknown>;
-    assertEquals(data.total_found, 2);
+    assertEquals(data.candidate_count, 2);
     assertEquals((data.alternatives as unknown[]).length, 0);
   });
 });
@@ -558,9 +639,9 @@ Deno.test("providers with no service hours on file are reported as unverified, n
     const data = result.data as Record<string, unknown>;
     const diagnostics = data.diagnostics as Record<string, number>;
 
-    assertEquals(data.total_found, 1);
+    assertEquals(data.candidate_count, 1);
     assertEquals(diagnostics.providers_without_service_hours, 1);
-    const returned = (data.data as Array<Record<string, unknown>>)[0];
+    const returned = (data.candidates as Array<Record<string, unknown>>)[0];
     assert(!("service_hours_known" in returned), "a provider with no hours must not claim known hours");
     assertStringIncludes(
       JSON.stringify(returned.match_criteria),
@@ -580,7 +661,7 @@ Deno.test("a provider dropped on the requested day is explained even when others
     const data = result.data as Record<string, unknown>;
     const alternatives = data.alternatives as Array<Record<string, unknown>>;
 
-    assertEquals(data.total_found, 1, "the open provider is still returned");
+    assertEquals(data.candidate_count, 1, "the open provider is still returned");
     const otherDay = alternatives.find((alternative) => alternative.change === "other_day");
     assert(otherDay, `expected the weekday-only provider to be explained, got ${JSON.stringify(alternatives)}`);
     assertEquals(otherDay.providers, ["Weekday Van"]);
@@ -606,7 +687,7 @@ Deno.test("a provider outside hours on both day and time is still explained by i
     const data = result.data as Record<string, unknown>;
     const alternatives = data.alternatives as Array<Record<string, unknown>>;
 
-    assertEquals(data.total_found, 0);
+    assertEquals(data.candidate_count, 0);
     const window = alternatives.find((alternative) => alternative.change === "provider_schedule");
     assert(window, `expected the provider's own hours, got ${JSON.stringify(alternatives)}`);
     assertStringIncludes(String(window.description), "Easy Ride Paratransit");

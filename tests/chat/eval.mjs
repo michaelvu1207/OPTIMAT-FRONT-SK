@@ -188,7 +188,9 @@ function providerNamesIn(attachments) {
   for (const attachment of attachments || []) {
     const data = attachment?.data;
     if (!data || typeof data !== 'object') continue;
-    for (const key of ['data', 'verification_required', 'excluded_providers']) {
+    // `candidates` is what find_providers returns before the assistant assesses them; the other
+    // three are the assessed buckets that assess_eligibility produces.
+    for (const key of ['data', 'candidates', 'verification_required', 'excluded_providers']) {
       for (const provider of Array.isArray(data[key]) ? data[key] : []) {
         if (provider?.provider_name) names.add(String(provider.provider_name));
       }

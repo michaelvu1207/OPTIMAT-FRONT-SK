@@ -159,3 +159,45 @@ Deno.test("the facts block stays compact enough to sit in every turn", () => {
   const facts = buildFactsBlock(state);
   assert(facts.length < 2_000, `facts block grew to ${facts.length} characters`);
 });
+
+Deno.test("an unassessed search does not read as a search that found nothing", () => {
+  // find_providers now stops at candidates. Folding that in as a completed search would record
+  // zero eligible providers and tell the next turn the trip had failed, while the assessment that
+  // decides it was still one tool call away.
+  const searched = updateTripStateFromTools(emptyTripState(), [
+    attachment("find_providers", {
+      status: "complete",
+      source_address: "Bay Point, CA, USA",
+      destination_address: "Antioch, CA, USA",
+      travel_date: "2099-07-21",
+      travel_date_display: "Tuesday, July 21, 2099",
+      departure_time: "noon",
+      trip_type: "one_way",
+      candidates: [{ provider_name: "Senior Express Van (San Ramon)" }],
+      diagnostics: { geography_match_count: 1, schedule_match_count: 1 },
+    }),
+  ]);
+  assertEquals(searched.last_search, null, "candidates are not a result yet");
+  assertEquals(searched.trip.origin, "Bay Point, CA, USA", "the trip facts are still learned");
+
+  const assessed = updateTripStateFromTools(searched, [
+    attachment("assess_eligibility", {
+      status: "complete",
+      source_address: "Bay Point, CA, USA",
+      destination_address: "Antioch, CA, USA",
+      travel_date_display: "Tuesday, July 21, 2099",
+      departure_time: "noon",
+      trip_type: "one_way",
+      data: [{
+        provider_name: "Senior Express Van (San Ramon)",
+        eligibility_reason: "The rider is 68 and the van carries riders 55 and over.",
+      }],
+      verification_required: [],
+      excluded_providers: [],
+      diagnostics: { geography_match_count: 1, schedule_match_count: 1 },
+    }),
+  ]);
+  assertEquals(assessed.last_search?.eligible.length, 1);
+  assertEquals(assessed.last_search?.eligible[0].name, "Senior Express Van (San Ramon)");
+  assertEquals(assessed.last_search?.binding_constraint, null);
+});

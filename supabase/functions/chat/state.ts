@@ -200,7 +200,10 @@ export function updateTripStateFromTools(state: TripState, attachments: ChatAtta
       continue;
     }
 
-    if (toolName !== "find_providers") continue;
+    // find_providers now stops at candidates; the rider-facing verdicts arrive with
+    // assess_eligibility, which returns the search result with the buckets filled in. Both are
+    // folded in: a search that never reached assessment still updates the trip facts.
+    if (toolName !== "find_providers" && toolName !== "assess_eligibility") continue;
 
     const origin = text(data.source_address);
     const destination = text(data.destination_address);
@@ -222,6 +225,11 @@ export function updateTripStateFromTools(state: TripState, attachments: ChatAtta
     next.trip.coverage = Number(numericDiagnostics(data.diagnostics)?.geography_match_count || 0) > 0
       ? "covered"
       : "not_covered";
+
+    // A bare find_providers result carries candidates and no verdicts. Recording it as a search
+    // with zero eligible providers would tell the assistant the trip failed, so the digest waits
+    // for the assessment that follows.
+    if (toolName === "find_providers" && !Array.isArray(data.data)) continue;
 
     const eligible = providerNotes(data.data);
     const transit = asRecord(data.public_transit);

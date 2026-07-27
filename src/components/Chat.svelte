@@ -531,9 +531,14 @@ How can I assist you today?`,
             if (att.type !== 'provider_search') return false;
             const toolName = getAttachmentToolName(att);
             const data = safeParseAttachmentData(att.data);
+            // The server stopped ranking providers by eligibility, so a find_providers result is
+            // now a candidate list with no `data` array and nothing to render. The cards come from
+            // assess_eligibility, which is where the assistant's verdicts land.
             if (!data || !Array.isArray(data.data)) return false;
             if (toolName === 'check_trip_coverage') return false;
-            if (toolName === 'find_providers') return !data.status || data.status === 'complete';
+            if (toolName === 'assess_eligibility' || toolName === 'find_providers') {
+                return !data.status || data.status === 'complete';
+            }
             return !toolName && data.status === 'complete';
         }) || null;
     }
@@ -2058,8 +2063,8 @@ How can I assist you today?`,
                       🔍 Searching for addresses...
                     {:else if currentTool.name === 'find_providers'}
                       🚌 Finding transportation providers...
-                    {:else if currentTool.name === 'get_provider_info'}
-                      📋 Looking up provider details...
+                    {:else if currentTool.name === 'assess_eligibility'}
+                      📋 Checking who you qualify for...
                     {:else}
                       ⚙️ {currentTool.name}...
                     {/if}
@@ -2073,8 +2078,8 @@ How can I assist you today?`,
                       ✓ Found addresses
                     {:else if currentTool.name === 'find_providers'}
                       ✓ Found providers
-                    {:else if currentTool.name === 'get_provider_info'}
-                      ✓ Got provider info
+                    {:else if currentTool.name === 'assess_eligibility'}
+                      ✓ Checked eligibility
                     {:else}
                       ✓ {currentTool.name} complete
                     {/if}

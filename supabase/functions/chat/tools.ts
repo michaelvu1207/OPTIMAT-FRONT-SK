@@ -1,16 +1,15 @@
 /**
  * Tool definitions and execution logic for the OPTIMAT chat service.
- * Implements the three core tools: find_providers, search_addresses, get_provider_info
+ * Implements the core tools: find_providers, assess_eligibility, search_addresses
  *
  * Note: All tables are in the 'optimat' schema.
  */
 
 import { TABLES } from "../_shared/supabase.ts";
 import {
-  evaluateEligibility,
-  getLocationMismatch,
-  nextQuestion,
+  citiesMatch,
   resolveTravelDate,
+  RIDER_FACTS,
   SERVICE_TIME_ZONE,
   type EligibilityStatus,
   type RiderEligibility,
@@ -34,13 +33,27 @@ export interface FindProvidersParams {
   travel_date_raw: string;
   outbound_time_intent?: TimeIntent;
   rider_eligibility: RiderEligibility;
-  schedule_type?: string;
-  provider_type?: string;
+  source_city?: string | null;
+  destination_city?: string | null;
 }
 
 export interface CheckTripCoverageParams {
   source_address: string;
   destination_address: string;
+  source_city?: string | null;
+  destination_city?: string | null;
+}
+
+/** One provider's eligibility verdict, reasoned out by the assistant from the requirement prose. */
+export interface EligibilityAssessment {
+  provider_name: string;
+  verdict: EligibilityStatus;
+  reason: string;
+  missing_fact?: RiderFact | null;
+}
+
+export interface AssessEligibilityParams {
+  assessments: EligibilityAssessment[];
 }
 
 export interface ResolveTripDateParams {
@@ -49,10 +62,6 @@ export interface ResolveTripDateParams {
 
 export interface SearchAddressesParams {
   user_query: string;
-}
-
-export interface GetProviderInfoParams {
-  provider_name: string;
 }
 
 export interface GeneralProviderQuestionParams {
@@ -64,6 +73,8 @@ export interface GeocodedLocation {
   lng: number;
   formatted_address: string;
   display_name?: string;
+  /** The locality Google itself assigned to the matched place; null when it returns none. */
+  city?: string | null;
 }
 
 export interface Provider {
@@ -127,20 +138,31 @@ It detects impossible provider trips early and also detects when a named place r
           type: "string",
           description: "The user's destination, including their city wording",
         },
+        source_city: {
+          type: "string",
+          description: "The city the rider named for the pickup, when they named one. Omit otherwise.",
+        },
+        destination_city: {
+          type: "string",
+          description: "The city the rider named for the destination, when they named one. Omit otherwise.",
+        },
       },
       required: ["source_address", "destination_address"],
     },
   },
   {
     name: "find_providers",
-    description: `Find providers for a one-way or round trip.
-The server resolves the verbatim date phrase in America/Los_Angeles, filters by service area and service hours, evaluates rider eligibility, and — when the result is empty or thin — searches nearby variations of the trip.
+    description: `Find the providers that can physically serve a one-way or round trip.
+The server resolves the verbatim date phrase in America/Los_Angeles, then filters by service area and service hours — the two things it can compute exactly. It does NOT judge eligibility.
 
-Only the travel date and outbound time are required to search. Do not gather eligibility facts before calling: run the search with whatever the rider has already said and pass null for the rest. The result sorts providers into ones the rider qualifies for, ones whose eligibility cannot be confirmed yet (each naming which rider fact would settle it in missing_facts), and ones ruled out with a reason.
+Only the travel date and outbound time are required to search. Do not gather eligibility facts before calling: run the search with whatever the rider has already said and pass null for the rest.
+
+The result returns "candidates": every provider whose service area covers both ends of the trip and whose hours include the requested times. Each candidate carries its verbatim eligibility_requirement and service_area_cities. Read those and decide for yourself who the rider qualifies for — you know, for instance, which communities are in Contra Costa County, which a fixed list of city names never will.
+
+Then call assess_eligibility with a verdict for every candidate. Nothing is shown to the rider as a callable option until you do.
 
 The result also carries:
-- next_question: the single unknown rider fact that would decide the most providers. Ask this in your own words rather than working through a checklist. Providers here set minimum ages of 50, 55, 60 and 65, so an exact age is what decides them — "senior" cannot.
-- alternatives: variations that would work when the trip as asked does not (another day, a different time, one way instead of round trip, partial coverage, or an eligibility category). Offer them as possibilities.
+- alternatives: variations that would work when the trip as asked does not (another day, a different time, one way instead of round trip, or partial coverage). Offer them as possibilities.
 - diagnostics.providers_without_service_hours: providers whose operating hours are not on file. Their times were not actually checked, so tell the rider to confirm the time rather than presenting it as available.`,
     input_schema: {
       type: "object" as const,
@@ -207,15 +229,14 @@ The result also carries:
           },
           required: [],
         },
-        schedule_type: {
+        source_city: {
           type: "string",
           description:
-            'Optional schedule type: "fixed-schedules", "in-advance-book", or "real-time-book"',
+            "The city the rider named for the pickup, in their own words, when they named one. The server compares it against the city the address actually geocoded to and stops if they disagree, so a rider is never sent to the right street name in the wrong town. Omit when the rider named no city.",
         },
-        provider_type: {
+        destination_city: {
           type: "string",
-          description:
-            'Optional provider type: "ADA-para", "para", "volunteer-driver", "city", "community", "fix-route", "discount-program", "special-TNC"',
+          description: "The city the rider named for the destination, when they named one. Omit otherwise.",
         },
       },
       required: [
@@ -245,18 +266,51 @@ The result also carries:
     },
   },
   {
-    name: "get_provider_info",
-    description: `Get detailed information about a specific transportation provider.
-The provider name must match one of the known providers in the system.`,
+    name: "assess_eligibility",
+    description: `Record your eligibility verdict for every candidate returned by find_providers.
+Call this immediately after find_providers, before writing your answer. The rider's provider cards are built from what you record here, so a candidate you leave out is a ride the rider never hears about — the server rejects the call if any candidate is missing.
+
+For each candidate, read its eligibility_requirement against the rider facts you actually have:
+- "eligible" — the rider plainly meets it. Do not hedge a clear match.
+- "ineligible" — the rider plainly fails it. Requires a fact you actually have; never infer one.
+- "verification_required" — you cannot tell yet. Name the single rider fact that would settle it in missing_fact, or leave missing_fact null when no answer from the rider would help and only the provider can confirm.
+
+Requirements name their own thresholds ("Senior (55+)", "Senior (65+)"), so an exact age decides them and a self-description like "senior" does not. Judge residency requirements on what you know about the region: someone living in Alamo or Rodeo is a Contra Costa County resident.`,
     input_schema: {
       type: "object" as const,
       properties: {
-        provider_name: {
-          type: "string",
-          description: "The name of the provider to look up",
+        assessments: {
+          type: "array",
+          description: "One entry per candidate from the most recent find_providers result.",
+          items: {
+            type: "object" as const,
+            properties: {
+              provider_name: {
+                type: "string",
+                description: "The candidate's provider_name, copied exactly as the search returned it",
+              },
+              verdict: {
+                type: "string",
+                enum: ["eligible", "ineligible", "verification_required"],
+                description: "Your verdict for this rider and this provider",
+              },
+              reason: {
+                type: "string",
+                description:
+                  "One short sentence a rider could hear, saying what decided it — the rule and the fact it turned on.",
+              },
+              missing_fact: {
+                type: "string",
+                enum: ["age", "disabled", "ada_certified", "veteran", "residence_city"],
+                description:
+                  "For verification_required only: the one rider fact that would settle this. Omit when no rider answer would help.",
+              },
+            },
+            required: ["provider_name", "verdict", "reason"],
+          },
         },
       },
-      required: ["provider_name"],
+      required: ["assessments"],
     },
   },
   {
@@ -440,6 +494,25 @@ function isTimeWithinServiceHours(
 }
 
 /**
+ * The city Google assigned to a matched place.
+ *
+ * Unincorporated communities come back as `sublocality` or `neighborhood` rather than `locality`
+ * — Alamo and Rodeo among them — so those are accepted as a fallback rather than reported as
+ * having no city at all.
+ */
+function localityOf(place: {
+  addressComponents?: Array<{ longText?: string; shortText?: string; types?: string[] }>;
+}): string | null {
+  const components = place.addressComponents;
+  if (!Array.isArray(components)) return null;
+  for (const type of ["locality", "sublocality", "neighborhood", "administrative_area_level_3"]) {
+    const match = components.find((component) => component.types?.includes(type));
+    if (match?.longText) return match.longText;
+  }
+  return null;
+}
+
+/**
  * Geocode an address using Google Places API (Text Search).
  * Uses Places API instead of Geocoding API since Places API is enabled.
  */
@@ -452,7 +525,10 @@ async function geocodeAddress(
     const url = "https://places.googleapis.com/v1/places:searchText";
     const headers = {
       "X-Goog-Api-Key": googleMapsApiKey,
-      "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.location",
+      // addressComponents carries Google's own locality for the matched place. That is what the
+      // rider's stated city is checked against, so no list of Bay Area city names is needed.
+      "X-Goog-FieldMask":
+        "places.displayName,places.formattedAddress,places.location,places.addressComponents",
       "Content-Type": "application/json",
     };
 
@@ -484,6 +560,7 @@ async function geocodeAddress(
         lng: place.location.longitude,
         formatted_address: place.formattedAddress,
         display_name: place.displayName?.text || "",
+        city: localityOf(place),
       };
     }
 
@@ -721,10 +798,21 @@ const PROVIDER_SEARCH_COLUMNS = [
   "service_area_cities",
 ].join(",");
 
+/**
+ * Geocode both ends, and stop if either landed in a different city than the rider named.
+ *
+ * A rider sent to the right street name in the wrong town misses their appointment, so this
+ * stays a hard gate. What changed is where the two city names come from: the rider's city is
+ * reported by the assistant from the rider's own words, and the resolved city is Google's
+ * locality for the matched place. Comparing two authoritative strings needs no gazetteer, and
+ * cannot repeat the old failure where "Danville" resolving to "2601 San Ramon Valley Blvd,
+ * Danville" was reported as a San Ramon mismatch and the search abandoned.
+ */
 async function resolveTripLocations(
   sourceAddress: string,
   destinationAddress: string,
   googleMapsApiKey: string,
+  statedCities: { source?: string | null; destination?: string | null } = {},
 ): Promise<
   | { ok: true; source: GeocodedLocation; destination: GeocodedLocation }
   | { ok: false; error?: string; clarification?: Record<string, unknown> }
@@ -737,16 +825,20 @@ async function resolveTripLocations(
   if (!source) return { ok: false, error: `Could not geocode source address: ${sourceAddress}` };
   if (!destination) return { ok: false, error: `Could not geocode destination address: ${destinationAddress}` };
 
-  const sourceMismatch = getLocationMismatch(sourceAddress, source.formatted_address);
-  const destinationMismatch = getLocationMismatch(destinationAddress, destination.formatted_address);
-  const mismatch = sourceMismatch || destinationMismatch;
-  if (mismatch) {
+  const mismatched = [
+    { end: "pickup", stated: statedCities.source, place: source, requested: sourceAddress },
+    { end: "destination", stated: statedCities.destination, place: destination, requested: destinationAddress },
+  ].find((candidate) => !citiesMatch(candidate.stated, candidate.place.city));
+
+  if (mismatched) {
     return {
       ok: false,
       clarification: {
         status: "clarification_required",
         reason_code: "location_city_mismatch",
-        message: mismatch.message,
+        message:
+          `“${mismatched.requested}” resolved to ${mismatched.place.formatted_address}, which is in ` +
+          `${mismatched.place.city}, not ${mismatched.stated}. Please confirm the ${mismatched.end} before I search providers.`,
         requested_source: sourceAddress,
         requested_destination: destinationAddress,
         resolved_source: source.formatted_address,
@@ -756,6 +848,52 @@ async function resolveTripLocations(
   }
 
   return { ok: true, source, destination };
+}
+
+/**
+ * Every provider in the system, rendered for the system prompt.
+ *
+ * There are thirty of them and the whole roster costs a few thousand tokens, so the assistant
+ * can simply read it. That removes the last reason to look a provider up by name: the previous
+ * `get_provider_info` tool matched with `ilike %query%`, so a rider asking about the "San Ramon
+ * Senior Express Van" found nothing — the row is named "Senior Express Van (San Ramon)" — and
+ * the assistant reported, wrongly, that OPTIMAT had never heard of it.
+ *
+ * Service areas are excluded: they are megabytes of polygon, and the only question anyone asks
+ * of them ("does this cover the trip?") is answered by find_providers.
+ */
+export async function loadProviderRoster(supabase: DatabaseClient): Promise<string> {
+  const { data, error } = await supabase
+    .from(TABLES.PROVIDERS)
+    .select(PROVIDER_SEARCH_COLUMNS.replace(",service_zone", ""))
+    .order("provider_name");
+  if (error) throw new Error(`Database error: ${error.message}`);
+
+  const rows = (data || []) as unknown as Provider[];
+  const lines = rows.map((provider) => {
+    const requirement = requirementText(provider.eligibility_reqs) || "none stated";
+    const cities = Array.isArray(provider.service_area_cities) && provider.service_area_cities.length > 0
+      ? (provider.service_area_cities as string[]).join(", ")
+      : "not listed";
+    const booking = provider.booking && typeof provider.booking === "object"
+      ? Object.values(provider.booking as Record<string, unknown>).filter(Boolean).join(" ")
+      : "";
+    const fare = provider.fare && typeof provider.fare === "object"
+      ? String((provider.fare as Record<string, unknown>).cost ?? "")
+      : "";
+    return [
+      `- ${provider.provider_name} (${provider.provider_type || "type unknown"})`,
+      `  eligibility: ${requirement}`,
+      `  serves: ${cities}`,
+      booking ? `  booking: ${booking}` : "",
+      fare ? `  fare: ${fare}` : "",
+    ].filter(Boolean).join("\n");
+  });
+
+  return [
+    `All ${rows.length} providers in OPTIMAT's system, in full. This is the complete list — a service that is not here is one OPTIMAT does not have data on, and a service that is here exists no matter how the rider phrases its name.`,
+    ...lines,
+  ].join("\n");
 }
 
 async function loadProviderSearchRows(supabase: DatabaseClient): Promise<Provider[]> {
@@ -846,6 +984,39 @@ function isDirectRideProvider(provider: Provider): boolean {
   return providerType !== "fixedroute";
 }
 
+/**
+ * Render the eligibility_reqs column as the sentence a person would read.
+ *
+ * Formatting only — it draws no conclusions. The column holds prose for most rows and a JSON
+ * list of rule objects for a few older ones, and separate rules are alternatives, so they are
+ * joined with "or".
+ */
+export function requirementText(requirements: unknown): string {
+  if (requirements === null || requirements === undefined) return "";
+  if (typeof requirements === "string") {
+    const trimmed = requirements.trim();
+    if (/^[[{]/.test(trimmed)) {
+      try {
+        return requirementText(JSON.parse(trimmed));
+      } catch {
+        return trimmed;
+      }
+    }
+    return trimmed;
+  }
+  if (Array.isArray(requirements)) {
+    return requirements.map(requirementText).filter(Boolean).join(" or ");
+  }
+  if (typeof requirements === "object") {
+    const record = requirements as Record<string, unknown>;
+    const nested = record.eligibility ?? record.eligibility_text ?? record.eligibility_reqs;
+    if (nested !== undefined && nested !== null) return requirementText(nested);
+    if (typeof record.type === "string" && record.type.trim()) return record.type.trim();
+    return JSON.stringify(record);
+  }
+  return String(requirements);
+}
+
 function compactProvider(provider: Provider): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries({
@@ -857,10 +1028,16 @@ function compactProvider(provider: Provider): Record<string, unknown> {
       schedule_type: provider.schedule_type,
       planning_type: provider.planning_type,
       eligibility_reqs: provider.eligibility_reqs,
+      // The requirement verbatim, which is what the assistant reasons over. The server no longer
+      // reduces this to a verdict — see the note at the top of trip.ts.
+      eligibility_requirement: requirementText(provider.eligibility_reqs) || "None stated",
+      // The cities the provider actually serves, so a residency rule can be judged against data
+      // rather than against a hand-written list of town names.
+      service_area_cities: provider.service_area_cities,
       eligibility_status: provider.eligibility_status,
       eligibility_reason: provider.eligibility_reason,
-      // Which rider facts would settle an unconfirmed provider, so the assistant can say what
-      // it needs rather than repeating a generic "verify with the provider".
+      // Which rider fact would settle an unconfirmed provider, so the assistant can say what it
+      // needs rather than repeating a generic "verify with the provider".
       missing_facts: Array.isArray(provider.missing_facts) && provider.missing_facts.length > 0
         ? provider.missing_facts
         : undefined,
@@ -887,6 +1064,7 @@ export async function executeCheckTripCoverage(
       params.source_address,
       params.destination_address,
       googleMapsApiKey,
+      { source: params.source_city, destination: params.destination_city },
     );
     if (!locations.ok) {
       if (locations.clarification) return { success: true, data: locations.clarification };
@@ -957,27 +1135,34 @@ export interface SearchContext {
   destination: GeocodedLocation;
 }
 
+/**
+ * What one turn's tool calls need to pass to each other.
+ *
+ * assess_eligibility grades the candidates find_providers just produced, so the candidate set
+ * has to survive between the two calls without a round trip through the database.
+ */
+export interface TurnContext {
+  lastSearch: {
+    candidates: Record<string, unknown>[];
+    result: Record<string, unknown>;
+  } | null;
+}
+
+export function emptyTurnContext(): TurnContext {
+  return { lastSearch: null };
+}
+
 export interface SearchStageParams {
   travel_date: string;
   departure_time: string;
   return_time?: string | null;
   trip_type: TripType;
-  rider: RiderEligibility;
-}
-
-export interface EvaluatedProvider extends Provider {
-  eligibility_status: EligibilityStatus;
-  eligibility_reason: string;
-  missing_facts: RiderFact[];
 }
 
 export interface StagedSearch {
   geography: GeographyPartition;
-  schedule: Provider[];
-  eligible: EvaluatedProvider[];
-  /** Cannot be confirmed here: either a rider fact is missing or the rule is uninterpretable. */
-  verification: EvaluatedProvider[];
-  ineligible: EvaluatedProvider[];
+  /** Service area covers both ends and the hours include the requested times. */
+  candidates: Provider[];
 }
 
 function filterBySchedule(providers: Provider[], params: SearchStageParams): Provider[] {
@@ -991,35 +1176,19 @@ function filterBySchedule(providers: Provider[], params: SearchStageParams): Pro
   );
 }
 
-function evaluateProviders(providers: Provider[], rider: RiderEligibility): EvaluatedProvider[] {
-  return providers.map((provider) => {
-    const evaluation = evaluateEligibility(provider.eligibility_reqs, rider);
-    return {
-      ...provider,
-      eligibility_status: evaluation.status,
-      eligibility_reason: evaluation.reason,
-      missing_facts: evaluation.missing_facts,
-    } as EvaluatedProvider;
-  });
-}
-
 /**
  * Run the filter pipeline once and keep every stage's output.
+ *
+ * Both stages are computation the assistant could not do for itself: ray-casting a point against
+ * an 80KB service-area MultiPolygon, and clock arithmetic against a weekday bitmask. Eligibility
+ * used to be a third stage here and is now the assistant's, via assess_eligibility.
  *
  * Extracted from the tool wrapper so relaxation variants can re-run it against already-loaded
  * providers and already-geocoded endpoints — a variant costs pure computation, no extra API calls.
  */
 export function searchProviders(context: SearchContext, params: SearchStageParams): StagedSearch {
   const geography = partitionByGeography(context.directProviders, context.source, context.destination);
-  const schedule = filterBySchedule(geography.both, params);
-  const evaluated = evaluateProviders(schedule, params.rider);
-  return {
-    geography,
-    schedule,
-    eligible: evaluated.filter((provider) => provider.eligibility_status === "eligible"),
-    verification: evaluated.filter((provider) => provider.eligibility_status === "verification_required"),
-    ineligible: evaluated.filter((provider) => provider.eligibility_status === "ineligible"),
-  };
+  return { geography, candidates: filterBySchedule(geography.both, params) };
 }
 
 export interface SearchAlternative {
@@ -1152,7 +1321,7 @@ export function relaxSearch(
   // time. Reported even when other providers did match: a rider offered one option is still owed
   // "this other service would work on Monday" rather than silence about why it vanished.
   const scheduleExcluded = primary.geography.both.filter(
-    (provider) => !primary.schedule.includes(provider),
+    (provider) => !primary.candidates.includes(provider),
   );
 
   if (scheduleExcluded.length > 0) {
@@ -1222,33 +1391,11 @@ export function relaxSearch(
     }
   }
 
-  // Which single eligibility category would open up providers. Stated as a possibility about the
-  // rule, never as an assertion about the rider.
-  if (primary.eligible.length === 0 && primary.schedule.length > 0) {
-    const categories: Array<{ label: string; rider: Partial<RiderEligibility> }> = [
-      { label: "a rider aged 60 or older", rider: { age: 60 } },
-      { label: "a rider aged 65 or older", rider: { age: 65 } },
-      { label: "a rider with a disability", rider: { disabled: true } },
-      { label: "an ADA-certified rider", rider: { ada_certified: true } },
-      { label: "a veteran", rider: { veteran: true } },
-    ];
-    for (const category of categories) {
-      const hypothetical = { ...params.rider, ...category.rider, declined: false };
-      const matches = evaluateProviders(primary.schedule, hypothetical)
-        .filter((provider) => provider.eligibility_status === "eligible");
-      const newlyEligible = matches.filter(
-        (provider) => !primary.eligible.some((already) => already.provider_name === provider.provider_name),
-      );
-      if (newlyEligible.length > 0) {
-        add({
-          change: "eligibility_category",
-          description: `${category.label} would qualify for these`,
-          providers: providerNames(newlyEligible),
-          count: newlyEligible.length,
-        });
-      }
-    }
-  }
+  // The "which eligibility category would unlock providers" variant used to live here. It worked
+  // by re-running the parser against five invented riders (age 60, age 65, disabled, ADA-certified,
+  // veteran) — thresholds that came from the code rather than from any provider's rule, so it
+  // could suggest "a rider aged 60 or older would qualify" for a service whose actual floor is 55.
+  // The assistant reads each candidate's real requirement text and can say this accurately.
 
   return alternatives;
 }
@@ -1258,12 +1405,14 @@ export async function executeFindProviders(
   params: FindProvidersParams,
   supabase: DatabaseClient,
   googleMapsApiKey: string,
+  turn: TurnContext = emptyTurnContext(),
 ): Promise<ToolResult> {
   try {
     const locations = await resolveTripLocations(
       params.source_address,
       params.destination_address,
       googleMapsApiKey,
+      { source: params.source_city, destination: params.destination_city },
     );
     if (!locations.ok) {
       if (locations.clarification) return { success: true, data: locations.clarification };
@@ -1343,13 +1492,12 @@ export async function executeFindProviders(
       departure_time: params.departure_time,
       return_time: params.return_time,
       trip_type: params.trip_type,
-      rider,
     };
     const staged = searchProviders(context, stageParams);
     const geographyProviders = staged.geography.both;
-    const scheduleProviders = staged.schedule;
+    const scheduleProviders = staged.candidates;
 
-    const withMatchCriteria = (provider: EvaluatedProvider): Provider => ({
+    const withMatchCriteria = (provider: Provider): Provider => ({
       ...provider,
       match_criteria: {
         algorithm: "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
@@ -1364,34 +1512,19 @@ export async function executeFindProviders(
               ? `${resolvedDate.display}; outbound ${params.departure_time}; return ${params.return_time}`
               : `${resolvedDate.display}; one-way outbound ${params.departure_time}`,
           },
-          ...(provider.eligibility_status === "eligible"
-            ? [{ label: "Eligibility matched", detail: provider.eligibility_reason }]
-            : []),
         ],
       },
     } as Provider);
 
-    const eligibleProviders = staged.eligible.map(withMatchCriteria);
-    const verificationProviders = staged.verification.map(withMatchCriteria);
-    const ineligibleProviders = staged.ineligible;
-
-    // Only ask about a fact a real candidate is waiting on, most valuable first.
-    const questionHint = nextQuestion(
-      staged.verification.map((provider) => ({
-        provider_name: String(provider.provider_name || "Unnamed provider"),
-        missing_facts: provider.missing_facts,
-      })),
-      rider,
-    );
+    const candidates = staged.candidates.map(withMatchCriteria);
 
     // Relaxation runs only when the answer is empty or thin, where the cost of an extra pass is
     // worth being able to say what would work instead.
-    const alternatives = staged.eligible.length <= 1
+    const alternatives = candidates.length <= 1
       ? relaxSearch(context, stageParams, staged)
       : [];
 
-    const providersWithoutHours = [...eligibleProviders, ...verificationProviders]
-      .filter((provider) => !hasServiceHours(provider)).length;
+    const providersWithoutHours = candidates.filter((provider) => !hasServiceHours(provider)).length;
 
     let transitData: Record<string, unknown> | null = null;
     try {
@@ -1416,26 +1549,26 @@ export async function executeFindProviders(
       departure_time: params.departure_time,
       outbound_time_intent: params.outbound_time_intent || "depart_at",
       return_time: params.trip_type === "round_trip" ? params.return_time || null : null,
-      data: eligibleProviders.map(compactProvider),
-      verification_required: verificationProviders.map(compactProvider),
-      excluded_providers: ineligibleProviders.map((provider) => ({
-        provider_name: provider.provider_name,
-        stage: "eligibility",
-        reason: provider.eligibility_reason,
-        requirement: provider.eligibility_reqs,
-      })),
+      // Deliberately not called `data`: the frontend renders provider cards from a `data` array,
+      // and these are not results yet. They become results once assess_eligibility records a
+      // verdict for each of them.
+      candidates: candidates.map(compactProvider),
+      candidate_count: candidates.length,
+      next_step: candidates.length > 0
+        ? "Read each candidate's eligibility_requirement against the rider facts, then call assess_eligibility with a verdict for every candidate listed here."
+        : "No provider can serve this trip as asked. Explain why using binding_constraint and offer any alternatives.",
       alternatives,
-      next_question: questionHint,
       rider_eligibility: rider,
       source_address: locations.source.formatted_address,
       destination_address: locations.destination.formatted_address,
       source_coordinates: { lat: locations.source.lat, lng: locations.source.lng },
       destination_coordinates: { lat: locations.destination.lat, lng: locations.destination.lng },
-      total_found: eligibleProviders.length,
-      direct_provider_count: eligibleProviders.length,
       public_transit_available: publicTransitAvailable,
-      total_options_found: eligibleProviders.length + (publicTransitAvailable ? 1 : 0),
-      filtered_out_count: directProviders.length - eligibleProviders.length,
+      binding_constraint: candidates.length > 0
+        ? null
+        : geographyProviders.length === 0
+          ? "geography"
+          : "schedule",
       diagnostics: {
         provider_count: directProviders.length,
         fixed_route_fallback_count: providers.length - directProviders.length,
@@ -1443,10 +1576,8 @@ export async function executeFindProviders(
         geography_origin_only_count: staged.geography.originOnly.length,
         geography_destination_only_count: staged.geography.destinationOnly.length,
         schedule_match_count: scheduleProviders.length,
-        eligible_match_count: eligibleProviders.length,
-        verification_required_count: verificationProviders.length,
-        ineligible_count: ineligibleProviders.length,
-        // Most provider rows carry no service hours at all, so the schedule filter passed them
+        candidate_count: candidates.length,
+        // Some provider rows still carry no service hours, so the schedule filter passed them
         // through unchecked. The rider must be told the time is unconfirmed, not that it works.
         providers_without_service_hours: providersWithoutHours,
         alternatives_found: alternatives.length,
@@ -1457,9 +1588,7 @@ export async function executeFindProviders(
     const serializedSize = JSON.stringify(result).length;
     console.log("find_providers compact result size", {
       bytes: serializedSize,
-      providers: eligibleProviders.length,
-      verification: verificationProviders.length,
-      excluded: ineligibleProviders.length,
+      candidates: candidates.length,
     });
     if (serializedSize > 100_000) {
       return {
@@ -1467,6 +1596,8 @@ export async function executeFindProviders(
         error: "Provider result exceeded the safe response limit after compaction.",
       };
     }
+
+    turn.lastSearch = { candidates: result.candidates, result };
 
     return { success: true, data: result };
   } catch (error) {
@@ -1537,44 +1668,157 @@ export async function executeSearchAddresses(
 }
 
 /**
- * Execute the get_provider_info tool.
+ * Names differ only by punctuation, case and spacing, so compare on letters and digits alone.
+ * This is the one place a provider name is still matched, and it matches against the candidate
+ * set from the search rather than against the whole table.
  */
-export async function executeGetProviderInfo(
-  params: GetProviderInfoParams,
-  supabase: DatabaseClient
-): Promise<ToolResult> {
-  try {
-    // Search for provider by name (case-insensitive) - uses provider_name column in optimat schema
-    const { data: providers, error } = await supabase
-      .from(TABLES.PROVIDERS)
-      .select(PROVIDER_SEARCH_COLUMNS.replace(",service_zone", ""))
-      .ilike("provider_name", `%${params.provider_name}%`)
-      .limit(5);
+function nameKey(value: unknown): string {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
 
-    if (error) {
-      return { success: false, error: `Database error: ${error.message}` };
-    }
+/** The rider fact that would settle the most undecided candidates. Counting, not interpretation. */
+function questionFromAssessments(
+  assessments: EligibilityAssessment[],
+  rider: RiderEligibility,
+): { field: RiderFact; why: string; candidates_if_known: number; provider_names: string[] } | null {
+  if (rider.declined) return null;
+  const known: Record<RiderFact, boolean> = {
+    age: Number.isFinite(rider.age),
+    disabled: typeof rider.disabled === "boolean",
+    ada_certified: typeof rider.ada_certified === "boolean",
+    veteran: typeof rider.veteran === "boolean",
+    residence_city: Boolean(rider.residence_city?.trim()),
+  };
 
-    if (!providers || providers.length === 0) {
-      return {
-        success: false,
-        error: `No provider found matching: ${params.provider_name}`,
-        data: {
-          suggestion:
-            "Please check the provider name. Available providers include: AC Transit, BART, East Bay Paratransit, WestCAT, and others.",
-        },
-      };
-    }
-
-    const sanitizedProviders = providers.map((provider: unknown) => compactProvider(provider as Provider));
-
-    return {
-      success: true,
-      data: sanitizedProviders.length === 1 ? sanitizedProviders[0] : sanitizedProviders,
-    };
-  } catch (error) {
-    return { success: false, error: `Error getting provider info: ${error}` };
+  const byField = new Map<RiderFact, string[]>();
+  for (const assessment of assessments) {
+    const field = assessment.missing_fact;
+    if (!field || !RIDER_FACTS.includes(field) || known[field]) continue;
+    const names = byField.get(field) || [];
+    if (!names.includes(assessment.provider_name)) names.push(assessment.provider_name);
+    byField.set(field, names);
   }
+  if (byField.size === 0) return null;
+
+  const best = [...byField.entries()].sort((a, b) => {
+    if (b[1].length !== a[1].length) return b[1].length - a[1].length;
+    return RIDER_FACTS.indexOf(a[0]) - RIDER_FACTS.indexOf(b[0]);
+  })[0];
+  const [field, names] = best;
+  return {
+    field,
+    why: `${names.length} provider${names.length === 1 ? "" : "s"} on this trip (${names.join(", ")}) can only be decided once this is known`,
+    candidates_if_known: names.length,
+    provider_names: names,
+  };
+}
+
+/**
+ * Record the assistant's eligibility verdicts and assemble the rider-facing result.
+ *
+ * The server no longer decides eligibility, but it still guarantees the thing that protects the
+ * rider: every candidate the search found gets a verdict. A provider left out of the assessment
+ * is a ride nobody mentions, so an incomplete call is rejected and the assistant retries with
+ * the missing names in hand.
+ */
+export function executeAssessEligibility(
+  params: AssessEligibilityParams,
+  turn: TurnContext,
+): ToolResult {
+  const search = turn.lastSearch;
+  if (!search) {
+    return {
+      success: false,
+      error: "No provider search to assess. Call find_providers first, then assess its candidates.",
+    };
+  }
+
+  const assessments = Array.isArray(params.assessments) ? params.assessments : [];
+  const byKey = new Map(search.candidates.map((provider) => [nameKey(provider.provider_name), provider]));
+  const candidateNames = search.candidates.map((provider) => String(provider.provider_name));
+
+  const unknown = assessments
+    .map((assessment) => assessment.provider_name)
+    .filter((name) => !byKey.has(nameKey(name)));
+  if (unknown.length > 0) {
+    return {
+      success: false,
+      error: `These are not candidates from the last search: ${unknown.join(", ")}.`,
+      data: { candidates: candidateNames },
+    };
+  }
+
+  const assessed = new Set(assessments.map((assessment) => nameKey(assessment.provider_name)));
+  const missing = candidateNames.filter((name) => !assessed.has(nameKey(name)));
+  if (missing.length > 0) {
+    return {
+      success: false,
+      error:
+        `Every candidate needs a verdict; these were left out: ${missing.join(", ")}. ` +
+        `A provider with no verdict is never shown to the rider.`,
+      data: { candidates: candidateNames },
+    };
+  }
+
+  const buckets: Record<EligibilityStatus, Record<string, unknown>[]> = {
+    eligible: [],
+    verification_required: [],
+    ineligible: [],
+  };
+  const undecided: EligibilityAssessment[] = [];
+
+  for (const assessment of assessments) {
+    const provider = byKey.get(nameKey(assessment.provider_name))!;
+    const verdict: EligibilityStatus = assessment.verdict === "eligible" || assessment.verdict === "ineligible"
+      ? assessment.verdict
+      : "verification_required";
+    const missingFact = verdict === "verification_required" && assessment.missing_fact &&
+        RIDER_FACTS.includes(assessment.missing_fact)
+      ? [assessment.missing_fact]
+      : undefined;
+    if (verdict === "verification_required") undecided.push({ ...assessment, verdict });
+    buckets[verdict].push({
+      ...provider,
+      eligibility_status: verdict,
+      eligibility_reason: assessment.reason,
+      ...(missingFact ? { missing_facts: missingFact } : {}),
+    });
+  }
+
+  const rider = (search.result.rider_eligibility || {}) as RiderEligibility;
+  const question = questionFromAssessments(undecided, rider);
+  const eligible = buckets.eligible;
+  const verification = buckets.verification_required;
+
+  return {
+    success: true,
+    data: {
+      ...search.result,
+      status: "complete",
+      // The frontend renders cards from `data`, so this is where the result becomes rider-facing.
+      data: eligible,
+      verification_required: verification,
+      excluded_providers: buckets.ineligible.map((provider) => ({
+        provider_name: provider.provider_name,
+        stage: "eligibility",
+        reason: provider.eligibility_reason,
+        requirement: provider.eligibility_requirement,
+      })),
+      candidates: undefined,
+      next_step: undefined,
+      next_question: question,
+      total_found: eligible.length,
+      direct_provider_count: eligible.length,
+      total_options_found: eligible.length + (search.result.public_transit_available ? 1 : 0),
+      binding_constraint: eligible.length > 0 ? null : buckets.ineligible.length > 0 ? "eligibility" : null,
+      diagnostics: {
+        ...(search.result.diagnostics as Record<string, number>),
+        eligible_match_count: eligible.length,
+        verification_required_count: verification.length,
+        ineligible_count: buckets.ineligible.length,
+      },
+    },
+  };
 }
 
 /**
@@ -1664,7 +1908,8 @@ export async function executeTool(
   toolName: string,
   toolInput: unknown,
   supabase: DatabaseClient,
-  googleMapsApiKey: string
+  googleMapsApiKey: string,
+  turn: TurnContext = emptyTurnContext(),
 ): Promise<ToolResult> {
   switch (toolName) {
     case "resolve_trip_date":
@@ -1674,13 +1919,13 @@ export async function executeTool(
       return executeCheckTripCoverage(toolInput as CheckTripCoverageParams, supabase, googleMapsApiKey);
 
     case "find_providers":
-      return executeFindProviders(toolInput as FindProvidersParams, supabase, googleMapsApiKey);
+      return executeFindProviders(toolInput as FindProvidersParams, supabase, googleMapsApiKey, turn);
 
     case "search_addresses_from_user_query":
       return executeSearchAddresses(toolInput as SearchAddressesParams, googleMapsApiKey);
 
-    case "get_provider_info":
-      return executeGetProviderInfo(toolInput as GetProviderInfoParams, supabase);
+    case "assess_eligibility":
+      return executeAssessEligibility(toolInput as AssessEligibilityParams, turn);
 
     case "general_provider_question":
       return executeGeneralProviderQuestion(toolInput as GeneralProviderQuestionParams);
@@ -1707,11 +1952,15 @@ export async function storeToolCall(
 
     switch (toolName) {
       case "check_trip_coverage":
+      case "assess_eligibility":
       case "find_providers": {
+        const resultRecord = toolResult.data as Record<string, unknown> | undefined;
         const { error } = await supabase.from(TABLES.FIND_PROVIDERS_CALLS).insert({
           conversation_id: conversationId,
-          source_address: input.source_address,
-          destination_address: input.destination_address,
+          // assess_eligibility carries the addresses in its result rather than its input, since
+          // its input is the verdict list.
+          source_address: input.source_address ?? resultRecord?.source_address,
+          destination_address: input.destination_address ?? resultRecord?.destination_address,
           provider_data: toolResult.data,
           public_transit_data: (toolResult.data as Record<string, unknown>)?.public_transit || null,
           message_timestamp: timestamp,
@@ -1728,21 +1977,6 @@ export async function storeToolCall(
           message_timestamp: timestamp,
         });
         if (error) console.error("Error storing search_addresses call:", error);
-        break;
-      }
-
-      case "get_provider_info": {
-        // Get provider_id from the result if available
-        const resultData = toolResult.data as Record<string, unknown>;
-        const providerId = resultData?.provider_id || resultData?.id || null;
-
-        const { error } = await supabase.from(TABLES.GET_PROVIDER_INFO_CALLS).insert({
-          conversation_id: conversationId,
-          provider_id: providerId ? Number(providerId) : null,
-          provider_info: toolResult.data,
-          message_timestamp: timestamp,
-        });
-        if (error) console.error("Error storing get_provider_info call:", error);
         break;
       }
 
