@@ -1,0 +1,94 @@
+{
+  "comment": "Scripted rider conversations for tests/chat/eval.mjs. Each turn is one rider message; the eval sends them in order against a live deployment and scores the assistant's replies on properties, not exact wording. `checks` names the per-scenario assertions in eval.mjs; global assertions run on every turn regardless.",
+  "scenarios": [
+    {
+      "id": "s01-senior-with-age",
+      "title": "Senior gives an exact age (happy path)",
+      "turns": [
+        "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center.",
+        "I'd like to go on August 12, 2026, leaving at 10:00 AM. One way is fine.",
+        "I'm 72 years old, I live in San Ramon, I'm not disabled, not ADA-certified, and not a veteran."
+      ],
+      "checks": ["finds_providers", "age_asked_at_most_once", "no_return_time_question"]
+    },
+    {
+      "id": "s02-senior-withholds-age",
+      "title": "Senior who will not give an age",
+      "turns": [
+        "I'm a senior and I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on August 12, 2026 at 10:00 AM, one way.",
+        "I'd rather not say my exact age.",
+        "No, I really don't want to give my age. What can you tell me?"
+      ],
+      "checks": ["age_asked_at_most_once", "ends_with_usable_answer", "mentions_verification_path"]
+    },
+    {
+      "id": "s03-declines-eligibility",
+      "title": "Rider declines every eligibility question",
+      "turns": [
+        "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026 at 1:00 PM, one way.",
+        "I'd prefer not to answer any personal questions about my age, disability, or veteran status.",
+        "Just tell me who might be able to take me."
+      ],
+      "checks": ["ends_with_usable_answer", "mentions_verification_path"]
+    },
+    {
+      "id": "s04-zero-coverage",
+      "title": "No provider covers both ends (DVC to San Francisco)",
+      "turns": [
+        "I need a ride from Diablo Valley College to San Francisco City Hall on August 12, 2026 at 9:00 AM, one way. I'm 70, live in Pleasant Hill, not disabled, not ADA-certified, not a veteran."
+      ],
+      "checks": ["names_geography_constraint", "offers_alternative", "no_time_questions_after_coverage_failure"]
+    },
+    {
+      "id": "s05-unconfirmed-hours",
+      "title": "Unusual hour with no service-hours data on file",
+      "comment": "No provider row in production has service_hours, so the schedule filter passes everything. A 5am Sunday pickup must therefore be presented as needing confirmation, never as available.",
+      "turns": [
+        "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on Sunday, August 16, 2026 at 5:00 AM, one way. I'm 70, live in San Ramon, not disabled, not ADA-certified, not a veteran."
+      ],
+      "checks": ["hedges_unconfirmed_hours"]
+    },
+    {
+      "id": "s06-ambiguous-place",
+      "title": "Named place resolves to a different city",
+      "turns": [
+        "I need a ride from my house in Antioch to DVC in Antioch."
+      ],
+      "checks": ["flags_city_mismatch"]
+    },
+    {
+      "id": "s07-richmond-multi-provider",
+      "title": "Multi-provider Richmond search (payload size)",
+      "turns": [
+        "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026, departing at noon, round trip returning at 3:00 PM. I'm 68, I live in Richmond, I'm not disabled, not ADA-certified, and not a veteran."
+      ],
+      "checks": ["finds_providers", "payload_under_limit"]
+    },
+    {
+      "id": "s08-one-way-no-return",
+      "title": "One-way trip is never asked for a return time",
+      "turns": [
+        "One way only: Richmond City Hall to Kaiser Permanente Richmond Medical Center, August 12, 2026 at 2:00 PM.",
+        "I'm 68, live in Richmond, not disabled, not ADA-certified, not a veteran."
+      ],
+      "checks": ["no_return_time_question", "finds_providers"]
+    },
+    {
+      "id": "s09-followup-from-memory",
+      "title": "Follow-up about a provider from an earlier turn",
+      "turns": [
+        "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026 at noon, one way. I'm 68, live in Richmond, not disabled, not ADA-certified, not a veteran.",
+        "Which of those did you say I still need to check eligibility for, and why?"
+      ],
+      "checks": ["final_turn_answers_without_research", "final_turn_references_prior_search"]
+    },
+    {
+      "id": "s10-off-trip-question",
+      "title": "General accessibility question, not a trip request",
+      "turns": [
+        "Does BART have wheelchair access at every station?"
+      ],
+      "checks": ["answers_without_provider_search", "no_trip_interrogation"]
+    }
+  ]
+}
