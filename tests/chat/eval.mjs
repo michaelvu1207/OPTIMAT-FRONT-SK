@@ -64,7 +64,16 @@ const headers = {
 
 // ─── Transport ──────────────────────────────────────────────────────────────
 
-async function post(path, body) {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Bedrock throttles the Opus 5 inference profile under concurrent load and the edge function
+ * surfaces it as a 500 ("Bedrock is unable to process your request"). That is a capacity limit,
+ * not assistant behaviour, so it is retried with backoff rather than scored as a failure.
+ */
+const RETRYABLE = /Bedrock is unable to process|ThrottlingException|Too many requests|ServiceUnavailable|502|503|504/i;
+
+async function postOnce(path, body) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TURN_TIMEOUT_MS);
   try {
@@ -78,12 +87,30 @@ async function post(path, body) {
     let json = null;
     try { json = JSON.parse(text); } catch { /* non-JSON error body */ }
     if (!response.ok) {
-      throw new Error(`POST ${path} → ${response.status}: ${text.slice(0, 400)}`);
+      const error = new Error(`POST ${path} → ${response.status}: ${text.slice(0, 400)}`);
+      error.retryable = RETRYABLE.test(text) || response.status >= 502;
+      throw error;
     }
     return json;
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function post(path, body, attempts = 4) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await postOnce(path, body);
+    } catch (error) {
+      lastError = error;
+      if (!error.retryable || attempt === attempts) break;
+      const backoff = 4000 * attempt + Math.floor(Math.random() * 2000);
+      console.warn(`  retrying after capacity error (attempt ${attempt}/${attempts}, waiting ${(backoff / 1000).toFixed(1)}s)`);
+      await sleep(backoff);
+    }
+  }
+  throw lastError;
 }
 
 async function getJson(path) {

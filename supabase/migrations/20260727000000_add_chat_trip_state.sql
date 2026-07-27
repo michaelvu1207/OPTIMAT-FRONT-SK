@@ -46,8 +46,11 @@ $$;
 COMMENT ON FUNCTION optimat.purge_stale_chat_trip_state() IS
     'Deletes chat trip state older than 30 days. Scheduled via pg_cron when available; safe to call manually.';
 
--- Schedule the purge when pg_cron is installed. The chat function also purges opportunistically,
--- so a project without pg_cron still stays clean.
+-- Schedule the purge when pg_cron is installed.
+--
+-- NOTE: pg_cron is NOT installed on this project as of 2026-07-27, so this block is a no-op and
+-- nothing currently enforces the 30-day retention. Until pg_cron is enabled, run
+-- `SELECT optimat.purge_stale_chat_trip_state();` manually or from an external scheduler.
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN

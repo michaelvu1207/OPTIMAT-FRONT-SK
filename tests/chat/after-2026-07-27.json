@@ -1,0 +1,1220 @@
+{
+  "target": "https://htjohidcoyfuwfjecazu.supabase.co/functions/v1",
+  "recorded_at": "2026-07-27T17:30:37.346Z",
+  "totals": {
+    "scenarios": 10,
+    "passed": 3,
+    "failed": 7,
+    "assertion_failures": 7,
+    "questions_asked": 3,
+    "searches": 4,
+    "response_chars": 3702,
+    "slowest_turn_ms": 29442
+  },
+  "results": [
+    {
+      "id": "s01-senior-with-age",
+      "title": "Senior gives an exact age (happy path)",
+      "passed": false,
+      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:25.552Z\"}",
+      "failures": [
+        {
+          "assertion": "transport",
+          "turn": null,
+          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:25.552Z\"}"
+        }
+      ],
+      "metrics": {},
+      "turns": []
+    },
+    {
+      "id": "s02-senior-withholds-age",
+      "title": "Senior who will not give an age",
+      "passed": false,
+      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:26.187Z\"}",
+      "failures": [
+        {
+          "assertion": "transport",
+          "turn": null,
+          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:26.187Z\"}"
+        }
+      ],
+      "metrics": {},
+      "turns": []
+    },
+    {
+      "id": "s03-declines-eligibility",
+      "title": "Rider declines every eligibility question",
+      "passed": false,
+      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:29.950Z\"}",
+      "failures": [
+        {
+          "assertion": "transport",
+          "turn": null,
+          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:29.950Z\"}"
+        }
+      ],
+      "metrics": {},
+      "turns": []
+    },
+    {
+      "id": "s04-zero-coverage",
+      "title": "No provider covers both ends (DVC to San Francisco)",
+      "passed": false,
+      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:31.900Z\"}",
+      "failures": [
+        {
+          "assertion": "transport",
+          "turn": null,
+          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:31.900Z\"}"
+        }
+      ],
+      "metrics": {},
+      "turns": []
+    },
+    {
+      "id": "s05-unconfirmed-hours",
+      "title": "Unusual hour with no service-hours data on file",
+      "conversation_id": "95a7a0f9-024a-4e5d-95c2-46470ce6d05a",
+      "passed": true,
+      "failures": [],
+      "metrics": {
+        "turns": 1,
+        "questions_asked": 1,
+        "tool_calls": 3,
+        "searches": 1,
+        "total_ms": 29764,
+        "max_turn_ms": 29442,
+        "response_chars": 860
+      },
+      "turns": [
+        {
+          "index": 0,
+          "user": "I need a ride from San Ramon City Hall to San Ramon Regional Medical Center on Sunday, August 16, 2026 at 5:00 AM, one way. I'm 70, live in San Ramon, not disabled, not ADA-certified, not a veteran.",
+          "message": "You have two options for that 5:00 AM Sunday trip, and you'll need to confirm the time with whoever you call — neither provider's operating hours are on file, so a 5 AM Sunday pickup isn't verified.\n\n**Senior Express Van (San Ramon)** — door-to-door, $5.00 each way, cash. You qualify as a senior 55+, no proof needed. Book at least one day ahead: **(925) 938-7433**.\n\n**Mobility Matters** — volunteer drivers, free, door-to-door. You qualify as a Contra Costa resident 60+. They need 7 days' notice, so call by about August 9: **(925) 284-6161**. They describe themselves as a last-resort option.\n\nTwo other services covering your area, **LINK Paratransit** and **One-Seat Regional Ride**, are ruled out for you — both require a disability certification you don't have.\n\nOPTIMAT can't book the ride, so please call directly. Want more detail on either option?",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "covered",
+                "source_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583",
+                "destination_address": "6001 Norris Canyon Rd, San Ramon, CA 94583",
+                "geography_match_count": 4,
+                "fixed_route_fallback_count": 6,
+                "provider_names": [
+                  "LINK Paratransit",
+                  "Senior Express Van (San Ramon)",
+                  "One-Seat Regional Ride",
+                  "Mobility Matters"
+                ],
+                "message": "4 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_LaxbyPJveCX4NIuutY011E",
+                "conversation_id": "95a7a0f9-024a-4e5d-95c2-46470ce6d05a"
+              }
+            },
+            {
+              "type": "tool_result",
+              "data": {
+                "status": "resolved",
+                "travel_date_raw": "Sunday, August 16, 2026",
+                "travel_date": "2026-08-16",
+                "travel_date_display": "Sunday, August 16, 2026",
+                "timezone": "America/Los_Angeles",
+                "message": "Use Sunday, August 16, 2026 (2026-08-16). Do not substitute another year or weekday."
+              },
+              "metadata": {
+                "tool_name": "resolve_trip_date",
+                "tool_use_id": "tooluse_T2g9hhRc75EuFcjXCXHh9t",
+                "conversation_id": "95a7a0f9-024a-4e5d-95c2-46470ce6d05a"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-16",
+                "travel_date_display": "Sunday, August 16, 2026",
+                "departure_time": "5:00 AM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [
+                  {
+                    "id": "e89680bd-9aac-4f05-8b45-f557459ba0ed",
+                    "provider_id": 3017,
+                    "provider_name": "Senior Express Van (San Ramon)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "at least 1 day"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+). Proof: No proof required.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)938-7433"
+                    },
+                    "fare": {
+                      "cost": "$5.00 each way",
+                      "type": "fixed",
+                      "payment": "cash"
+                    },
+                    "website": "https://www.sanramon.ca.gov/our_city/departments_and_divisions/parks_community_services/adults_55/senior_transportation",
+                    "contacts": [
+                      {
+                        "name": "Chris Weeks",
+                        "email": "cweeks@sanramon.ca.gov"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Sunday, August 16, 2026; one-way outbound 5:00 AM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "7000 Bollinger Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "6001 Norris Canyon Rd, San Ramon, CA 94583"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Sunday, August 16, 2026; one-way outbound 5:00 AM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "verification_required": [],
+                "excluded_providers": [
+                  {
+                    "provider_name": "LINK Paratransit",
+                    "stage": "eligibility",
+                    "reason": "The rider does not match the provider's disability requirement.",
+                    "requirement": "Eligibility: Disabled (18+). Proof: Complete County Connection LINK ADA application."
+                  },
+                  {
+                    "provider_name": "One-Seat Regional Ride",
+                    "stage": "eligibility",
+                    "reason": "The rider does not match the provider's disability requirement.",
+                    "requirement": "Eligibility: Disabled (18+). Proof: No proof mentioned on website."
+                  }
+                ],
+                "alternatives": [],
+                "next_question": null,
+                "rider_eligibility": {
+                  "age": 70,
+                  "residence_city": "San Ramon",
+                  "disabled": false,
+                  "ada_certified": false,
+                  "veteran": false
+                },
+                "source_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583",
+                "destination_address": "6001 Norris Canyon Rd, San Ramon, CA 94583",
+                "source_coordinates": {
+                  "lat": 37.7651203,
+                  "lng": -121.95417239999999
+                },
+                "destination_coordinates": {
+                  "lat": 37.775719599999995,
+                  "lng": -121.9583315
+                },
+                "total_found": 2,
+                "direct_provider_count": 2,
+                "public_transit_available": true,
+                "total_options_found": 3,
+                "filtered_out_count": 22,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 4,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 1,
+                  "schedule_match_count": 4,
+                  "eligible_match_count": 2,
+                  "verification_required_count": 0,
+                  "ineligible_count": 2,
+                  "providers_without_service_hours": 2,
+                  "alternatives_found": 0
+                },
+                "public_transit": {
+                  "summary": "Alcosta Blvd",
+                  "overview_polyline": "a~neFvfjgVz@i@LIi@{@GQGKKCaAEII]AQ?]@EC?ELMQ[EOMDWBCf@KVKLI`@]^EXUHS@GII@WY_@o@i@j@G?IGGOmAvASVW]YZg@l@kAjAeAbAgBpAqChBqAz@}CtBoChBiCdBSo@GFGOEMEIQo@IMUq@MH{@_CIWIQKUKOSMSIMAW?E?]L@V\\dATp@`@lA?LANCJe@`@gFtDOH",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.7754822,
+                      "lng": -121.9533668
+                    },
+                    "southwest": {
+                      "lat": 37.7646041,
+                      "lng": -121.9588339
+                    }
+                  },
+                  "distance_text": "1.1 mi",
+                  "distance_meters": 1843,
+                  "duration_text": "27 mins",
+                  "duration_seconds": 1637,
+                  "departure_time": null,
+                  "arrival_time": null,
+                  "start_address": "7000 Bollinger Canyon Rd, San Ramon, CA 94583, USA",
+                  "end_address": "6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to 6001 Norris Canyon Rd, San Ramon, CA 94583, USA",
+                      "distance_text": "1.1 mi",
+                      "distance_meters": 1843,
+                      "duration_text": "27 mins",
+                      "duration_seconds": 1637,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "a~neFvfjgVj@_@NILIi@{@CGCICGCCCAAAA?C?IAw@CII]AG?I?[@A?A??AA?AAAA?A@ALMQ[EOMDKBK??RCRKVKLCTEJSRIJCJALG@MFO@C?GII@IGMQCEGKACQYe@h@C@C?C?CAEEGOmAvASVW]GHQPKLIHILGFMLUVSPSRONABYVYVq@f@u@h@[TuBrAGBGFUNk@^QNYPaAp@o@`@m@`@y@j@OJWNiCdBSo@GFGOCGAEEIAICGCMGOEECGUq@MHEKu@sBCGEOCGACAAACACCGCEACCEAAAACEGEKGIEICC?EAC?C?GAE@E?A?A?A?C@YJ@D?P@H@B@BVr@?@@BDLL\\`@lA?L?FAF?@?@ABABCBEDKHCBEDA@C@ABC@g@`@IFWP]TKHmBrAE@IF"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_tyuiBrLVhuKiQ6MhTGLApx",
+                "conversation_id": "95a7a0f9-024a-4e5d-95c2-46470ce6d05a"
+              }
+            }
+          ],
+          "latency_ms": 29442,
+          "tools": [
+            "check_trip_coverage",
+            "resolve_trip_date",
+            "find_providers"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s06-ambiguous-place",
+      "title": "Named place resolves to a different city",
+      "passed": false,
+      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:37.498Z\"}",
+      "failures": [
+        {
+          "assertion": "transport",
+          "turn": null,
+          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:29:37.498Z\"}"
+        }
+      ],
+      "metrics": {},
+      "turns": []
+    },
+    {
+      "id": "s07-richmond-multi-provider",
+      "title": "Multi-provider Richmond search (payload size)",
+      "conversation_id": "4338020d-ade4-45c7-b35a-5e98c1c8967c",
+      "passed": true,
+      "failures": [],
+      "metrics": {
+        "turns": 1,
+        "questions_asked": 1,
+        "tool_calls": 3,
+        "searches": 1,
+        "total_ms": 20228,
+        "max_turn_ms": 19875,
+        "response_chars": 1241
+      },
+      "turns": [
+        {
+          "index": 0,
+          "user": "I need a ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026, departing at noon, round trip returning at 3:00 PM. I'm 68, I live in Richmond, I'm not disabled, not ADA-certified, and not a veteran.",
+          "message": "Good news — you qualify for two door-to-door options for your round trip on Wednesday, August 12.\n\n**R-Transit (Richmond)** — city paratransit for Richmond residents 55+. $3.00 each way, paid by ticket. Book at least 7 days ahead: **(510) 307-8026**. First-time riders need to complete an R-Transit application with photo ID and a piece of mail showing your Richmond address.\n\n**Mobility Matters** — free volunteer driver program for Contra Costa residents 60+. Also 7 days advance notice: **(925) 284-6161**. They describe themselves as a last-resort option, so availability depends on a volunteer being free.\n\nTwo things to know:\n- Neither provider's operating hours are in our records, so please confirm the noon pickup and 3:00 PM return when you call — I can't guarantee those times.\n- To make the 7-day notice, call by **Wednesday, August 5**. Sooner is better, especially for Mobility Matters.\n\nEast Bay Paratransit also serves this route but requires ADA certification, so it's not an option for you.\n\nOne more thing: it's only about a mile — roughly a 24-minute walk — from City Hall to the medical center, if that's ever useful.\n\nOPTIMAT doesn't book rides, so you'll need to call the provider directly. Want details on either one?",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "covered",
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "geography_match_count": 3,
+                "fixed_route_fallback_count": 6,
+                "provider_names": [
+                  "R-Transit (Richmond)",
+                  "East Bay Paratransit",
+                  "Mobility Matters"
+                ],
+                "message": "3 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_xpKZz42Lhz8X8DtHqgCOWS",
+                "conversation_id": "4338020d-ade4-45c7-b35a-5e98c1c8967c"
+              }
+            },
+            {
+              "type": "tool_result",
+              "data": {
+                "status": "resolved",
+                "travel_date_raw": "August 12, 2026",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "timezone": "America/Los_Angeles",
+                "message": "Use Wednesday, August 12, 2026 (2026-08-12). Do not substitute another year or weekday."
+              },
+              "metadata": {
+                "tool_name": "resolve_trip_date",
+                "tool_use_id": "tooluse_aKPxBsifgfSMYzDFrrTJiH",
+                "conversation_id": "4338020d-ade4-45c7-b35a-5e98c1c8967c"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "round_trip",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "noon",
+                "outbound_time_intent": "depart_at",
+                "return_time": "3:00 PM",
+                "data": [
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; outbound noon; return 3:00 PM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; outbound noon; return 3:00 PM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "verification_required": [],
+                "excluded_providers": [
+                  {
+                    "provider_name": "East Bay Paratransit",
+                    "stage": "eligibility",
+                    "reason": "The rider does not match the provider's ADA-certified disability requirement.",
+                    "requirement": "Eligibility: Disabled (ada-eligible). Proof: Complete East Bay Paratransit ADA application and call the office at (510) 287-5000 and select option 5 to set up your interview. Alternatively, you can call or send an email to Certification.EastBayPT@transdev.com to request an ADA application and instructions."
+                  }
+                ],
+                "alternatives": [],
+                "next_question": null,
+                "rider_eligibility": {
+                  "age": 68,
+                  "residence_city": "Richmond",
+                  "disabled": false,
+                  "ada_certified": false,
+                  "veteran": false
+                },
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "source_coordinates": {
+                  "lat": 37.9375139,
+                  "lng": -122.3432277
+                },
+                "destination_coordinates": {
+                  "lat": 37.937205299999995,
+                  "lng": -122.36083300000001
+                },
+                "total_found": 2,
+                "direct_provider_count": 2,
+                "public_transit_available": true,
+                "total_options_found": 3,
+                "filtered_out_count": 22,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 3,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 0,
+                  "schedule_match_count": 3,
+                  "eligible_match_count": 2,
+                  "verification_required_count": 0,
+                  "ineligible_count": 1,
+                  "providers_without_service_hours": 2,
+                  "alternatives_found": 0
+                },
+                "public_transit": {
+                  "summary": "Nevin Ave",
+                  "overview_polyline": "}rpfFtdviVATlDh@Ed@KvBEJKdATDARIj@F@ATC?Gv@Gv@E^HFCd@GAEBATEr@IdAMxA?JF??XE?ATBV@bBEb@F??PG??FBT?lBC\\?LF??LG?B^?|@@hA?FB??XC??FAbDBf@G??J?D?|@B|AEZ?f@B`D?d@CD[TAZ?D`@JCvDUBALP?Ch@?~ADT@HE?@b@F??BEFAtBBXC`@?v@?|A?lCCx@BRAFA|C?f@B??J?|A@RJTKTC?",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.937283,
+                      "lng": -122.3433074
+                    },
+                    "southwest": {
+                      "lat": 37.9364143,
+                      "lng": -122.3609789
+                    }
+                  },
+                  "distance_text": "1.0 mi",
+                  "distance_meters": 1683,
+                  "duration_text": "24 mins",
+                  "duration_seconds": 1456,
+                  "departure_time": null,
+                  "arrival_time": null,
+                  "start_address": "450 Civic Center Plaza, Richmond, CA 94804, USA",
+                  "end_address": "901 Nevin Ave, Richmond, CA 94801, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to 901 Nevin Ave, Richmond, CA 94801, USA",
+                      "distance_text": "1.0 mi",
+                      "distance_meters": 1683,
+                      "duration_text": "24 mins",
+                      "duration_seconds": 1456,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "}rpfFtdviVATlDh@CZAHKnA?f@EJKdATDARGTATF@ATC?Gv@C\\CXER?JDFB?Cd@GAEBATCVAZALAJC^AJE|@GZ?JF??XE?AN?DBV@bBEV?JF??PG??FBT?lBCV?D?LF??LG??HBT?x@?B@P?v@?FB??XC??FAvC?JB??f@G??J?B?@?j@?B?D?F?T@H@p@?J?JEN?L?X@X?l@?j@@l@?b@?@A@ABYRA@?BAV?B?@JBTFCvDUBALP??RCT?~ADT?@@FE?@b@F??BA@CD?D?HAfA?\\?LBJCT?J?B?J?J?Z?f@?Z?R?D?R?J?F?F?F?P?L?t@CT?V?JBRAF?nAAlA?f@B??J?D?vA@RJTITA?C?"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_3oXWHCrvYxkCxQJLecqnQc",
+                "conversation_id": "4338020d-ade4-45c7-b35a-5e98c1c8967c"
+              }
+            }
+          ],
+          "latency_ms": 19875,
+          "tools": [
+            "check_trip_coverage",
+            "resolve_trip_date",
+            "find_providers"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s08-one-way-no-return",
+      "title": "One-way trip is never asked for a return time",
+      "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871",
+      "passed": true,
+      "failures": [],
+      "metrics": {
+        "turns": 2,
+        "questions_asked": 1,
+        "tool_calls": 4,
+        "searches": 2,
+        "total_ms": 39587,
+        "max_turn_ms": 20746,
+        "response_chars": 1601
+      },
+      "turns": [
+        {
+          "index": 0,
+          "user": "One way only: Richmond City Hall to Kaiser Permanente Richmond Medical Center, August 12, 2026 at 2:00 PM.",
+          "message": "Three door-to-door services cover Richmond City Hall to Kaiser Richmond on Wednesday, August 12 — but all three depend on eligibility I don't know yet:\n\n- **R-Transit (Richmond)** — $3.00 each way, book 7 days ahead, (510) 307-8026. Needs 55+ or disabled, and a Richmond/North Richmond/El Sobrante/Kensington address.\n- **Mobility Matters** — free volunteer drivers, 7 days ahead, (925) 284-6161. Needs 60+ or veteran, and Contra Costa County residency.\n- **East Bay Paratransit** — $4–$7, book 1–7 days ahead, (510) 287-5000. Needs ADA certification.\n\nNone of these have operating hours on file, so please confirm 2:00 PM works when you call.\n\nWhat's your exact age? That alone decides R-Transit and Mobility Matters for you.\n\nAlso worth knowing: it's only about a mile, roughly a 24-minute walk, if that's ever an option.",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "covered",
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "geography_match_count": 3,
+                "fixed_route_fallback_count": 6,
+                "provider_names": [
+                  "R-Transit (Richmond)",
+                  "East Bay Paratransit",
+                  "Mobility Matters"
+                ],
+                "message": "3 provider service areas cover both locations. Continue gathering the trip date, applicable times, and eligibility."
+              },
+              "metadata": {
+                "tool_name": "check_trip_coverage",
+                "tool_use_id": "tooluse_bxtve8sTj14fgPZMBepFKo",
+                "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871"
+              }
+            },
+            {
+              "type": "tool_result",
+              "data": {
+                "status": "resolved",
+                "travel_date_raw": "August 12, 2026",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "timezone": "America/Los_Angeles",
+                "message": "Use Wednesday, August 12, 2026 (2026-08-12). Do not substitute another year or weekday."
+              },
+              "metadata": {
+                "tool_name": "resolve_trip_date",
+                "tool_use_id": "tooluse_rPY5SsPWkc8oqX6qGOmzpW",
+                "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871"
+              }
+            },
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "2:00 PM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [],
+                "verification_required": [
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age",
+                      "disabled",
+                      "residence_city"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "fe07d31f-4a10-43ec-95f6-a4a25da1f03b",
+                    "provider_id": 2009,
+                    "provider_name": "East Bay Paratransit",
+                    "provider_type": "ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "1-7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Disabled (ada-eligible). Proof: Complete East Bay Paratransit ADA application and call the office at (510) 287-5000 and select option 5 to set up your interview. Alternatively, you can call or send an email to Certification.EastBayPT@transdev.com to request an ADA application and instructions.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "ada_certified"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)287-5000"
+                    },
+                    "fare": {
+                      "cost": "$4.00-$7.00 for trips in East Bay. $6.00-$10.00 for trips to and from San Francisco",
+                      "type": "fixed"
+                    },
+                    "website": "https://www.eastbayparatransit.org/",
+                    "contacts": [
+                      {
+                        "name": "Mallory Nestor",
+                        "email": "MNestor@actransit.org"
+                      },
+                      {
+                        "name": "Kim Ridgeway",
+                        "email": "kridgeway@actransit.org"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "verification_required",
+                    "eligibility_reason": "More information or provider verification is needed to confirm eligibility.",
+                    "missing_facts": [
+                      "age",
+                      "veteran",
+                      "residence_city"
+                    ],
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "excluded_providers": [],
+                "alternatives": [
+                  {
+                    "change": "eligibility_category",
+                    "description": "an ADA-certified rider would qualify for these",
+                    "providers": [
+                      "East Bay Paratransit"
+                    ],
+                    "count": 1
+                  }
+                ],
+                "next_question": {
+                  "field": "age",
+                  "question": "the rider's exact age in years",
+                  "why": "2 providers on this trip (R-Transit (Richmond), Mobility Matters) can only be decided once this is known",
+                  "candidates_if_known": 2,
+                  "provider_names": [
+                    "R-Transit (Richmond)",
+                    "Mobility Matters"
+                  ]
+                },
+                "rider_eligibility": {},
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "source_coordinates": {
+                  "lat": 37.9375139,
+                  "lng": -122.3432277
+                },
+                "destination_coordinates": {
+                  "lat": 37.937205299999995,
+                  "lng": -122.36083300000001
+                },
+                "total_found": 0,
+                "direct_provider_count": 0,
+                "public_transit_available": true,
+                "total_options_found": 1,
+                "filtered_out_count": 24,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 3,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 0,
+                  "schedule_match_count": 3,
+                  "eligible_match_count": 0,
+                  "verification_required_count": 3,
+                  "ineligible_count": 0,
+                  "providers_without_service_hours": 3,
+                  "alternatives_found": 1
+                },
+                "public_transit": {
+                  "summary": "Nevin Ave",
+                  "overview_polyline": "}rpfFtdviVATlDh@Ed@KvBEJKdATDARIj@F@ATC?Gv@Gv@E^HFCd@GAEBATEr@IdAMxA?JF??XE?ATBV@bBEb@F??PG??FBT?lBC\\?LF??LG?B^?|@@hA?FB??XC??FAbDBf@G??J?D?|@B|AEZ?f@B`D?d@CD[TAZ?D`@JCvDUBALP?Ch@?~ADT@HE?@b@F??BEFAtBBXC`@?v@?|A?lCCx@BRAFA|C?f@B??J?|A@RJTKTC?",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.937283,
+                      "lng": -122.3433074
+                    },
+                    "southwest": {
+                      "lat": 37.9364143,
+                      "lng": -122.3609789
+                    }
+                  },
+                  "distance_text": "1.0 mi",
+                  "distance_meters": 1683,
+                  "duration_text": "24 mins",
+                  "duration_seconds": 1456,
+                  "departure_time": null,
+                  "arrival_time": null,
+                  "start_address": "450 Civic Center Plaza, Richmond, CA 94804, USA",
+                  "end_address": "901 Nevin Ave, Richmond, CA 94801, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to 901 Nevin Ave, Richmond, CA 94801, USA",
+                      "distance_text": "1.0 mi",
+                      "distance_meters": 1683,
+                      "duration_text": "24 mins",
+                      "duration_seconds": 1456,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "}rpfFtdviVATlDh@CZAHKnA?f@EJKdATDARGTATF@ATC?Gv@C\\CXER?JDFB?Cd@GAEBATCVAZALAJC^AJE|@GZ?JF??XE?AN?DBV@bBEV?JF??PG??FBT?lBCV?D?LF??LG??HBT?x@?B@P?v@?FB??XC??FAvC?JB??f@G??J?B?@?j@?B?D?F?T@H@p@?J?JEN?L?X@X?l@?j@@l@?b@?@A@ABYRA@?BAV?B?@JBTFCvDUBALP??RCT?~ADT?@@FE?@b@F??BA@CD?D?HAfA?\\?LBJCT?J?B?J?J?Z?f@?Z?R?D?R?J?F?F?F?P?L?t@CT?V?JBRAF?nAAlA?f@B??J?D?vA@RJTITA?C?"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_gDyzzLkc1hsif2frfI6qKr",
+                "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871"
+              }
+            }
+          ],
+          "latency_ms": 18436,
+          "tools": [
+            "check_trip_coverage",
+            "resolve_trip_date",
+            "find_providers"
+          ]
+        },
+        {
+          "index": 1,
+          "user": "I'm 68, live in Richmond, not disabled, not ADA-certified, not a veteran.",
+          "message": "You qualify for both door-to-door services for Wednesday, August 12:\n\n- **R-Transit (Richmond)** — $3.00, paid by ticket. Call **(510) 307-8026**. Needs booking 7 days ahead, so call by **August 5**. You'll need to complete their application with a photo ID and a piece of mail showing your Richmond address.\n- **Mobility Matters** — free volunteer driver, also 7 days ahead, **(925) 284-6161**. They describe themselves as a last-resort option, so R-Transit is likely the surer bet.\n\nNeither has operating hours on file, so confirm 2:00 PM is available when you call.\n\nEast Bay Paratransit won't work — it requires ADA certification.\n\nOne more option: the trip is only about a mile, roughly 24 minutes on foot. OPTIMAT can't book for you, so the ride is set once you've called.",
+          "attachments": [
+            {
+              "type": "provider_search",
+              "data": {
+                "status": "complete",
+                "trip_type": "one_way",
+                "travel_date": "2026-08-12",
+                "travel_date_display": "Wednesday, August 12, 2026",
+                "departure_time": "2:00 PM",
+                "outbound_time_intent": "depart_at",
+                "return_time": null,
+                "data": [
+                  {
+                    "id": "bf39a189-34fa-42ef-b8b1-8c8f2780b0b3",
+                    "provider_id": 3014,
+                    "provider_name": "R-Transit (Richmond)",
+                    "provider_type": "Non-ADA Paratransit",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (55+) or disabled (18+). And must be a resident of Richmond, North Richmond, El Sobrante or Kensington. Complete a R-Transit Application. Identification proof : ID or drivers license, passport, Military ID card, RIchmond Municipal ID card. Proof of residentcy: Piece of mail showing name and address. Proof of disability: Medicare card, California DMV Disabled Placard Registration Parking Placard Receipt, Regional Transit Connection (RTC) Clipper Card, certification proof with East Bay Paratransit, Authorization for Use or Disclosure of Patient Health Information Form, Disability Verification completed by Healthcare Provider.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(510)307-8026"
+                    },
+                    "fare": {
+                      "cost": "$3.00 each way",
+                      "type": "fixed",
+                      "payment": "ticket"
+                    },
+                    "website": "https://www.ci.richmond.ca.us/2880/R-Transit-Paratransit",
+                    "contacts": [
+                      {
+                        "name": "LaShonda White",
+                        "email": "LaShonda_Wilson@ci.richmond.ca.us"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "070b350e-963f-418c-a99f-b58ee1cd048b",
+                    "provider_id": 4021,
+                    "provider_name": "Mobility Matters",
+                    "provider_type": "Volunteer Driver or TNC",
+                    "routing_type": "door-to-door",
+                    "schedule_type": {
+                      "type": "in-advance-book",
+                      "advance_notice": "7 days"
+                    },
+                    "eligibility_reqs": "Eligibility: Senior (60+) or veteran. And must be a Contra Costa County resident. Proof: No proof mentioned on website. Mobility Matters is a last resort transporatation option.",
+                    "eligibility_status": "eligible",
+                    "eligibility_reason": "The rider information matches the stated eligibility requirements.",
+                    "booking": {
+                      "method": "call",
+                      "details": "(925)284-6161"
+                    },
+                    "fare": {
+                      "type": "free"
+                    },
+                    "website": "https://mobilitymatterscc.com/",
+                    "contacts": [
+                      {
+                        "name": "Elaine Welch",
+                        "email": "elaine@mobilitymatterscc.com"
+                      }
+                    ],
+                    "round_trip_booking": true,
+                    "match_criteria": {
+                      "algorithm": "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+                      "passed": [
+                        {
+                          "label": "Origin inside service area",
+                          "detail": "450 Civic Center Plaza, Richmond, CA 94804"
+                        },
+                        {
+                          "label": "Destination inside service area",
+                          "detail": "901 Nevin Ave, Richmond, CA 94801"
+                        },
+                        {
+                          "label": "Service hours are not on file — confirm the time with the provider",
+                          "detail": "Wednesday, August 12, 2026; one-way outbound 2:00 PM"
+                        },
+                        {
+                          "label": "Eligibility matched",
+                          "detail": "The rider information matches the stated eligibility requirements."
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "verification_required": [],
+                "excluded_providers": [
+                  {
+                    "provider_name": "East Bay Paratransit",
+                    "stage": "eligibility",
+                    "reason": "The rider does not match the provider's ADA-certified disability requirement.",
+                    "requirement": "Eligibility: Disabled (ada-eligible). Proof: Complete East Bay Paratransit ADA application and call the office at (510) 287-5000 and select option 5 to set up your interview. Alternatively, you can call or send an email to Certification.EastBayPT@transdev.com to request an ADA application and instructions."
+                  }
+                ],
+                "alternatives": [],
+                "next_question": null,
+                "rider_eligibility": {
+                  "age": 68,
+                  "residence_city": "Richmond",
+                  "disabled": false,
+                  "ada_certified": false,
+                  "veteran": false
+                },
+                "source_address": "450 Civic Center Plaza, Richmond, CA 94804",
+                "destination_address": "901 Nevin Ave, Richmond, CA 94801",
+                "source_coordinates": {
+                  "lat": 37.9375139,
+                  "lng": -122.3432277
+                },
+                "destination_coordinates": {
+                  "lat": 37.937205299999995,
+                  "lng": -122.36083300000001
+                },
+                "total_found": 2,
+                "direct_provider_count": 2,
+                "public_transit_available": true,
+                "total_options_found": 3,
+                "filtered_out_count": 22,
+                "diagnostics": {
+                  "provider_count": 24,
+                  "fixed_route_fallback_count": 6,
+                  "geography_match_count": 3,
+                  "geography_origin_only_count": 0,
+                  "geography_destination_only_count": 0,
+                  "schedule_match_count": 3,
+                  "eligible_match_count": 2,
+                  "verification_required_count": 0,
+                  "ineligible_count": 1,
+                  "providers_without_service_hours": 2,
+                  "alternatives_found": 0
+                },
+                "public_transit": {
+                  "summary": "Nevin Ave",
+                  "overview_polyline": "}rpfFtdviVATlDh@Ed@KvBEJKdATDARIj@F@ATC?Gv@Gv@E^HFCd@GAEBATEr@IdAMxA?JF??XE?ATBV@bBEb@F??PG??FBT?lBC\\?LF??LG?B^?|@@hA?FB??XC??FAbDBf@G??J?D?|@B|AEZ?f@B`D?d@CD[TAZ?D`@JCvDUBALP?Ch@?~ADT@HE?@b@F??BEFAtBBXC`@?v@?|A?lCCx@BRAFA|C?f@B??J?|A@RJTKTC?",
+                  "bounds": {
+                    "northeast": {
+                      "lat": 37.937283,
+                      "lng": -122.3433074
+                    },
+                    "southwest": {
+                      "lat": 37.9364143,
+                      "lng": -122.3609789
+                    }
+                  },
+                  "distance_text": "1.0 mi",
+                  "distance_meters": 1683,
+                  "duration_text": "24 mins",
+                  "duration_seconds": 1456,
+                  "departure_time": null,
+                  "arrival_time": null,
+                  "start_address": "450 Civic Center Plaza, Richmond, CA 94804, USA",
+                  "end_address": "901 Nevin Ave, Richmond, CA 94801, USA",
+                  "steps": [
+                    {
+                      "instruction": "Walk to 901 Nevin Ave, Richmond, CA 94801, USA",
+                      "distance_text": "1.0 mi",
+                      "distance_meters": 1683,
+                      "duration_text": "24 mins",
+                      "duration_seconds": 1456,
+                      "travel_mode": "WALKING",
+                      "transit_details": null,
+                      "polyline": "}rpfFtdviVATlDh@CZAHKnA?f@EJKdATDARGTATF@ATC?Gv@C\\CXER?JDFB?Cd@GAEBATCVAZALAJC^AJE|@GZ?JF??XE?AN?DBV@bBEV?JF??PG??FBT?lBCV?D?LF??LG??HBT?x@?B@P?v@?FB??XC??FAvC?JB??f@G??J?B?@?j@?B?D?F?T@H@p@?J?JEN?L?X@X?l@?j@@l@?b@?@A@ABYRA@?BAV?B?@JBTFCvDUBALP??RCT?~ADT?@@FE?@b@F??BA@CD?D?HAfA?\\?LBJCT?J?B?J?J?Z?f@?Z?R?D?R?J?F?F?F?P?L?t@CT?V?JBRAF?nAAlA?f@B??J?D?vA@RJTITA?C?"
+                    }
+                  ],
+                  "warnings": [
+                    "Walking directions are in beta. Use caution – This route may be missing sidewalks or pedestrian paths."
+                  ]
+                }
+              },
+              "metadata": {
+                "tool_name": "find_providers",
+                "tool_use_id": "tooluse_sgVuBIGJNRi2Lk7c5pYiQC",
+                "conversation_id": "bbdc3275-b754-4822-815a-83a33299a871"
+              }
+            }
+          ],
+          "latency_ms": 20746,
+          "tools": [
+            "find_providers"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s09-followup-from-memory",
+      "title": "Follow-up about a provider from an earlier turn",
+      "passed": false,
+      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:30:21.194Z\"}",
+      "failures": [
+        {
+          "assertion": "transport",
+          "turn": null,
+          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:30:21.194Z\"}"
+        }
+      ],
+      "metrics": {},
+      "turns": []
+    },
+    {
+      "id": "s10-off-trip-question",
+      "title": "General accessibility question, not a trip request",
+      "passed": false,
+      "error": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:30:25.927Z\"}",
+      "failures": [
+        {
+          "assertion": "transport",
+          "turn": null,
+          "detail": "POST /chat → 500: {\"error\":\"Internal server error: Bedrock is unable to process your request.\",\"success\":false,\"timestamp\":\"2026-07-27T17:30:25.927Z\"}"
+        }
+      ],
+      "metrics": {},
+      "turns": []
+    }
+  ]
+}
