@@ -3,7 +3,7 @@
  * End-to-end check of the chat redesign through the real UI.
  *
  * Covers the four things the redesign changed, in a browser against the deployed edge function:
- *   1. a senior with an exact age gets providers rendered, not a blank panel
+ *   1. a senior with an exact age gets a card per provider, embedded in the reply
  *   2. a follow-up about the previous search is answered from memory (no second search)
  *   3. a trip nothing can serve explains why and offers alternatives
  *   4. no message contradicts itself on provider counts or claims to book
@@ -109,20 +109,18 @@ try {
       `attachments: ${(first.attachments || []).map((a) => a?.metadata?.tool_name).join(', ') || 'none'}`);
     assertHygiene('turn 1', first.message);
 
-    const providerCards = page.locator('article[data-provider-kind], [aria-label="Provider results count"]');
+    const providerCards = page.locator('.chat-messages article[data-provider-kind="callable"], .chat-messages article[data-provider-kind="verification-required"]');
     await providerCards.first().waitFor({ state: 'visible', timeout: 30_000 });
-    check('provider results are rendered in the panel', await providerCards.count() > 0, 'no provider cards visible');
+    check('provider cards are rendered inside the reply', await providerCards.count() > 0, 'no provider cards visible');
 
-    // The panel is a call sheet, so its headline counts the providers the rider will actually
-    // phone: those they qualify for plus those whose eligibility they will settle on the call.
-    // Public transit is a real option but not one you ring, so it is surfaced separately.
+    // Every provider the rider would actually phone gets a card: the ones they qualify for and the
+    // ones whose eligibility they will settle on the call. None may be dropped by the wording.
     const callable = (search?.data?.data || []).length + (search?.data?.verification_required || []).length;
-    const headline = await page.locator('[aria-label="Provider results count"]').first().innerText().catch(() => '');
-    const shown = Number((headline.match(/(\d+)\s+to call/i) || [])[1] ?? NaN);
+    const shown = await providerCards.count();
     check(
-      'headline counts every provider to call, including ones pending eligibility checks',
+      'a card for every provider to call, including ones pending eligibility checks',
       shown === callable,
-      `panel says "${headline.replace(/\s+/g, ' ').trim()}", search returned ${callable} callable (${(search?.data?.data || []).length} eligible + ${(search?.data?.verification_required || []).length} to verify)`,
+      `${shown} cards for ${callable} callable (${(search?.data?.data || []).length} eligible + ${(search?.data?.verification_required || []).length} to verify)`,
     );
     await page.screenshot({ path: `${SHOTS}/redesign-01-results.png`, fullPage: true });
 
@@ -163,11 +161,15 @@ try {
     const search = (turn.attachments || []).find((a) => a?.metadata?.tool_name === 'find_providers');
     const alternatives = search?.data?.alternatives || [];
     if (alternatives.length > 0) {
-      const section = page.locator('article[data-provider-kind="alternative"]');
-      await section.first().waitFor({ state: 'visible', timeout: 20_000 });
-      check('alternatives render in the panel', await section.count() > 0, 'alternatives returned but not rendered');
+      // Alternatives are prose now: the reply has to actually say what would work instead.
+      const described = alternatives.some((alternative) => {
+        const words = String(alternative?.description || '').toLowerCase().match(/[a-z]{5,}/g) || [];
+        return words.length > 0 && words.filter((word) => turn.message.toLowerCase().includes(word)).length >= 2;
+      });
+      check('the reply describes at least one of the alternatives returned', described,
+        `alternatives: ${alternatives.map((alternative) => alternative.description).join(' | ').slice(0, 200)}`);
     } else {
-      console.log('  · no alternatives returned for this trip; panel check skipped');
+      console.log('  · no alternatives returned for this trip; check skipped');
     }
     await page.screenshot({ path: `${SHOTS}/redesign-03-no-coverage.png`, fullPage: true });
     await page.close();

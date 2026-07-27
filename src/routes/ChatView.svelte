@@ -36,140 +36,6 @@
   let transitRouteCoordinates = [];
   let transitRouteSegments = [];
 
-  $: publicTransitProvider = createPublicTransitProvider(providerData?.public_transit);
-  // Providers that matched location and schedule but whose eligibility could not be confirmed.
-  // They are listed apart from recommendations instead of disappearing from the results.
-  $: verificationProviders = normalizeProviderList(providerData?.verification_required);
-  // Variations of the trip that would return providers when the trip as asked does not: another
-  // day, a nearby time, one way instead of round trip, or a provider covering one end only.
-  $: tripAlternatives = Array.isArray(providerData?.alternatives) ? providerData.alternatives : [];
-  // Which filter stage actually emptied the result, so the panel names one reason instead of
-  // always blaming service areas.
-  $: searchDiagnostics = providerData?.diagnostics && typeof providerData.diagnostics === 'object'
-    ? providerData.diagnostics
-    : {};
-  $: emptyResultReason = (() => {
-    if (Number(searchDiagnostics.geography_match_count || 0) === 0) {
-      return 'No provider service area covers both addresses. Changing the date or time would not help.';
-    }
-    if (Number(searchDiagnostics.schedule_match_count || 0) === 0) {
-      return 'Provider service areas cover this trip, but none operate at the date and time requested.';
-    }
-    return 'Providers cover this trip and time, but none match the eligibility details given so far.';
-  })();
-
-  // ── Call sheet readiness ────────────────────────────────────────────────
-  // This panel exists for one moment: the rider is ready to pick up the phone and book. It is
-  // therefore shown only once the assistant has pinned the trip down completely and has providers
-  // worth calling. Rendering it during the back-and-forth turned it into a running scratchpad of
-  // partial searches, which is not something anyone can act on.
-
-  $: tripSummary = {
-    origin: typeof providerData?.source_address === 'string' ? providerData.source_address : null,
-    destination: typeof providerData?.destination_address === 'string' ? providerData.destination_address : null,
-    dateDisplay: typeof providerData?.travel_date_display === 'string' ? providerData.travel_date_display : null,
-    date: typeof providerData?.travel_date === 'string' ? providerData.travel_date : null,
-    time: typeof providerData?.departure_time === 'string' ? providerData.departure_time : null,
-    arriveBy: providerData?.outbound_time_intent === 'arrive_by',
-    tripType: typeof providerData?.trip_type === 'string' ? providerData.trip_type : null,
-    returnTime: typeof providerData?.return_time === 'string' ? providerData.return_time : null
-  };
-
-  $: searchCompleted = providerData?.status === 'complete';
-
-  // Every field a provider will ask for on the phone.
-  $: tripFullySpecified = Boolean(
-    searchCompleted &&
-    tripSummary.origin &&
-    tripSummary.destination &&
-    tripSummary.dateDisplay &&
-    tripSummary.time &&
-    tripSummary.tripType &&
-    (tripSummary.tripType !== 'round_trip' || tripSummary.returnTime)
-  );
-
-  // Providers worth dialling: ones the rider qualifies for, then ones whose eligibility they will
-  // settle on the call. Both are callable; only the second needs a caveat.
-  $: callableProviders = [
-    ...(Array.isArray(providerData?.data) ? providerData.data : []).map((provider) => ({ provider, qualified: true })),
-    ...verificationProviders.map((provider) => ({ provider, qualified: false }))
-  ];
-
-  // The panel appears only once the assistant has actually come back with something. There is no
-  // in-between state: a half-finished search told riders their trip still needed a date and time
-  // they had already given, because replayed and coverage-only payloads carry neither.
-  $: hasCallableResults = callableProviders.length > 0 || Boolean(publicTransitProvider);
-  $: searchFoundNothing = searchCompleted && callableProviders.length === 0 && !publicTransitProvider;
-  $: showResultsPanel = Boolean(providerData) && (hasCallableResults || searchFoundNothing);
-
-  // The trip bar is only worth showing when every field a dispatcher asks for is known.
-  $: callSheetReady = tripFullySpecified && callableProviders.length > 0;
-
-  const RIDER_FACT_LABELS = {
-    age: 'your age',
-    disabled: 'whether you have a disability',
-    ada_certified: 'ADA certification',
-    veteran: 'veteran status',
-    residence_city: 'where you live'
-  };
-
-  function advanceNoticeText(provider) {
-    const schedule = parseObject(provider?.schedule_type);
-    const notice = schedule && typeof schedule === 'object' ? schedule.advance_notice : null;
-    return typeof notice === 'string' && notice.trim() ? notice.trim() : null;
-  }
-
-  /** Turn "7 days" or "at least 1 day" into the date the rider has to call by. */
-  function bookByDate(provider, travelDate) {
-    const notice = advanceNoticeText(provider);
-    if (!notice || !travelDate) return null;
-    const days = Number(notice.match(/(\d+)\s*day/i)?.[1]);
-    if (!Number.isFinite(days)) return null;
-    const [year, month, day] = travelDate.split('-').map(Number);
-    if (!year || !month || !day) return null;
-    const deadline = new Date(Date.UTC(year, month - 1, day - days));
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric'
-    }).format(deadline);
-  }
-
-  function fareText(provider) {
-    const fare = parseObject(provider?.fare);
-    if (!fare || typeof fare !== 'object') return null;
-    if (fare.type === 'free') return 'Free';
-    const cost = typeof fare.cost === 'string' ? fare.cost.trim() : null;
-    if (!cost) return null;
-    return fare.payment ? `${cost} · pay by ${fare.payment}` : cost;
-  }
-
-  function missingFactsSentence(provider) {
-    const facts = Array.isArray(provider?.missing_facts) ? provider.missing_facts : [];
-    if (facts.length === 0) return 'whether you qualify for this service.';
-    return `whether you qualify — it depends on ${facts.map((fact) => RIDER_FACT_LABELS[fact] || fact).join(' and ')}.`;
-  }
-
-  /** The trip, phrased the way the rider should read it down the phone. */
-  $: callScript = (() => {
-    if (!tripFullySpecified) return null;
-    const when = tripSummary.arriveBy ? `arriving by ${tripSummary.time}` : `pickup at ${tripSummary.time}`;
-    const leg = tripSummary.tripType === 'round_trip'
-      ? `round trip, returning at ${tripSummary.returnTime}`
-      : 'one way';
-    return `${tripSummary.dateDisplay}, ${when}, from ${tripSummary.origin} to ${tripSummary.destination}, ${leg}.`;
-  })();
-
-  let copiedScript = false;
-  async function copyCallScript() {
-    if (!callScript) return;
-    try {
-      await navigator.clipboard.writeText(callScript);
-      copiedScript = true;
-      setTimeout(() => { copiedScript = false; }, 2000);
-    } catch {
-      copiedScript = false;
-    }
-  }
-
   const originPing = derived(pings, $pings => $pings.find(p => p.type === PingTypes.ORIGIN && p.visible));
   const destinationPing = derived(pings, $pings => $pings.find(p => p.type === PingTypes.DESTINATION && p.visible));
   const connectionLine = derived([originPing, destinationPing], ([$origin, $destination]) => {
@@ -321,11 +187,6 @@
     }
   }
 
-  function normalizeProviderList(value) {
-    const parsed = safeParsePayload(value);
-    return Array.isArray(parsed) ? parsed : [];
-  }
-
   function normalizeProviderSearchPayload(rawPayload) {
     let payload = safeParsePayload(rawPayload);
     if (!payload || typeof payload !== 'object') return null;
@@ -379,24 +240,8 @@
     );
   }
 
-  function createPublicTransitProvider(publicTransit) {
-    if (!hasPublicTransitResult(publicTransit)) return null;
-    return {
-      provider_id: 'public-transit',
-      provider_name: 'Public Transit',
-      provider_type: 'fixed-route',
-      is_public_transit: true,
-      public_transit: publicTransit
-    };
-  }
-
   function getProviderId(provider) {
     return provider?.is_public_transit ? 'public-transit' : provider?.provider_id || provider?.id;
-  }
-
-  function isProviderSelected(provider, currentSelectedProvider = selectedProvider) {
-    const providerId = getProviderId(provider);
-    return providerId != null && getProviderId(currentSelectedProvider) === providerId;
   }
 
   function getTransitLines(publicTransit = providerData?.public_transit) {
@@ -410,17 +255,6 @@
 
   function getTransitSteps(publicTransit = providerData?.public_transit) {
     return Array.isArray(publicTransit?.steps) ? publicTransit.steps : [];
-  }
-
-  function stripTransitInstruction(value) {
-    if (typeof value !== 'string') return '';
-    return value
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .trim();
   }
 
   function getTransitRouteData(publicTransit) {
@@ -759,13 +593,6 @@
     }
   }
 
-  function getProviderTypeIcon(type) {
-    if (type?.includes('paratransit') || type?.includes('ADA')) return '♿';
-    if (type?.includes('fix') || type?.includes('fixed')) return '🚌';
-    if (type?.includes('dial') || type?.includes('demand')) return '📞';
-    return '🚐';
-  }
-
   function formatEligibility(eligibilityReqs) {
     if (!eligibilityReqs) return null;
 
@@ -816,12 +643,6 @@
     }).filter(Boolean);
 
     return eligList.length > 0 ? eligList.join(', ') : null;
-  }
-
-  function formatEligibilitySections(eligibilityReqs) {
-    const formatted = formatEligibility(eligibilityReqs);
-    if (!formatted) return [];
-    return formatted.split(' · ').filter(Boolean);
   }
 
   function formatMetadataValue(value) {
@@ -981,28 +802,10 @@
     }
   }
 
-  function getProviderPhone(provider) {
-    if (typeof provider?.phone === 'string' && provider.phone.trim()) return provider.phone.trim();
-    const booking = parseObject(provider?.booking);
-    if (!booking || typeof booking !== 'object') return null;
-    const direct = pickFirstNonEmptyString(booking.phone, booking.call, booking.contact);
-    if (direct) return direct;
-    const details = pickFirstNonEmptyString(booking.details, booking.instructions);
-    return details?.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/)?.[0] || null;
-  }
-
   function getProviderEmail(provider) {
     const contacts = parseObject(provider?.contacts);
     if (!Array.isArray(contacts)) return null;
     return contacts.map((contact) => contact?.email).find((email) => typeof email === 'string' && email.includes('@')) || null;
-  }
-
-  function normalizeWebsite(value) {
-    if (typeof value !== 'string' || !value.trim()) return null;
-    const website = value.trim();
-    if (/^https?:\/\//i.test(website)) return website;
-    if (/^[a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(website)) return `https://${website}`;
-    return null;
   }
 
   function normalizeScheduleType(scheduleTypeValue) {
@@ -1290,420 +1093,117 @@
 
           <Resizable.Handle withHandle />
 
-          <!-- Bottom: Results/Examples Panel -->
-          <Resizable.Pane defaultSize={providerData ? 40 : 30} minSize={20} class="flex flex-col overflow-hidden bg-card border-t border-border/40">
-            {#if showResultsPanel}
-              <!-- Provider Results View -->
-
-              <div class="flex flex-shrink-0 items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-2" aria-label="Provider results count">
-                <div class="text-xs font-semibold text-foreground">
-                  {#if callableProviders.length > 0}
-                    Ready to book · {callableProviders.length} to call
-                    {#if verificationProviders.length > 0}
-                      <span class="ml-1 font-normal text-amber-700">
-                        · {verificationProviders.length} need{verificationProviders.length === 1 ? 's' : ''} verification
-                      </span>
-                    {/if}
-                  {:else if searchFoundNothing}
-                    No provider can take this trip
-                  {:else}
-                    Public transit only
-                  {/if}
+          <!-- Bottom: Examples -->
+          <Resizable.Pane defaultSize={30} minSize={20} class="flex flex-col overflow-hidden bg-card border-t border-border/40">
+            <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
+              <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                💡 Examples
+              </span>
+            </div>
+            <div class="flex-1 overflow-y-auto p-3">
+              {#if loadingExamples}
+                <div class="flex items-center justify-center h-full">
+                  <div class="text-sm text-muted-foreground">Loading examples...</div>
                 </div>
-                {#if publicTransitProvider}
-                  <div class="text-[10px] font-medium text-blue-700">Includes public transit</div>
-                {/if}
-              </div>
+              {:else if examplesError}
+                <div class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {examplesError}
+                </div>
+              {:else if chatExamples.length === 0}
+                <div class="flex items-center justify-center h-full">
+                  <div class="text-sm text-muted-foreground">No examples available</div>
+                </div>
+              {:else}
+                <!-- svelte-ignore a11y-click-events-have-key-events -->
+                <!-- svelte-ignore a11y-no-static-element-interactions -->
+                <!-- Horizontal scrolling card container -->
+                <div
+                  class="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+                  on:click={handleClickOutside}
+                >
+                  {#each chatExamples as example, index}
+                    <div class="relative flex-shrink-0 w-48 snap-start">
+                      <!-- Three dots menu button -->
+                      <div class="example-dropdown absolute top-2 right-2 z-10">
+                        <button
+                          class="p-1 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                          on:click={(e) => toggleDropdown(example.id, e)}
+                          aria-label="Example options"
+                        >
+                          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        </button>
 
-              {#if callSheetReady}
-                <!-- The trip as the provider will need to hear it, so the rider can read it out. -->
-                <div class="flex-shrink-0 border-b border-border/40 bg-primary/5 px-3 py-2" aria-label="Trip to book">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0 text-xs">
-                      <div class="font-semibold text-foreground">
-                        {tripSummary.dateDisplay} · {tripSummary.arriveBy ? 'arrive by' : 'pickup'} {tripSummary.time}
-                        <span class="font-normal text-muted-foreground">
-                          · {tripSummary.tripType === 'round_trip' ? `round trip, back at ${tripSummary.returnTime}` : 'one way'}
-                        </span>
+                        <!-- Dropdown menu -->
+                        {#if openDropdownId === example.id}
+                          <div
+                            class="absolute right-0 top-full mt-1 w-32 rounded-md border border-border bg-popover shadow-lg z-20"
+                            transition:fade={{ duration: 100 }}
+                          >
+                            <button
+                              class="w-full px-3 py-2 text-left text-xs text-destructive hover:bg-destructive/10 rounded-md flex items-center gap-2 transition-colors"
+                              on:click={(e) => deleteExample(example.id, e)}
+                              disabled={deletingExampleId === example.id}
+                            >
+                              {#if deletingExampleId === example.id}
+                                <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Deleting...</span>
+                              {:else}
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Delete</span>
+                              {/if}
+                            </button>
+                          </div>
+                        {/if}
                       </div>
-                      <div class="mt-0.5 truncate text-muted-foreground" title="{tripSummary.origin} → {tripSummary.destination}">
-                        {tripSummary.origin} → {tripSummary.destination}
-                      </div>
+
+                      <!-- Card button -->
+                      <button
+                        class="w-full h-full rounded-xl border border-border/70 bg-gradient-to-br from-card to-muted/30 p-4 pt-8 text-left shadow-sm transition-all hover:shadow-md hover:border-primary/60 hover:scale-[1.02]"
+                        on:click={() => viewChatExample(example)}
+                      >
+                        <!-- Category badge -->
+                        {#if example.category}
+                          <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary mb-2">
+                            {example.category}
+                          </div>
+                        {:else}
+                          <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground mb-2">
+                            Example {index + 1}
+                          </div>
+                        {/if}
+
+                        <!-- Title -->
+                        <div class="text-sm font-semibold text-foreground mb-1.5 line-clamp-2 leading-tight">
+                          {example.title || 'Untitled Example'}
+                        </div>
+
+                        <!-- Description -->
+                        {#if example.description}
+                          <div class="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                            {example.description}
+                          </div>
+                        {/if}
+
+                        <!-- Play indicator -->
+                        <div class="mt-3 flex items-center gap-1.5 text-[10px] text-primary/70">
+                          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                          </svg>
+                          <span>Click to play</span>
+                        </div>
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      class="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary transition hover:bg-primary/15"
-                      on:click={copyCallScript}
-                    >
-                      {copiedScript ? 'Copied' : 'Copy trip details'}
-                    </button>
-                  </div>
-                  <p class="mt-1.5 text-[11px] text-muted-foreground">
-                    OPTIMAT can't book for you — call a provider below and read them these details.
-                  </p>
+                  {/each}
                 </div>
               {/if}
-
-              <div class="flex-1 overflow-y-auto p-2">
-                {#if callableProviders.length > 0 || publicTransitProvider}
-                  <div class="space-y-2">
-                    {#each callableProviders as entry, idx (entry.provider.provider_id || `call-${idx}`)}
-                      {@const provider = entry.provider}
-                      {@const phone = getProviderPhone(provider)}
-                      {@const deadline = bookByDate(provider, tripSummary.date)}
-                      {@const notice = advanceNoticeText(provider)}
-                      {@const fare = fareText(provider)}
-                      <article
-                        class="rounded-lg border p-3 text-left transition {
-                          entry.qualified
-                            ? 'border-border/60 bg-card hover:border-border'
-                            : 'border-amber-200 bg-amber-50/40 dark:border-amber-900 dark:bg-amber-950/20'
-                        }"
-                        data-provider-kind={entry.qualified ? 'callable' : 'verification-required'}
-                      >
-                        <div class="flex items-start justify-between gap-3">
-                          <div class="flex min-w-0 items-center gap-2">
-                            <span class="shrink-0 text-base">{getProviderTypeIcon(provider.provider_type)}</span>
-                            <div class="min-w-0">
-                              <div class="truncate text-sm font-semibold text-foreground">{provider.provider_name}</div>
-                              {#if provider.routing_type}
-                                <div class="text-[10px] uppercase tracking-wide text-muted-foreground">{provider.routing_type}</div>
-                              {/if}
-                            </div>
-                          </div>
-                          {#if entry.qualified}
-                            <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">You qualify</span>
-                          {:else}
-                            <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">Confirm eligibility</span>
-                          {/if}
-                        </div>
-
-                        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                          {#if phone}
-                            <a
-                              href="tel:{phone.replace(/[^\d+]/g, '')}"
-                              class="text-base font-semibold text-primary hover:underline"
-                              on:click|stopPropagation
-                            >
-                              📞 {phone}
-                            </a>
-                          {:else}
-                            <span class="text-xs text-muted-foreground">No phone number on file — see their website below</span>
-                          {/if}
-                          {#if fare}
-                            <span class="text-xs text-foreground">{fare}</span>
-                          {/if}
-                        </div>
-
-                        {#if deadline}
-                          <div class="mt-1.5 text-[11px] font-medium text-foreground">
-                            Call by {deadline}
-                            <span class="font-normal text-muted-foreground">· needs {notice} notice</span>
-                          </div>
-                        {:else if notice}
-                          <div class="mt-1.5 text-[11px] text-muted-foreground">Needs {notice} advance notice</div>
-                        {/if}
-
-                        {#if !entry.qualified}
-                          <div class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                            <span class="font-semibold">Ask when you call:</span> {missingFactsSentence(provider)}
-                            {#if formatEligibilitySections(provider.eligibility_reqs).length > 0}
-                              <div class="mt-1 text-amber-800 dark:text-amber-300">
-                                {formatEligibilitySections(provider.eligibility_reqs).join(' · ')}
-                              </div>
-                            {/if}
-                          </div>
-                        {/if}
-
-                        {#if !provider.service_hours_known}
-                          <div class="mt-1.5 text-[11px] text-muted-foreground">
-                            Their operating hours aren't on file — confirm {tripSummary.time} works.
-                          </div>
-                        {/if}
-
-                        <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px]">
-                          <button
-                            type="button"
-                            class="rounded-md bg-muted px-2 py-1 font-medium text-foreground transition hover:bg-muted/70"
-                            on:click={() => selectProvider(provider)}
-                          >
-                            {isProviderSelected(provider, selectedProvider) ? 'Hide area' : 'Show service area'}
-                          </button>
-                          {#if normalizeWebsite(provider.website)}
-                            <a
-                              href="{normalizeWebsite(provider.website)}"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="text-primary hover:underline"
-                              on:click|stopPropagation
-                            >
-                              Website
-                            </a>
-                          {/if}
-                        </div>
-                      </article>
-                    {/each}
-
-                    {#if publicTransitProvider}
-                      <article
-                        class="min-h-[18rem] max-h-80 overflow-y-auto rounded-lg border p-3 transition flex flex-col {isProviderSelected(publicTransitProvider, selectedProvider) ? 'border-blue-500 bg-blue-50 shadow-md ring-1 ring-blue-400/50 dark:bg-blue-950/30' : 'border-blue-200 bg-card hover:border-blue-400 hover:bg-blue-50/50 dark:border-blue-900'}"
-                        data-provider-kind="public-transit"
-                      >
-                        <div class="flex items-start justify-between gap-2">
-                          <div class="flex min-w-0 items-center gap-2">
-                            <span class="text-base shrink-0">🚇</span>
-                            <div>
-                              <div class="font-semibold text-sm text-foreground">Public Transit</div>
-                              <div class="text-[10px] font-medium uppercase tracking-wide text-blue-700">Fixed-route itinerary</div>
-                            </div>
-                          </div>
-                          <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">Available</span>
-                        </div>
-
-                        <button
-                          type="button"
-                          class="my-2 w-fit rounded-md bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition hover:bg-blue-700"
-                          on:click={() => selectProvider(publicTransitProvider)}
-                        >
-                          {isProviderSelected(publicTransitProvider, selectedProvider) ? 'Hide route' : 'Show route'}
-                        </button>
-
-                        <div class="space-y-2 text-xs flex-1">
-                          <div class="grid grid-cols-2 gap-2">
-                            {#if providerData.public_transit.duration_text}
-                              <div class="rounded-md border border-blue-100 bg-background/80 px-2 py-1.5">
-                                <div class="text-[10px] uppercase tracking-wide text-muted-foreground">Travel time</div>
-                                <div class="mt-0.5 font-semibold text-foreground">{providerData.public_transit.duration_text}</div>
-                              </div>
-                            {/if}
-                            {#if providerData.public_transit.distance_text}
-                              <div class="rounded-md border border-blue-100 bg-background/80 px-2 py-1.5">
-                                <div class="text-[10px] uppercase tracking-wide text-muted-foreground">Distance</div>
-                                <div class="mt-0.5 font-semibold text-foreground">{providerData.public_transit.distance_text}</div>
-                              </div>
-                            {/if}
-                          </div>
-
-                          {#if providerData.public_transit.departure_time || providerData.public_transit.arrival_time}
-                            <div class="flex items-center gap-1.5 text-muted-foreground">
-                              <span>🕐</span>
-                              <span>
-                                {providerData.public_transit.departure_time || 'Departure'}
-                                → {providerData.public_transit.arrival_time || 'Arrival'}
-                              </span>
-                            </div>
-                          {/if}
-
-                          {#if getTransitLines().length > 0}
-                            <div>
-                              <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Lines</div>
-                              <div class="flex flex-wrap gap-1">
-                                {#each getTransitLines() as line}
-                                  <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-800">{line}</span>
-                                {/each}
-                              </div>
-                            </div>
-                          {/if}
-
-                          {#if getTransitSteps().length > 0}
-                            <div class="rounded-md border border-border/50 bg-background/70 px-2 py-1.5">
-                              <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Route steps</div>
-                              <ol class="space-y-1">
-                                {#each getTransitSteps().slice(0, 5) as step, index}
-                                  <li class="grid grid-cols-[1rem_1fr] gap-1.5 leading-snug">
-                                    <span class="text-blue-600">{index + 1}.</span>
-                                    <span>
-                                      {step.transit_details?.line_name || stripTransitInstruction(step.instruction) || step.travel_mode}
-                                      {#if step.duration_text}<span class="text-muted-foreground"> · {step.duration_text}</span>{/if}
-                                    </span>
-                                  </li>
-                                {/each}
-                              </ol>
-                            </div>
-                          {/if}
-
-                          <div class="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-emerald-800">
-                            <div class="text-[10px] font-semibold uppercase tracking-wide mb-1">Why It Matched</div>
-                            <div class="leading-snug">✓ A transit itinerary is available for this trip and requested travel time.</div>
-                          </div>
-                        </div>
-                      </article>
-                    {/if}
-                  </div>
-
-                {:else}
-                  <div class="flex h-full items-center justify-center">
-                    <div class="max-w-md rounded-lg border border-border/60 bg-background/70 p-5 text-center">
-                      <div class="text-sm font-medium text-foreground">No providers found</div>
-                      <div class="mt-2 text-xs text-muted-foreground">
-                        {emptyResultReason}
-                      </div>
-                      {#if providerData.source_address || providerData.destination_address}
-                        <div class="mt-3 text-[11px] text-muted-foreground">
-                          {providerData.source_address || 'Origin'} → {providerData.destination_address || 'Destination'}
-                        </div>
-                      {/if}
-                      {#if providerData.public_transit}
-                        <div class="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                          Public transit routing may still be available for this trip.
-                        </div>
-                      {/if}
-                    </div>
-                  </div>
-                {/if}
-
-                {#if tripAlternatives.length > 0}
-                  <section class="mt-3" aria-label="Alternatives that would work">
-                    <div class="mb-2 flex items-center gap-2">
-                      <h3 class="text-xs font-semibold text-foreground">What would work instead</h3>
-                      <span class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-800">
-                        {tripAlternatives.length}
-                      </span>
-                    </div>
-                    <p class="mb-2 text-[11px] text-muted-foreground">
-                      Changes to the trip that return providers. These are possibilities to check with the provider, not bookings.
-                    </p>
-                    <div class="space-y-2">
-                      {#each tripAlternatives as alternative, idx (alternative.change ? `${alternative.change}-${idx}` : `alt-${idx}`)}
-                        <article
-                          class="rounded-lg border border-sky-200 bg-sky-50/60 p-3 text-left dark:border-sky-900 dark:bg-sky-950/20"
-                          data-provider-kind="alternative"
-                        >
-                          <div class="text-xs font-medium leading-snug text-foreground">
-                            {alternative.description}
-                          </div>
-                          {#if Array.isArray(alternative.providers) && alternative.providers.length > 0}
-                            <div class="mt-1.5 flex flex-wrap gap-1">
-                              {#each alternative.providers as name}
-                                <span class="rounded-full bg-background/80 px-2 py-0.5 text-[10px] text-foreground">
-                                  {name}
-                                </span>
-                              {/each}
-                              {#if Number(alternative.count || 0) > alternative.providers.length}
-                                <span class="px-1 py-0.5 text-[10px] text-muted-foreground">
-                                  +{Number(alternative.count) - alternative.providers.length} more
-                                </span>
-                              {/if}
-                            </div>
-                          {/if}
-                        </article>
-                      {/each}
-                    </div>
-                  </section>
-                {/if}
-              </div>
-            {:else}
-              <!-- Examples View (no provider search selected) -->
-              <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
-                <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  💡 Examples
-                </span>
-              </div>
-              <div class="flex-1 overflow-y-auto p-3">
-                {#if loadingExamples}
-                  <div class="flex items-center justify-center h-full">
-                    <div class="text-sm text-muted-foreground">Loading examples...</div>
-                  </div>
-                {:else if examplesError}
-                  <div class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {examplesError}
-                  </div>
-                {:else if chatExamples.length === 0}
-                  <div class="flex items-center justify-center h-full">
-                    <div class="text-sm text-muted-foreground">No examples available</div>
-                  </div>
-                {:else}
-                  <!-- svelte-ignore a11y-click-events-have-key-events -->
-                  <!-- svelte-ignore a11y-no-static-element-interactions -->
-                  <!-- Horizontal scrolling card container -->
-                  <div
-                    class="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
-                    on:click={handleClickOutside}
-                  >
-                    {#each chatExamples as example, index}
-                      <div class="relative flex-shrink-0 w-48 snap-start">
-                        <!-- Three dots menu button -->
-                        <div class="example-dropdown absolute top-2 right-2 z-10">
-                          <button
-                            class="p-1 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
-                            on:click={(e) => toggleDropdown(example.id, e)}
-                            aria-label="Example options"
-                          >
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                            </svg>
-                          </button>
-
-                          <!-- Dropdown menu -->
-                          {#if openDropdownId === example.id}
-                            <div
-                              class="absolute right-0 top-full mt-1 w-32 rounded-md border border-border bg-popover shadow-lg z-20"
-                              transition:fade={{ duration: 100 }}
-                            >
-                              <button
-                                class="w-full px-3 py-2 text-left text-xs text-destructive hover:bg-destructive/10 rounded-md flex items-center gap-2 transition-colors"
-                                on:click={(e) => deleteExample(example.id, e)}
-                                disabled={deletingExampleId === example.id}
-                              >
-                                {#if deletingExampleId === example.id}
-                                  <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  <span>Deleting...</span>
-                                {:else}
-                                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                  <span>Delete</span>
-                                {/if}
-                              </button>
-                            </div>
-                          {/if}
-                        </div>
-
-                        <!-- Card button -->
-                        <button
-                          class="w-full h-full rounded-xl border border-border/70 bg-gradient-to-br from-card to-muted/30 p-4 pt-8 text-left shadow-sm transition-all hover:shadow-md hover:border-primary/60 hover:scale-[1.02]"
-                          on:click={() => viewChatExample(example)}
-                        >
-                          <!-- Category badge -->
-                          {#if example.category}
-                            <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary mb-2">
-                              {example.category}
-                            </div>
-                          {:else}
-                            <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground mb-2">
-                              Example {index + 1}
-                            </div>
-                          {/if}
-
-                          <!-- Title -->
-                          <div class="text-sm font-semibold text-foreground mb-1.5 line-clamp-2 leading-tight">
-                            {example.title || 'Untitled Example'}
-                          </div>
-
-                          <!-- Description -->
-                          {#if example.description}
-                            <div class="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                              {example.description}
-                            </div>
-                          {/if}
-
-                          <!-- Play indicator -->
-                          <div class="mt-3 flex items-center gap-1.5 text-[10px] text-primary/70">
-                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-                            </svg>
-                            <span>Click to play</span>
-                          </div>
-                        </button>
-                      </div>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-            {/if}
+            </div>
           </Resizable.Pane>
         </Resizable.PaneGroup>
       </Resizable.Pane>
@@ -1726,6 +1226,8 @@
           <Chat
             bind:this={chatComponent}
             onProvidersFound={handleProvidersFound}
+            onProviderSelect={selectProvider}
+            mapSelectedProvider={selectedProvider}
             on:addressFound={handleAddressFound}
             on:newConversationStarted={handleNewConversationStarted}
             on:exampleSaved={handleExampleSaved}

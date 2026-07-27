@@ -4,6 +4,8 @@
     import MicIcon from '@lucide/svelte/icons/mic';
     import SquareIcon from '@lucide/svelte/icons/square';
     import { serviceZoneManager } from '../lib/serviceZoneManager.js';
+    import ProviderCard from './ProviderCard.svelte';
+    import TransitCard from './TransitCard.svelte';
     import { marked } from 'marked';
     import createDOMPurify from 'dompurify';
     import { browser } from '$app/environment';
@@ -99,6 +101,8 @@
     }
 
     export let onProvidersFound = null;
+    export let onProviderSelect = null;
+    export let mapSelectedProvider = null;
 
     function normalizeChatRole(role) {
         const value = (role || '').toString().toLowerCase();
@@ -606,45 +610,141 @@ How can I assist you today?`,
         );
     }
 
-    function getProviderSummary(messageId) {
-        const attachments = messageAttachments.get(messageId);
-        if (!attachments) return null;
-        
-        const providerAttachment = findProviderResultsAttachment(attachments);
-        if (!providerAttachment || !providerAttachment.data) return null;
-        
-        // Normalize provider attachment data (can arrive as JSON string)
-        let data = providerAttachment.data;
-        if (typeof data === 'string') {
-            try {
-                data = JSON.parse(data);
-            } catch (e) {
-                console.warn('Failed to parse provider attachment data', e);
-                return null;
-            }
-        }
-
-        const providers = Array.isArray(data?.data) ? data.data : [];
-        const publicTransit = data?.public_transit;
-        const hasPublicTransit = hasPublicTransitResult(publicTransit);
-        const verificationProviders = Array.isArray(data?.verification_required) ? data.verification_required : [];
-
-        return {
-            // Includes providers whose eligibility is still unconfirmed. They are real options —
-            // counting only the confirmed ones showed "Providers found: 1" on a trip that had
-            // three paratransit services pending an eligibility check. verificationCount below
-            // breaks out how many of these still need checking.
-            count: providers.length + verificationProviders.length + (hasPublicTransit ? 1 : 0),
-            verificationCount: verificationProviders.length,
-            sourceAddress: data.source_address,
-            destinationAddress: data.destination_address,
-            providers: providers.slice(0, 3), // Show first 3
-            moreCount: Math.max(0, providers.length - 3),
-            hasPublicTransit,
-            allProviders: providers, // Keep reference to all providers
-            publicTransit: publicTransit
-        };
+    function getProviderId(provider) {
+        if (!provider) return null;
+        const id = provider.provider_id ?? provider.id;
+        return id === undefined || id === null ? null : String(id);
     }
+
+    /** Which message's trip strip most recently showed "Copied". */
+    let copiedTripFor = null;
+
+    async function copyTripDetails(trip, messageId) {
+        const when = trip.arriveBy ? `arriving by ${trip.time}` : `pickup at ${trip.time}`;
+        const leg = trip.tripType === 'round_trip' ? `round trip, returning at ${trip.returnTime}` : 'one way';
+        try {
+            await navigator.clipboard.writeText(
+                `${trip.dateDisplay}, ${when}, from ${trip.origin} to ${trip.destination}, ${leg}.`
+            );
+            copiedTripFor = messageId;
+            setTimeout(() => { if (copiedTripFor === messageId) copiedTripFor = null; }, 2000);
+        } catch {
+            copiedTripFor = null;
+        }
+    }
+
+    /**
+     * Split an assistant reply into paragraphs, placing each provider's card directly beneath the
+     * paragraph that first names it.
+     *
+     * The provider details used to live in a separate panel, which meant reading a sentence about
+     * Mobility Matters and then hunting for the matching card elsewhere. Here the phone number and
+     * booking deadline arrive attached to the sentence that raised them.
+     *
+     * Any provider the prose never names still gets a card at the end: a provider whose eligibility
+     * is unconfirmed must never be droppable by an omission in the wording.
+     */
+    function buildMessageSegments(messageId, content) {
+        const text = String(content || '');
+        const attachments = messageAttachments.get(messageId);
+        const providerAttachment = attachments ? findProviderResultsAttachment(attachments) : null;
+        const data = providerAttachment ? safeParseAttachmentData(providerAttachment.data) : null;
+
+        if (!data) return [{ kind: 'markdown', text }];
+
+        const candidates = [
+            ...(Array.isArray(data.data) ? data.data : []).map((provider) => ({ provider, qualified: true })),
+            ...(Array.isArray(data.verification_required) ? data.verification_required : [])
+                .map((provider) => ({ provider, qualified: false }))
+        ].filter((entry) => entry.provider?.provider_name);
+
+        const transit = hasPublicTransitResult(data.public_transit) ? data.public_transit : null;
+        if (candidates.length === 0 && !transit) return [{ kind: 'markdown', text }];
+
+        const trip = {
+            origin: typeof data.source_address === 'string' ? data.source_address : null,
+            destination: typeof data.destination_address === 'string' ? data.destination_address : null,
+            date: data.travel_date,
+            time: data.departure_time,
+            dateDisplay: data.travel_date_display,
+            arriveBy: data.outbound_time_intent === 'arrive_by',
+            tripType: typeof data.trip_type === 'string' ? data.trip_type : null,
+            returnTime: typeof data.return_time === 'string' ? data.return_time : null
+        };
+
+        // The trip strip is only worth showing once every field a dispatcher asks for is known —
+        // it exists so the rider can read the trip down the phone, not as a running scratchpad.
+        const tripFullySpecified = Boolean(
+            data.status === 'complete' && trip.origin && trip.destination &&
+            trip.dateDisplay && trip.time && trip.tripType &&
+            (trip.tripType !== 'round_trip' || trip.returnTime)
+        );
+
+        // Markdown emphasis and punctuation sit around names, so compare on letters and digits
+        // alone. The parenthetical form is also matched bare: the model writes both
+        // "Senior Express Van (San Ramon)" and "the Senior Express Van in San Ramon".
+        const flatten = (value) => String(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const aliasesFor = (name) => {
+            const aliases = [name];
+            const withoutParens = name.replace(/\s*\([^)]*\)/g, '').trim();
+            if (withoutParens && withoutParens !== name) aliases.push(withoutParens);
+            return aliases.map(flatten).filter((alias) => alias.length >= 5);
+        };
+
+        const paragraphs = text.split(/\n\s*\n/);
+        const segments = [];
+        const placed = new Set();
+        let transitPlaced = false;
+
+        // The strip goes in directly above the first card, so the trip details and the numbers to
+        // read them to stay together.
+        const openCards = () => {
+            if (tripFullySpecified && !segments.some((segment) => segment.kind === 'trip')) {
+                segments.push({ kind: 'trip', trip });
+            }
+        };
+
+        paragraphs.forEach((paragraph) => {
+            if (paragraph.trim()) segments.push({ kind: 'markdown', text: paragraph });
+            const haystack = flatten(paragraph);
+            // Order cards by where the name appears, so they follow the reading order.
+            const mentioned = candidates
+                .filter((entry) => !placed.has(entry.provider.provider_name))
+                .map((entry) => {
+                    const at = aliasesFor(entry.provider.provider_name)
+                        .map((alias) => haystack.indexOf(alias))
+                        .filter((position) => position >= 0)
+                        .sort((a, b) => a - b)[0];
+                    return { entry, at: at ?? -1 };
+                })
+                .filter((match) => match.at >= 0)
+                .sort((a, b) => a.at - b.at);
+
+            for (const match of mentioned) {
+                placed.add(match.entry.provider.provider_name);
+                openCards();
+                segments.push({ kind: 'provider', ...match.entry, trip });
+            }
+
+            // Matched on the raw text, not the flattened form: "paratransit" is not transit, and
+            // only a word boundary tells them apart.
+            if (transit && !transitPlaced && /\b(transit|bart|bus|train|light rail|ferry)\b/i.test(paragraph)) {
+                transitPlaced = true;
+                openCards();
+                segments.push({ kind: 'transit', transit });
+            }
+        });
+
+        const unmentioned = candidates.filter((entry) => !placed.has(entry.provider.provider_name));
+        for (const entry of unmentioned) {
+            openCards();
+            segments.push({ kind: 'provider', ...entry, trip });
+        }
+        if (transit && !transitPlaced) segments.push({ kind: 'transit', transit });
+
+        return segments;
+    }
+
 
     // Provider bar functions
     function updateLatestProviderResults(attachments) {
@@ -1352,6 +1452,14 @@ How can I assist you today?`,
       try {
         console.log('Applying replay state:', state);
 
+        // Provider data first: the reply's inline cards are built from it, and the replay endpoint
+        // sends providers in the state snapshot rather than as tool attachments.
+        const snapshot = state.state_snapshot || state;
+        const hintData = state.ui_hints?.new_data || {};
+        const snapshotProviders = Array.isArray(snapshot.providers) ? snapshot.providers : [];
+        const hintProviders = Array.isArray(hintData.providers) ? hintData.providers : [];
+        const replayProviders = snapshotProviders.length > 0 ? snapshotProviders : hintProviders;
+
         // Add message to UI if present
         if (state.message) {
           const message = state.message;
@@ -1368,9 +1476,24 @@ How can I assist you today?`,
             };
             messages = [...messages, messageWithId];
 
-            // Attach tool results when replay data includes them.
+            // Attach tool results when replay data includes them. When it does not — the replay
+            // endpoint stores providers in the state snapshot, not as attachments — synthesize the
+            // search result so the reply renders its provider cards like a live turn.
             if (normalizedRole === 'ai' && Array.isArray(state.attachments) && state.attachments.length > 0) {
               messageAttachments.set(messageId, state.attachments);
+              messageAttachments = messageAttachments;
+            } else if (normalizedRole === 'ai' && replayProviders.length > 0) {
+              messageAttachments.set(messageId, [{
+                type: 'provider_search',
+                metadata: { tool_name: 'find_providers' },
+                data: {
+                  status: 'complete',
+                  data: replayProviders,
+                  source_address: snapshot.source_address || hintData.source_address,
+                  destination_address: snapshot.destination_address || hintData.destination_address,
+                  public_transit: snapshot.public_transit || hintData.public_transit
+                }
+              }]);
               messageAttachments = messageAttachments;
             }
           }
@@ -1384,11 +1507,6 @@ How can I assist you today?`,
         // Apply provider data with full structure including coordinates.
         // Replay states often contain empty provider arrays before the tool result state;
         // don't emit those or the parent panel will show a false "No providers found".
-        const snapshot = state.state_snapshot || state;
-        const hintData = state.ui_hints?.new_data || {};
-        const snapshotProviders = Array.isArray(snapshot.providers) ? snapshot.providers : [];
-        const hintProviders = Array.isArray(hintData.providers) ? hintData.providers : [];
-        const replayProviders = snapshotProviders.length > 0 ? snapshotProviders : hintProviders;
         const shouldShowReplayProviders =
           replayProviders.length > 0 ||
           state.ui_hints?.show_providers ||
@@ -1771,6 +1889,7 @@ How can I assist you today?`,
     <!-- Chat messages -->
     <div class="flex-1 overflow-y-auto px-3 py-3 space-y-3 chat-messages scroll-smooth">
       {#each messages.filter(m => (m.role === 'ai' || m.role === 'human') && typeof m.content === 'string' && m.content.trim() !== '') as message, index (message.id || `${message.role}-${index}-${message.content.substring(0, 20)}`)}
+        {@const segments = message.role === 'ai' ? buildMessageSegments(message.id, message.content) : []}
         <div
           class="flex gap-2 {message.role === 'human' ? 'justify-end' : 'justify-start'}"
           in:fly={{
@@ -1786,7 +1905,7 @@ How can I assist you today?`,
             </div>
           {/if}
 
-          <div class="max-w-[75%] {
+          <div class="{segments.some((segment) => segment.kind !== 'markdown') ? 'max-w-[94%]' : 'max-w-[75%]'} {
             message.role === 'human'
               ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-3 py-2'
               : 'bg-muted text-foreground rounded-2xl rounded-tl-sm px-3 py-2'
@@ -1794,84 +1913,63 @@ How can I assist you today?`,
             {#if message.role === 'human'}
               <p class="text-sm whitespace-pre-wrap">{message.content}</p>
             {:else}
-              <!-- AI message with markdown rendering -->
-              <div class="text-sm chat-markdown">
-                {@html renderMarkdown(message.content)}
-              </div>
+              <!-- AI message: prose with each provider's card under the paragraph naming it -->
+              {#each segments as segment, segmentIndex (segmentIndex)}
+                {#if segment.kind === 'markdown'}
+                  <div class="text-sm chat-markdown">
+                    {@html renderMarkdown(segment.text)}
+                  </div>
+                {:else if segment.kind === 'trip'}
+                  <!-- The trip as a dispatcher will need to hear it, so the rider can read it out. -->
+                  <div class="mt-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2" aria-label="Trip to book">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0 text-xs">
+                        <div class="font-semibold text-foreground">
+                          {segment.trip.dateDisplay} · {segment.trip.arriveBy ? 'arrive by' : 'pickup'} {segment.trip.time}
+                          <span class="font-normal text-muted-foreground">
+                            · {segment.trip.tripType === 'round_trip' ? `round trip, back at ${segment.trip.returnTime}` : 'one way'}
+                          </span>
+                        </div>
+                        <div class="mt-0.5 text-muted-foreground">
+                          {segment.trip.origin} → {segment.trip.destination}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        class="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary transition hover:bg-primary/15"
+                        onclick={(event) => { event.stopPropagation(); copyTripDetails(segment.trip, message.id); }}
+                      >
+                        {copiedTripFor === message.id ? 'Copied' : 'Copy trip details'}
+                      </button>
+                    </div>
+                    <p class="mt-1 text-[11px] text-muted-foreground">
+                      OPTIMAT can't book for you — call one of these and read them the details.
+                    </p>
+                  </div>
+                {:else if segment.kind === 'transit'}
+                  <TransitCard
+                    transit={segment.transit}
+                    selected={Boolean(mapSelectedProvider?.is_public_transit)}
+                    onSelect={onProviderSelect}
+                  />
+                {:else}
+                  <ProviderCard
+                    provider={segment.provider}
+                    qualified={segment.qualified}
+                    trip={segment.trip}
+                    selected={getProviderId(segment.provider) != null && getProviderId(segment.provider) === getProviderId(mapSelectedProvider)}
+                    onSelect={onProviderSelect}
+                  />
+                {/if}
+              {/each}
 
               {#if hasAttachments(message.id)}
-                {@const providerSummary = getProviderSummary(message.id)}
                 {@const providerSearchProgress = getProviderSearchProgress(message.id)}
                 {@const addressPlaces = getAddressPlaces(message.id)}
                 {@const providerInfo = getAttachmentData(message.id, 'provider_info')}
                 {@const webSearch = getAttachmentData(message.id, 'web_search')}
 
                 <div class="mt-3 space-y-2">
-                  {#if providerSummary}
-                    <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2" aria-label="Provider search results">
-                      <div class="flex items-center justify-between gap-3">
-                        <div class="text-xs text-muted-foreground">
-                          Options found: <span class="font-medium text-foreground">{providerSummary.count}</span>
-                          {#if providerSummary.verificationCount > 0}
-                            <span class="text-amber-700">
-                              · {providerSummary.verificationCount} to verify
-                            </span>
-                          {/if}
-                        </div>
-	                        <button
-	                          type="button"
-	                          class="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/15 transition"
-	                          disabled={isViewingExample}
-	                          onclick={() => handleMessageClick(message.id)}
-	                        >
-                          Open results
-                        </button>
-                      </div>
-                      {#if providerSummary.sourceAddress || providerSummary.destinationAddress}
-                        <div class="mt-1 text-[11px] text-muted-foreground line-clamp-2">
-                          {providerSummary.sourceAddress} → {providerSummary.destinationAddress}
-                        </div>
-                      {/if}
-                    </div>
-                  {:else if providerSearchProgress}
-                    <div
-                      class="rounded-lg border px-3 py-2.5 {providerSearchProgress.state === 'in_progress' ? 'border-blue-200/80 bg-blue-50/70 dark:border-blue-800/70 dark:bg-blue-950/30' : providerSearchProgress.state === 'paused' ? 'border-amber-200/80 bg-amber-50/70 dark:border-amber-800/70 dark:bg-amber-950/30' : 'border-slate-200/80 bg-slate-50/70 dark:border-slate-700/70 dark:bg-slate-900/30'}"
-                      aria-label="Provider search status"
-                      data-provider-search-state={providerSearchProgress.state}
-                    >
-                      <div class="flex items-start gap-2.5">
-                        <div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center" aria-hidden="true">
-                          {#if providerSearchProgress.state === 'in_progress'}
-                            <div class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
-                          {:else if providerSearchProgress.state === 'paused'}
-                            <div class="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">!</div>
-                          {:else}
-                            <div class="flex h-4 w-4 items-center justify-center rounded-full bg-slate-500 text-[9px] font-bold text-white">×</div>
-                          {/if}
-                        </div>
-                        <div class="min-w-0 flex-1">
-                          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                            <div class="text-xs font-semibold text-foreground">{providerSearchProgress.title}</div>
-                            <div class="rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                              {providerSearchProgress.badge}
-                            </div>
-                          </div>
-                          <div class="mt-1 text-[11px] leading-4 text-muted-foreground">
-                            {providerSearchProgress.detail}
-                          </div>
-                          <div class="mt-2 flex gap-1" aria-hidden="true">
-                            <div class="h-1 flex-1 rounded-full {providerSearchProgress.state === 'paused' ? 'bg-amber-400' : providerSearchProgress.state === 'stopped' ? 'bg-slate-400' : 'bg-blue-500'}"></div>
-                            <div class="h-1 flex-1 rounded-full {providerSearchProgress.state === 'in_progress' ? 'animate-pulse bg-blue-300 dark:bg-blue-700' : 'bg-border'}"></div>
-                          </div>
-                          {#if providerSearchProgress.sourceAddress || providerSearchProgress.destinationAddress}
-                            <div class="mt-2 text-[11px] text-muted-foreground line-clamp-2">
-                              {providerSearchProgress.sourceAddress} → {providerSearchProgress.destinationAddress}
-                            </div>
-                          {/if}
-                        </div>
-                      </div>
-                    </div>
-                  {/if}
 
                   {#if addressPlaces.length > 0}
                     <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
