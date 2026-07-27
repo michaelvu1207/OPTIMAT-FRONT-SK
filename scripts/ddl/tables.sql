@@ -30,7 +30,12 @@ CREATE TABLE IF NOT EXISTS optimat.providers (
     eligibility_reqs JSONB,
     booking         JSONB,
     fare            JSONB,
-    service_hours   JSONB,
+    service_hours   JSONB,          -- {"hours":[{"day":"1111100","start":"0800","end":"1600"}]}, day[0]=Monday
+    service_hours_source TEXT,      -- URL the hours were read from; hours without one are unverified
+    service_hours_quote TEXT,       -- verbatim text from the source, for spot-checking
+    service_hours_confidence TEXT,  -- high | medium
+    service_hours_verified_at TIMESTAMPTZ,
+    service_hours_notes TEXT,       -- holidays, advance notice, appointment-only caveats
     service_zone    JSONB,          -- GeoJSON FeatureCollection
     service_area_geojson JSONB,
     service_area_cities TEXT[],
