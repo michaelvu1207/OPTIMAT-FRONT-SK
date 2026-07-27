@@ -67,7 +67,20 @@ try {
   console.log('\nState 1 — trip not yet pinned down');
   {
     const { page, ta, replies } = await open();
+    // Examples live in the chat now, offered until the rider asks their own question.
+    const exampleCards = page.locator('.chat-messages button[aria-label="Example options"]');
+    await exampleCards.first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+    check('examples are offered inside the chat before the first question',
+      await exampleCards.count() > 0, 'no example cards in the transcript');
+    check('the left side is the map alone',
+      await page.evaluate(() => {
+        const map = document.querySelector('.leaflet-container');
+        return Boolean(map) && map.getBoundingClientRect().height / window.innerHeight > 0.85;
+      }), 'something still sits below the map');
+
     await send(page, ta, 'I need to get over to my doctor. It is the Kaiser on Nevin, in Richmond. I am right by the Civic Center there.', replies, 1);
+    check('examples step aside once the rider asks something',
+      await exampleCards.count() === 0, 'example cards still showing mid-conversation');
     const cards = page.locator(CARDS);
     const tripStrip = page.locator('[aria-label="Trip to book"]');
     check('no provider cards before results exist',
@@ -76,8 +89,6 @@ try {
     check('the results panel is gone for good',
       await page.locator('[aria-label="Provider results count"]').count() === 0,
       'the old panel header is still rendering');
-    check('the bottom pane is the examples list',
-      await page.locator('text=EXAMPLES').count() > 0, 'examples pane not shown');
     await page.screenshot({ path: 'tests/chat/rendered/callsheet-1-not-ready.png', fullPage: true });
     await page.close();
   }

@@ -2116,6 +2116,13 @@ How can I assist you today?`,
         </div>
       {/if}
 
+      <!-- Examples to play, offered until the rider asks their own question. -->
+      {#if $$slots.examples && !isViewingExample && replayStates.length === 0 && !messages.some((message) => message.role === 'human')}
+        <div class="pt-1">
+          <slot name="examples" />
+        </div>
+      {/if}
+
       {#if error}
         <div class="bg-destructive/10 border border-destructive/40 text-destructive p-3 rounded-lg text-sm">
           {error}

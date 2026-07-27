@@ -954,261 +954,141 @@
   >
     <!-- Main horizontal layout: Left (Map + Results) | Right (Chat full height) -->
     <Resizable.PaneGroup direction="horizontal" class="flex-1 h-full">
-      <!-- Left: Nested vertical panels (Map top, Results bottom) -->
+      <!-- Left: the map, full height. Provider details live in the chat, not beside it. -->
       <Resizable.Pane defaultSize={60} minSize={35} class="relative">
-        <Resizable.PaneGroup direction="vertical" class="h-full">
-          <!-- Top: Map Panel -->
-          <Resizable.Pane defaultSize={providerData ? 60 : 70} minSize={40} class="relative">
-            <!-- Map style selector - floating overlay -->
-            <div class="absolute top-2 left-2 z-10 rounded-md border border-border/50 bg-background/95 backdrop-blur px-2 py-1.5 shadow-sm">
-              <select
-                class="bg-transparent text-xs border-0 focus:ring-0 cursor-pointer"
-                bind:value={currentMapStyleId}
-                on:change={(e) => changeMapStyle(e.target.value)}
-              >
-                {#each mapStyles as style}
-                  <option value={style.id}>{style.name}</option>
-                {/each}
-              </select>
-            </div>
+        <!-- Map style selector - floating overlay -->
+        <div class="absolute top-2 left-2 z-10 rounded-md border border-border/50 bg-background/95 backdrop-blur px-2 py-1.5 shadow-sm">
+          <select
+            class="bg-transparent text-xs border-0 focus:ring-0 cursor-pointer"
+            bind:value={currentMapStyleId}
+            on:change={(e) => changeMapStyle(e.target.value)}
+          >
+            {#each mapStyles as style}
+              <option value={style.id}>{style.name}</option>
+            {/each}
+          </select>
+        </div>
 
-            {#if transitRouteCoordinates.length > 1 && selectedProvider?.is_public_transit}
-              <div
-                class="absolute right-2 top-2 z-10 max-w-56 rounded-lg border border-blue-200 bg-background/95 px-3 py-2 shadow-md backdrop-blur"
-                data-testid="transit-route-summary"
-              >
-                <div class="flex items-center gap-2 text-xs font-semibold text-foreground">
-                  <span class="h-2.5 w-2.5 rounded-full bg-[#1a73e8]"></span>
-                  Public Transit Route
-                </div>
-                <div class="mt-1 text-[11px] text-muted-foreground">
-                  {[providerData?.public_transit?.duration_text, providerData?.public_transit?.distance_text].filter(Boolean).join(' · ')}
-                </div>
-                {#if getTransitLines().length > 0}
-                  <div class="mt-1 text-[10px] text-blue-700">{getTransitLines().join(' → ')}</div>
-                {/if}
-              </div>
+        {#if transitRouteCoordinates.length > 1 && selectedProvider?.is_public_transit}
+          <div
+            class="absolute right-2 top-2 z-10 max-w-56 rounded-lg border border-blue-200 bg-background/95 px-3 py-2 shadow-md backdrop-blur"
+            data-testid="transit-route-summary"
+          >
+            <div class="flex items-center gap-2 text-xs font-semibold text-foreground">
+              <span class="h-2.5 w-2.5 rounded-full bg-[#1a73e8]"></span>
+              Public Transit Route
+            </div>
+            <div class="mt-1 text-[11px] text-muted-foreground">
+              {[providerData?.public_transit?.duration_text, providerData?.public_transit?.distance_text].filter(Boolean).join(' · ')}
+            </div>
+            {#if getTransitLines().length > 0}
+              <div class="mt-1 text-[10px] text-blue-700">{getTransitLines().join(' → ')}</div>
             {/if}
+          </div>
+        {/if}
 
-            <div class="absolute inset-0" in:fade={{ duration: 400 }}>
-              {#key mapKey}
-                <Map options={{ center: mapCenter, zoom: mapZoom }}>
-                  <TileLayer url={currentMapStyle.url} options={{ attribution: currentMapStyle.attribution, maxZoom: 19 }} />
+        <div class="absolute inset-0" in:fade={{ duration: 400 }}>
+          {#key mapKey}
+            <Map options={{ center: mapCenter, zoom: mapZoom }}>
+              <TileLayer url={currentMapStyle.url} options={{ attribution: currentMapStyle.attribution, maxZoom: 19 }} />
 
-                  {#each $visibleServiceZones as zone (zone.id)}
-                    {#if zone.geoJson}
-                      <GeoJSON
-                        json={zone.geoJson}
-                        options={{
-                          style: () => zone.config,
-                          onEachFeature: (feature, layer) => {
-                            layer.on({
-                              mouseover: (e) => {
-                                const layer = e.target;
-                                layer.setStyle({
-                                  weight: zone.config.weight + 1,
-                                  opacity: Math.min(zone.config.opacity + 0.2, 1),
-                                  fillOpacity: Math.min(zone.config.fillOpacity + 0.2, 0.6)
-                                });
-                                layer.bringToFront();
-                              },
-                              mouseout: (e) => {
-                                const layer = e.target;
-                                layer.setStyle(zone.config);
-                              },
-                              click: () => serviceZoneManager.focusOnServiceZone(zone.id)
+              {#each $visibleServiceZones as zone (zone.id)}
+                {#if zone.geoJson}
+                  <GeoJSON
+                    json={zone.geoJson}
+                    options={{
+                      style: () => zone.config,
+                      onEachFeature: (feature, layer) => {
+                        layer.on({
+                          mouseover: (e) => {
+                            const layer = e.target;
+                            layer.setStyle({
+                              weight: zone.config.weight + 1,
+                              opacity: Math.min(zone.config.opacity + 0.2, 1),
+                              fillOpacity: Math.min(zone.config.fillOpacity + 0.2, 0.6)
                             });
-                            const popupContent = `
-                              <div class="service-zone-popup">
-                                <div class="zone-popup-header">
-                                  <strong>${zone.label}</strong>
-                                  <span class="zone-type">${zone.type}</span>
-                                </div>
-                                ${zone.description ? `<div class="zone-popup-description">${zone.description}</div>` : ''}
-                                ${zone.metadata?.provider?.provider_org ? `<div class="zone-popup-org">🏢 ${zone.metadata.provider.provider_org}</div>` : ''}
-                                ${zone.metadata?.provider?.eligibility_req ? `<div class="zone-popup-eligibility">📋 ${zone.metadata.provider.eligibility_req}</div>` : ''}
-                              </div>
-                            `;
-                            layer.bindPopup(popupContent);
-                          }
-                        }}
-                      />
-                    {/if}
-                  {/each}
-
-                  {#if transitRouteCoordinates.length > 1}
-                    <Polyline
-                      latLngs={transitRouteCoordinates}
-                      options={{
-                        color: '#ffffff',
-                        weight: 10,
-                        opacity: 0.95,
-                        lineCap: 'round',
-                        lineJoin: 'round',
-                        className: 'public-transit-route-casing'
-                      }}
-                    />
-                    <Polyline
-                      latLngs={transitRouteCoordinates}
-                      options={{
-                        color: '#1a73e8',
-                        weight: transitRouteSegments.length > 0 ? 4 : 6,
-                        opacity: transitRouteSegments.length > 0 ? 0.32 : 0.95,
-                        lineCap: 'round',
-                        lineJoin: 'round',
-                        className: 'public-transit-route'
-                      }}
-                    />
-                    {#each transitRouteSegments as segment (segment.id)}
-                      <Polyline
-                        latLngs={segment.coordinates}
-                        options={{
-                          color: segment.color,
-                          weight: segment.mode === 'WALKING' ? 5 : 6,
-                          opacity: 0.95,
-                          dashArray: segment.dashArray,
-                          lineCap: 'round',
-                          lineJoin: 'round',
-                          className: `public-transit-segment public-transit-segment-${segment.mode.toLowerCase()}`
-                        }}
-                      />
-                    {/each}
-                  {/if}
-
-                  {#if $connectionLine.show && transitRouteCoordinates.length === 0}
-                    <Polyline
-                      latLngs={$connectionLine.coordinates}
-                      options={{ color: '#6366f1', weight: 3, opacity: 0.8, dashArray: '10, 5' }}
-                    />
-                  {/if}
-
-                  {#each $pings.filter((ping) => ping.visible) as ping (ping.id)}
-                    <Marker
-                      latLng={ping.coordinates}
-                      popup={`<div class="ping-popup"><div class="ping-popup-header"><strong>${ping.type === PingTypes.ORIGIN ? '🚀 Origin' : ping.type === PingTypes.DESTINATION ? '🎯 Destination' : `${ping.config.icon} ${ping.label}`}</strong></div><div class="ping-popup-content">${ping.description || ping.label}</div></div>`}
-                      options={{ className: `ping-marker-${ping.type} animated-marker` }}
-                    />
-                  {/each}
-                </Map>
-              {/key}
-            </div>
-          </Resizable.Pane>
-
-          <Resizable.Handle withHandle />
-
-          <!-- Bottom: Examples -->
-          <Resizable.Pane defaultSize={30} minSize={20} class="flex flex-col overflow-hidden bg-card border-t border-border/40">
-            <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
-              <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                💡 Examples
-              </span>
-            </div>
-            <div class="flex-1 overflow-y-auto p-3">
-              {#if loadingExamples}
-                <div class="flex items-center justify-center h-full">
-                  <div class="text-sm text-muted-foreground">Loading examples...</div>
-                </div>
-              {:else if examplesError}
-                <div class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {examplesError}
-                </div>
-              {:else if chatExamples.length === 0}
-                <div class="flex items-center justify-center h-full">
-                  <div class="text-sm text-muted-foreground">No examples available</div>
-                </div>
-              {:else}
-                <!-- svelte-ignore a11y-click-events-have-key-events -->
-                <!-- svelte-ignore a11y-no-static-element-interactions -->
-                <!-- Horizontal scrolling card container -->
-                <div
-                  class="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
-                  on:click={handleClickOutside}
-                >
-                  {#each chatExamples as example, index}
-                    <div class="relative flex-shrink-0 w-48 snap-start">
-                      <!-- Three dots menu button -->
-                      <div class="example-dropdown absolute top-2 right-2 z-10">
-                        <button
-                          class="p-1 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
-                          on:click={(e) => toggleDropdown(example.id, e)}
-                          aria-label="Example options"
-                        >
-                          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                          </svg>
-                        </button>
-
-                        <!-- Dropdown menu -->
-                        {#if openDropdownId === example.id}
-                          <div
-                            class="absolute right-0 top-full mt-1 w-32 rounded-md border border-border bg-popover shadow-lg z-20"
-                            transition:fade={{ duration: 100 }}
-                          >
-                            <button
-                              class="w-full px-3 py-2 text-left text-xs text-destructive hover:bg-destructive/10 rounded-md flex items-center gap-2 transition-colors"
-                              on:click={(e) => deleteExample(example.id, e)}
-                              disabled={deletingExampleId === example.id}
-                            >
-                              {#if deletingExampleId === example.id}
-                                <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span>Deleting...</span>
-                              {:else}
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                <span>Delete</span>
-                              {/if}
-                            </button>
+                            layer.bringToFront();
+                          },
+                          mouseout: (e) => {
+                            const layer = e.target;
+                            layer.setStyle(zone.config);
+                          },
+                          click: () => serviceZoneManager.focusOnServiceZone(zone.id)
+                        });
+                        const popupContent = `
+                          <div class="service-zone-popup">
+                            <div class="zone-popup-header">
+                              <strong>${zone.label}</strong>
+                              <span class="zone-type">${zone.type}</span>
+                            </div>
+                            ${zone.description ? `<div class="zone-popup-description">${zone.description}</div>` : ''}
+                            ${zone.metadata?.provider?.provider_org ? `<div class="zone-popup-org">🏢 ${zone.metadata.provider.provider_org}</div>` : ''}
+                            ${zone.metadata?.provider?.eligibility_req ? `<div class="zone-popup-eligibility">📋 ${zone.metadata.provider.eligibility_req}</div>` : ''}
                           </div>
-                        {/if}
-                      </div>
+                        `;
+                        layer.bindPopup(popupContent);
+                      }
+                    }}
+                  />
+                {/if}
+              {/each}
 
-                      <!-- Card button -->
-                      <button
-                        class="w-full h-full rounded-xl border border-border/70 bg-gradient-to-br from-card to-muted/30 p-4 pt-8 text-left shadow-sm transition-all hover:shadow-md hover:border-primary/60 hover:scale-[1.02]"
-                        on:click={() => viewChatExample(example)}
-                      >
-                        <!-- Category badge -->
-                        {#if example.category}
-                          <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary mb-2">
-                            {example.category}
-                          </div>
-                        {:else}
-                          <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground mb-2">
-                            Example {index + 1}
-                          </div>
-                        {/if}
-
-                        <!-- Title -->
-                        <div class="text-sm font-semibold text-foreground mb-1.5 line-clamp-2 leading-tight">
-                          {example.title || 'Untitled Example'}
-                        </div>
-
-                        <!-- Description -->
-                        {#if example.description}
-                          <div class="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                            {example.description}
-                          </div>
-                        {/if}
-
-                        <!-- Play indicator -->
-                        <div class="mt-3 flex items-center gap-1.5 text-[10px] text-primary/70">
-                          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-                          </svg>
-                          <span>Click to play</span>
-                        </div>
-                      </button>
-                    </div>
-                  {/each}
-                </div>
+              {#if transitRouteCoordinates.length > 1}
+                <Polyline
+                  latLngs={transitRouteCoordinates}
+                  options={{
+                    color: '#ffffff',
+                    weight: 10,
+                    opacity: 0.95,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    className: 'public-transit-route-casing'
+                  }}
+                />
+                <Polyline
+                  latLngs={transitRouteCoordinates}
+                  options={{
+                    color: '#1a73e8',
+                    weight: transitRouteSegments.length > 0 ? 4 : 6,
+                    opacity: transitRouteSegments.length > 0 ? 0.32 : 0.95,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    className: 'public-transit-route'
+                  }}
+                />
+                {#each transitRouteSegments as segment (segment.id)}
+                  <Polyline
+                    latLngs={segment.coordinates}
+                    options={{
+                      color: segment.color,
+                      weight: segment.mode === 'WALKING' ? 5 : 6,
+                      opacity: 0.95,
+                      dashArray: segment.dashArray,
+                      lineCap: 'round',
+                      lineJoin: 'round',
+                      className: `public-transit-segment public-transit-segment-${segment.mode.toLowerCase()}`
+                    }}
+                  />
+                {/each}
               {/if}
-            </div>
-          </Resizable.Pane>
-        </Resizable.PaneGroup>
+
+              {#if $connectionLine.show && transitRouteCoordinates.length === 0}
+                <Polyline
+                  latLngs={$connectionLine.coordinates}
+                  options={{ color: '#6366f1', weight: 3, opacity: 0.8, dashArray: '10, 5' }}
+                />
+              {/if}
+
+              {#each $pings.filter((ping) => ping.visible) as ping (ping.id)}
+                <Marker
+                  latLng={ping.coordinates}
+                  popup={`<div class="ping-popup"><div class="ping-popup-header"><strong>${ping.type === PingTypes.ORIGIN ? '🚀 Origin' : ping.type === PingTypes.DESTINATION ? '🎯 Destination' : `${ping.config.icon} ${ping.label}`}</strong></div><div class="ping-popup-content">${ping.description || ping.label}</div></div>`}
+                  options={{ className: `ping-marker-${ping.type} animated-marker` }}
+                />
+              {/each}
+            </Map>
+          {/key}
+        </div>
       </Resizable.Pane>
 
       <Resizable.Handle withHandle />
@@ -1234,7 +1114,114 @@
             on:addressFound={handleAddressFound}
             on:newConversationStarted={handleNewConversationStarted}
             on:exampleSaved={handleExampleSaved}
-          />
+          >
+            <!-- Recorded conversations to play, shown in the chat until the rider asks something. -->
+            <svelte:fragment slot="examples">
+              <div class="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                💡 Examples
+              </div>
+              <div>
+                {#if loadingExamples}
+              <div class="text-xs text-muted-foreground">Loading examples...</div>
+                {:else if examplesError}
+              <div class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {examplesError}
+              </div>
+                {:else if chatExamples.length === 0}
+              <div class="text-xs text-muted-foreground">No examples available</div>
+                {:else}
+              <!-- svelte-ignore a11y-click-events-have-key-events -->
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <!-- Horizontal scrolling card container -->
+              <div
+                class="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+                on:click={handleClickOutside}
+              >
+                {#each chatExamples as example, index}
+                  <div class="relative flex-shrink-0 w-48 snap-start">
+                    <!-- Three dots menu button -->
+                    <div class="example-dropdown absolute top-2 right-2 z-10">
+                      <button
+                        class="p-1 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                        on:click={(e) => toggleDropdown(example.id, e)}
+                        aria-label="Example options"
+                      >
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                        </svg>
+                      </button>
+
+                      <!-- Dropdown menu -->
+                      {#if openDropdownId === example.id}
+                        <div
+                          class="absolute right-0 top-full mt-1 w-32 rounded-md border border-border bg-popover shadow-lg z-20"
+                          transition:fade={{ duration: 100 }}
+                        >
+                          <button
+                            class="w-full px-3 py-2 text-left text-xs text-destructive hover:bg-destructive/10 rounded-md flex items-center gap-2 transition-colors"
+                            on:click={(e) => deleteExample(example.id, e)}
+                            disabled={deletingExampleId === example.id}
+                          >
+                            {#if deletingExampleId === example.id}
+                              <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>Deleting...</span>
+                            {:else}
+                              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              <span>Delete</span>
+                            {/if}
+                          </button>
+                        </div>
+                      {/if}
+                    </div>
+
+                    <!-- Card button -->
+                    <button
+                      class="w-full h-full rounded-xl border border-border/70 bg-gradient-to-br from-card to-muted/30 p-4 pt-8 text-left shadow-sm transition-all hover:shadow-md hover:border-primary/60 hover:scale-[1.02]"
+                      on:click={() => viewChatExample(example)}
+                    >
+                      <!-- Category badge -->
+                      {#if example.category}
+                        <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary mb-2">
+                          {example.category}
+                        </div>
+                      {:else}
+                        <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground mb-2">
+                          Example {index + 1}
+                        </div>
+                      {/if}
+
+                      <!-- Title -->
+                      <div class="text-sm font-semibold text-foreground mb-1.5 line-clamp-2 leading-tight">
+                        {example.title || 'Untitled Example'}
+                      </div>
+
+                      <!-- Description -->
+                      {#if example.description}
+                        <div class="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                          {example.description}
+                        </div>
+                      {/if}
+
+                      <!-- Play indicator -->
+                      <div class="mt-3 flex items-center gap-1.5 text-[10px] text-primary/70">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                        </svg>
+                        <span>Click to play</span>
+                      </div>
+                    </button>
+                  </div>
+                {/each}
+              </div>
+                {/if}
+              </div>
+            </svelte:fragment>
+          </Chat>
         </div>
       </Resizable.Pane>
     </Resizable.PaneGroup>
