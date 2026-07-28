@@ -640,6 +640,39 @@ How can I assist you today?`,
     }
 
     /**
+     * Results are only worth embedding once the assistant has everything it needs to decide who the
+     * rider can actually call.
+     *
+     * The assistant grades every candidate on the first search, so a trip where age is still unknown
+     * came back as six cards all saying "Confirm eligibility", stacked under a paragraph asking how
+     * old the rider is. Six unusable cards is not an answer, it is a wall to scroll past before
+     * reaching the question. `next_question` is the server's own signal that a rider fact is still
+     * outstanding — it goes null once the rider answers or declines — so the cards wait for it.
+     */
+    function resultsAreSettled(data) {
+        return Boolean(data) && !data.next_question;
+    }
+
+    /**
+     * The one message that embeds the results: the newest whose results are settled.
+     *
+     * Every assistant turn that reassesses eligibility carries its own copy of the providers, so
+     * without this the same six cards pile up down the thread, each set slightly staler than the
+     * last. The rider gets one set, in the most recent answer.
+     */
+    $: resultsMessageId = (() => {
+        const attachmentsById = messageAttachments;
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+            const message = messages[index];
+            if (message?.role !== 'ai' || !message.id) continue;
+            const attachment = findProviderResultsAttachment(attachmentsById.get(message.id));
+            if (!attachment) continue;
+            if (resultsAreSettled(safeParseAttachmentData(attachment.data))) return message.id;
+        }
+        return null;
+    })();
+
+    /**
      * Split an assistant reply into paragraphs, placing each provider's card directly beneath the
      * paragraph that first names it.
      *
@@ -652,6 +685,9 @@ How can I assist you today?`,
      */
     function buildMessageSegments(messageId, content) {
         const text = String(content || '');
+        // Still gathering facts, or superseded by a newer answer: the prose stands on its own.
+        if (messageId !== resultsMessageId) return [{ kind: 'markdown', text }];
+
         const attachments = messageAttachments.get(messageId);
         const providerAttachment = attachments ? findProviderResultsAttachment(attachments) : null;
         const data = providerAttachment ? safeParseAttachmentData(providerAttachment.data) : null;
@@ -763,18 +799,13 @@ How can I assist you today?`,
     /** Message the tester already gave feedback on; the thanks note stays with it. */
     let feedbackSubmittedFor = null;
 
-    /** Id of the newest assistant message that rendered provider cards, or null when there is none. */
-    $: feedbackAnchorMessageId = (() => {
-        if (feedbackClosed || isViewingExample) return null;
-        // messageAttachments is read here so the anchor recomputes as attachments arrive.
-        const attachmentsById = messageAttachments;
-        for (let index = messages.length - 1; index >= 0; index -= 1) {
-            const message = messages[index];
-            if (message?.role !== 'ai' || !message.id) continue;
-            if (findProviderResultsAttachment(attachmentsById.get(message.id))) return message.id;
-        }
-        return null;
-    })();
+    /**
+     * The message the prompt sits under: the one carrying the recommendations.
+     *
+     * Asking for feedback while the assistant is still collecting facts would be asking the tester
+     * to judge an answer they have not been given, so this follows the cards.
+     */
+    $: feedbackAnchorMessageId = feedbackClosed || isViewingExample ? null : resultsMessageId;
 
     // Once feedback is in, the bubble stays where it was answered rather than chasing later
     // recommendations — the tester has had their say for this conversation.
