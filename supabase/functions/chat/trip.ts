@@ -75,6 +75,90 @@ const MONTH_ALIASES = new Map<string, number>([
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
+/**
+ * Counts a rider might speak rather than type. "a" covers "a week from Friday".
+ *
+ * Deliberately absent: "a couple" and "a few". Both are guesses about which day someone is going
+ * to be standing outside waiting for a vehicle, and a wrong guess here is a missed ride. Asking
+ * costs one turn.
+ */
+const NUMBER_WORDS = new Map<string, number>([
+  ["a", 1],
+  ["an", 1],
+  ["one", 1],
+  ["two", 2],
+  ["three", 3],
+  ["four", 4],
+  ["five", 5],
+  ["six", 6],
+  ["seven", 7],
+  ["eight", 8],
+  ["nine", 9],
+  ["ten", 10],
+  ["eleven", 11],
+  ["twelve", 12],
+  ["thirteen", 13],
+  ["fourteen", 14],
+]);
+
+const COUNT_PATTERN = `\\d{1,3}|${[...NUMBER_WORDS.keys()].join("|")}`;
+
+/** A booking horizon nobody schedules paratransit against; past it, the phrase is likelier a typo. */
+const MAX_RELATIVE_DAYS = 365;
+
+function parseCount(value: string | undefined): number | null {
+  if (!value) return null;
+  const word = NUMBER_WORDS.get(value.toLowerCase());
+  if (word !== undefined) return word;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+/**
+ * "3 days from now", "in two weeks", "the day after tomorrow" — how riders actually name a date
+ * when they are counting forward from today rather than reading a calendar.
+ *
+ * Returns days to add to today, or null when the phrase names no offset. "next week" on its own is
+ * null on purpose: it is a week, not a day, and only the rider knows which day of it they mean.
+ */
+function relativeOffsetDays(normalized: string): number | null {
+  if (/\bday\s+after\s+tomorrow\b/.test(normalized)) return 2;
+
+  const dayMatch = normalized.match(
+    new RegExp(`\\b(?:in|after)\\s+(${COUNT_PATTERN})\\s+days?\\b|\\b(${COUNT_PATTERN})\\s+days?\\s+(?:from\\s+(?:now|today)|later|out|ahead|time)\\b`, "i"),
+  );
+  if (dayMatch) {
+    const days = parseCount(dayMatch[1] ?? dayMatch[2]);
+    if (days !== null && days > 0 && days <= MAX_RELATIVE_DAYS) return days;
+  }
+
+  const weekMatch = normalized.match(
+    new RegExp(`\\b(?:in|after)\\s+(${COUNT_PATTERN})\\s+weeks?\\b|\\b(${COUNT_PATTERN})\\s+weeks?\\s+(?:from\\s+(?:now|today)|later|out|ahead|time)\\b`, "i"),
+  );
+  if (weekMatch) {
+    const weeks = parseCount(weekMatch[1] ?? weekMatch[2]);
+    if (weeks !== null && weeks > 0 && weeks * 7 <= MAX_RELATIVE_DAYS) return weeks * 7;
+  }
+
+  return null;
+}
+
+/**
+ * "a week from Friday" — an offset anchored to a weekday rather than to today.
+ *
+ * Returns the extra days to add on top of that weekday's next occurrence, so the caller resolves
+ * the weekday exactly as it always has and then pushes it out.
+ */
+function weeksFromWeekday(normalized: string): number | null {
+  const match = normalized.match(
+    new RegExp(`\\b(${COUNT_PATTERN})\\s+weeks?\\s+from\\s+(?:this\\s+|next\\s+)?(${WEEKDAYS.join("|")})\\b`, "i"),
+  );
+  if (!match) return null;
+  const weeks = parseCount(match[1]);
+  if (weeks === null || weeks <= 0 || weeks * 7 > MAX_RELATIVE_DAYS) return null;
+  return weeks * 7;
+}
+
 function normalizeCity(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -171,7 +255,17 @@ export function resolveTravelDate(
   const normalized = raw.toLowerCase().replace(/\b(\d{1,2})(st|nd|rd|th)\b/g, "$1");
   let resolved: string | null = null;
 
-  if (/\btoday\b/.test(normalized)) {
+  // Counting forward from today: "3 days from now", "in two weeks", "the day after tomorrow".
+  //
+  // First, ahead of everything else. These phrases contain the very words the keyword and calendar
+  // rules look for — "three days from today" ends in "today", "the day after tomorrow" contains
+  // "tomorrow", "in 3 days" contains a bare number — and each of those rules would answer with the
+  // wrong day.
+  const offset = relativeOffsetDays(normalized);
+  if (offset !== null) {
+    const target = addDays(serviceDate.year, serviceDate.month, serviceDate.day, offset);
+    resolved = isoDate(target.year, target.month, target.day);
+  } else if (/\btoday\b/.test(normalized)) {
     resolved = todayIso;
   } else if (/\btomorrow\b/.test(normalized)) {
     const tomorrow = addDays(serviceDate.year, serviceDate.month, serviceDate.day, 1);
@@ -252,6 +346,8 @@ export function resolveTravelDate(
       const currentWeekday = WEEKDAYS.indexOf(serviceDate.weekday.toLowerCase());
       let daysAhead = (weekdayIndex - currentWeekday + 7) % 7;
       if (daysAhead === 0 || /\bnext\b/.test(normalized)) daysAhead += 7;
+      // "a week from Friday" is that Friday pushed out, not this one.
+      daysAhead += weeksFromWeekday(normalized) ?? 0;
       const target = addDays(serviceDate.year, serviceDate.month, serviceDate.day, daysAhead);
       resolved = isoDate(target.year, target.month, target.day);
     }

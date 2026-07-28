@@ -648,9 +648,18 @@ How can I assist you today?`,
      * old the rider is. Six unusable cards is not an answer, it is a wall to scroll past before
      * reaching the question. `next_question` is the server's own signal that a rider fact is still
      * outstanding — it goes null once the rider answers or declines — so the cards wait for it.
+     *
+     * But waiting on that signal alone withheld the cards forever: there is nearly always one more
+     * provider whose rule turns on a fact the rider has not volunteered (ADA certification, most
+     * often), so a rider who had already been told "Mobility Matters is the one you qualify for"
+     * still got no card for it. A provider the assistant has actually cleared is an answer, whatever
+     * remains unresolved elsewhere — so either an eligible provider or an exhausted question is
+     * enough.
      */
     function resultsAreSettled(data) {
-        return Boolean(data) && !data.next_question;
+        if (!data) return false;
+        const eligible = Array.isArray(data.data) ? data.data.length : 0;
+        return eligible > 0 || !data.next_question;
     }
 
     /**

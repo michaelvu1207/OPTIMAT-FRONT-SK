@@ -49,6 +49,32 @@ Deno.test("dates spoken the way riders say them resolve correctly", () => {
   assertEquals(resolveTravelDate("tomorrow", clock).iso, "2026-07-28");
 });
 
+Deno.test("dates counted forward from today resolve", () => {
+  // Reported from a live session: "3 days from now" fell through every calendar pattern and the
+  // assistant asked the rider to convert it to a calendar date themselves.
+  const clock = new Date("2026-07-27T19:00:00Z"); // Monday, July 27
+
+  assertEquals(resolveTravelDate("3 days from now", clock).iso, "2026-07-30");
+  assertEquals(resolveTravelDate("in 3 days", clock).iso, "2026-07-30");
+  assertEquals(resolveTravelDate("three days from today", clock).iso, "2026-07-30");
+  assertEquals(resolveTravelDate("in a week", clock).iso, "2026-08-03");
+  assertEquals(resolveTravelDate("two weeks from now", clock).iso, "2026-08-10");
+  assertEquals(resolveTravelDate("the day after tomorrow", clock).iso, "2026-07-29");
+
+  // Anchored to a weekday rather than to today: the next Friday is July 31, a week past it is
+  // August 7.
+  assertEquals(resolveTravelDate("a week from Friday", clock).iso, "2026-08-07");
+
+  // The count is a count, not a day of the month: "in 3 days" must not become the 3rd.
+  assert(resolveTravelDate("in 3 days", clock).iso !== "2026-08-03", "a count is not a date");
+
+  // Vague spans stay questions. Which day of next week, and how many is a few, are the rider's to
+  // say — guessing puts them outside on the wrong morning.
+  assertEquals(resolveTravelDate("next week", clock).ok, false);
+  assertEquals(resolveTravelDate("in a few days", clock).ok, false);
+  assertEquals(resolveTravelDate("in a couple of days", clock).ok, false);
+});
+
 Deno.test("a weekday that contradicts the date is asked about, not guessed", () => {
   const clock = new Date("2026-07-27T19:00:00Z");
   const contradiction = resolveTravelDate("Monday the 12th of August", clock);
