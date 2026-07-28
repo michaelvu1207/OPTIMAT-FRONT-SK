@@ -20,6 +20,7 @@ Base URL: `https://htjohidcoyfuwfjecazu.supabase.co/functions/v1`
 | `transcribe` | on | `POST /transcribe` |
 | `chat` | on | `POST /chat` |
 | `chat-examples` | on | `GET /chat-examples` |
+| `feedback` | on | `POST /feedback` |
 | `trip-records` | on | `GET /trip-records/pairs` |
 
 ## Functions Overview
@@ -35,6 +36,7 @@ Base URL: `https://htjohidcoyfuwfjecazu.supabase.co/functions/v1`
 | `/conversations` | Chat conversation management |
 | `/chat` | AI chat functionality |
 | `/transcribe` | Voice-to-text transcription for chatbot input |
+| `/feedback` | Stores tester feedback on a conversation, with the transcript they saw (write-only) |
 
 ## Detailed Function Documentation
 

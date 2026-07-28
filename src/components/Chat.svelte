@@ -6,6 +6,7 @@
     import { serviceZoneManager } from '../lib/serviceZoneManager.js';
     import ProviderCard from './ProviderCard.svelte';
     import TransitCard from './TransitCard.svelte';
+    import FeedbackPrompt from './FeedbackPrompt.svelte';
     import { marked } from 'marked';
     import createDOMPurify from 'dompurify';
     import { browser } from '$app/environment';
@@ -750,6 +751,58 @@ How can I assist you today?`,
         return segments;
     }
 
+
+    /**
+     * Feedback prompt state.
+     *
+     * The prompt follows the assistant's newest set of provider recommendations, because that is the
+     * moment a tester can tell whether OPTIMAT got the answer right. It is offered once per
+     * conversation: submitting or dismissing closes it, and starting a new chat opens it again.
+     */
+    let feedbackClosed = false;
+    /** Message the tester already gave feedback on; the thanks note stays with it. */
+    let feedbackSubmittedFor = null;
+
+    /** Id of the newest assistant message that rendered provider cards, or null when there is none. */
+    $: feedbackAnchorMessageId = (() => {
+        if (feedbackClosed || isViewingExample) return null;
+        // messageAttachments is read here so the anchor recomputes as attachments arrive.
+        const attachmentsById = messageAttachments;
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+            const message = messages[index];
+            if (message?.role !== 'ai' || !message.id) continue;
+            if (findProviderResultsAttachment(attachmentsById.get(message.id))) return message.id;
+        }
+        return null;
+    })();
+
+    // Once feedback is in, the bubble stays where it was answered rather than chasing later
+    // recommendations — the tester has had their say for this conversation.
+    $: feedbackMessageId = feedbackSubmittedFor ?? feedbackAnchorMessageId;
+
+    /** The conversation as it currently reads, stored alongside a feedback comment. */
+    function getFeedbackTranscript() {
+        return messages
+            .filter((message) => typeof message?.content === 'string' && message.content.trim() !== '')
+            .map((message) => ({
+                role: normalizeChatRole(message.role),
+                content: message.content,
+                created_at: message.created_at || undefined
+            }));
+    }
+
+    /** Which providers were on screen when the tester spoke up — the thing they are reacting to. */
+    function getFeedbackContext(messageId) {
+        const attachment = findProviderResultsAttachment(getMessageAttachments(messageId));
+        const data = attachment ? safeParseAttachmentData(attachment.data) : null;
+        return {
+            source_address: data?.source_address ?? null,
+            destination_address: data?.destination_address ?? null,
+            providers_shown: Array.isArray(data?.data)
+                ? data.data.map((provider) => provider?.provider_name).filter(Boolean)
+                : []
+        };
+    }
 
     // Provider bar functions
     function updateLatestProviderResults(attachments) {
@@ -1735,6 +1788,9 @@ How can I assist you today?`,
         id: 'new-conversation-greeting'
       }];
       messageAttachments = new Map();
+      // A new chat is a new chance to hear from the tester.
+      feedbackClosed = false;
+      feedbackSubmittedFor = null;
       
       // Clear service zones when starting new conversation
       serviceZoneManager.clearAllServiceZones();
@@ -2044,6 +2100,22 @@ How can I assist you today?`,
             </div>
           {/if}
         </div>
+
+        <!-- Feedback follows the newest set of recommendations, while the tester can still see them. -->
+        <!-- Feedback is not offered mid-reply, but an answered bubble stays put while the next
+             reply streams rather than blinking out of the thread. -->
+        {#if message.id === feedbackMessageId && (feedbackSubmittedFor === message.id || (!loading && !isStreaming))}
+          {#key message.id}
+            <FeedbackPrompt
+              {conversationId}
+              messageId={message.id}
+              getTranscript={getFeedbackTranscript}
+              context={getFeedbackContext(message.id)}
+              onSubmitted={() => { feedbackSubmittedFor = message.id; }}
+              onDismiss={() => { feedbackClosed = true; }}
+            />
+          {/key}
+        {/if}
       {/each}
   
       {#if loading || isStreaming}

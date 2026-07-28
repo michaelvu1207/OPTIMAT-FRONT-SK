@@ -901,6 +901,43 @@ export async function saveConversationAsExample(
 }
 
 /**
+ * Submit tester feedback on a conversation.
+ *
+ * The transcript travels with the submission so the stored copy is what the tester saw, not what
+ * the conversation looks like after they keep chatting.
+ *
+ * @param feedback - Name, comment, and the conversation it refers to
+ * @returns The stored feedback identifier
+ */
+export async function submitChatFeedback(feedback: {
+  conversationId?: string | null;
+  messageId?: string | null;
+  name?: string;
+  comment: string;
+  rating?: 'up' | 'down';
+  transcript?: Array<{ role: string; content: string; created_at?: string }>;
+  context?: Record<string, unknown>;
+}): Promise<{ data: { id: string; created_at: string } | null; error: Error | null }> {
+  const { data, error } = await fetchEdgeFunction<{ id: string; created_at: string }>('feedback', {
+    method: 'POST',
+    body: {
+      conversation_id: feedback.conversationId ?? null,
+      message_id: feedback.messageId ?? null,
+      name: feedback.name ?? null,
+      comment: feedback.comment,
+      rating: feedback.rating ?? 'down',
+      transcript: feedback.transcript ?? [],
+      context: {
+        page_url: typeof window !== 'undefined' ? window.location.href : undefined,
+        ...(feedback.context ?? {}),
+      },
+    },
+  });
+
+  return { data, error };
+}
+
+/**
  * Load example replay data
  *
  * @param conversationId - Conversation ID
