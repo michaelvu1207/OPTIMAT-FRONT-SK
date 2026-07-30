@@ -282,7 +282,7 @@ export const handler = createHandler(async (req) => {
     base_url: BASE_URL,
     authentication: 'No API key is required for public operations.',
     openapi: `${BASE_URL}/openapi.json`,
-    documentation: 'https://optimat.us/#data-api-docs',
+    documentation: 'https://optimat.us/#/api-docs',
     health: `${BASE_URL}/health`,
     cors: '*',
     rate_limit: { sustained_requests_per_second: 25, burst_requests: 50 },
