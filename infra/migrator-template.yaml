@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: OPTIMAT v2 reviewed, bundle-only schema migrator
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: prod-v2
+  AppSubnetAId:
+    Type: AWS::EC2::Subnet::Id
+  AppSubnetBId:
+    Type: AWS::EC2::Subnet::Id
+  ApplicationSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  DatabaseMasterSecretArn:
+    Type: String
+  DatabaseHost:
+    Type: String
+  ApplicationDatabaseSecretArn:
+    Type: String
+
+Resources:
+  MigratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-migrator
+      Description: Applies only reviewed, bundled OPTIMAT migrations
+      Runtime: nodejs24.x
+      Architectures:
+        - arm64
+      Handler: migrator/index.handler
+      CodeUri: lambda/
+      MemorySize: 1024
+      Timeout: 900
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          DB_MASTER_SECRET_ARN: !Ref DatabaseMasterSecretArn
+          DB_HOST: !Ref DatabaseHost
+          DB_APP_SECRET_ARN: !Ref ApplicationDatabaseSecretArn
+          NODE_EXTRA_CA_CERTS: /var/runtime/ca-cert.pem
+      VpcConfig:
+        Ipv6AllowedForDualStack: true
+        SubnetIds:
+          - !Ref AppSubnetAId
+          - !Ref AppSubnetBId
+        SecurityGroupIds:
+          - !Ref ApplicationSecurityGroupId
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ReadOnlyRequiredDatabaseSecrets
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - secretsmanager:DescribeSecret
+              Resource:
+                - !Ref DatabaseMasterSecretArn
+                - !Ref ApplicationDatabaseSecretArn
+      Tags:
+        Application: OPTIMAT
+        Environment: !Ref EnvironmentName
+        Purpose: DatabaseMigration
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - migrator/index.ts
+        Format: cjs
+        Minify: true
+        Target: node24
+
+  MigratorLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/optimat-${EnvironmentName}-migrator
+      RetentionInDays: 30
+
+Outputs:
+  MigratorFunctionName:
+    Value: !Ref MigratorFunction
+  MigratorFunctionArn:
+    Value: !GetAtt MigratorFunction.Arn

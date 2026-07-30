@@ -12,6 +12,7 @@ import {
   getAuthHeaders,
   getSupabaseRestUrl,
   getRestHeaders,
+  getApiBackend,
 } from './supabase';
 
 // =============================================================================
@@ -963,6 +964,15 @@ export async function getConversationMessages(
   conversationId: string
 ): Promise<{ data: { messages: ConversationMessage[] } | null; error: Error | null }> {
   try {
+    if (getApiBackend() === 'aws') {
+      const result = await fetchEdgeFunction<{ data: ConversationMessage[] }>('messages', {
+        params: { conversation_id: conversationId, limit: '500' },
+        timeoutMs: 5000,
+      });
+      return result.error
+        ? { data: null, error: result.error }
+        : { data: { messages: result.data?.data || [] }, error: null };
+    }
     const params = new URLSearchParams({
       conversation_id: `eq.${conversationId}`,
       select: 'id,conversation_id,role,content,attachments,created_at',
@@ -1011,11 +1021,11 @@ export async function getConversationToolCalls(
  * Get API mode information for debugging
  */
 export function getApiModeInfo(): {
-  mode: 'supabase';
+  mode: 'aws' | 'supabase';
   supabaseConfigured: boolean;
 } {
   return {
-    mode: 'supabase',
+    mode: getApiBackend(),
     supabaseConfigured: isSupabaseConfigured(),
   };
 }

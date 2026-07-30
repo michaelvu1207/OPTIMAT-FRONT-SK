@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: OPTIMAT reviewed mutable-table synchronization for fenced cutover
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: prod-v2
+  AppSubnetAId:
+    Type: AWS::EC2::Subnet::Id
+  AppSubnetBId:
+    Type: AWS::EC2::Subnet::Id
+  DmsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  SupabaseSourceSecretArn:
+    Type: String
+  AuroraTargetSecretArn:
+    Type: String
+
+Resources:
+  SyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-sync
+      Description: Performs only reviewed fenced mutable-table synchronization
+      Runtime: nodejs24.x
+      Architectures: [arm64]
+      Handler: sync/index.handler
+      CodeUri: lambda/
+      MemorySize: 2048
+      Timeout: 900
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          SOURCE_SECRET_ARN: !Ref SupabaseSourceSecretArn
+          TARGET_SECRET_ARN: !Ref AuroraTargetSecretArn
+          NODE_EXTRA_CA_CERTS: /var/runtime/ca-cert.pem
+      VpcConfig:
+        Ipv6AllowedForDualStack: true
+        SubnetIds: [!Ref AppSubnetAId, !Ref AppSubnetBId]
+        SecurityGroupIds: [!Ref DmsSecurityGroupId]
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - secretsmanager:DescribeSecret
+              Resource:
+                - !Ref SupabaseSourceSecretArn
+                - !Ref AuroraTargetSecretArn
+      Tags:
+        Application: OPTIMAT
+        Environment: !Ref EnvironmentName
+        Purpose: MigrationCutover
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [sync/index.ts]
+        Format: cjs
+        Minify: true
+        Target: node24
+
+  SyncLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/optimat-${EnvironmentName}-sync
+
+Outputs:
+  SyncFunctionName:
+    Value: !Ref SyncFunction

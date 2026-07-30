@@ -14,10 +14,11 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
+  errorResponse,
   handleCorsPreflightRequest,
   jsonResponse,
-  errorResponse,
 } from "../_shared/cors.ts";
+import { requireMigrationAdmin } from "../_shared/admin.ts";
 import {
   createOptimatClient,
   sanitizeRecord,
@@ -65,7 +66,9 @@ interface ChatExample {
 }
 
 // Parse URL path to extract example ID and action
-function parseUrlPath(url: string): { exampleId: string | null; action: string | null } {
+function parseUrlPath(
+  url: string,
+): { exampleId: string | null; action: string | null } {
   const urlObj = new URL(url);
   const pathParts = urlObj.pathname.split("/").filter(Boolean);
 
@@ -128,12 +131,18 @@ serve(async (req: Request) => {
       }
 
       case "POST": {
+        const unauthorized = requireMigrationAdmin(req, origin);
+        if (unauthorized) return unauthorized;
         if (exampleId && action === "regenerate-states") {
           // POST /:id/regenerate-states
           return await regenerateStates(supabase, exampleId, origin);
         }
         if (exampleId) {
-          return errorResponse("Cannot POST to a specific example ID", 400, origin);
+          return errorResponse(
+            "Cannot POST to a specific example ID",
+            400,
+            origin,
+          );
         }
         // POST / - Create a new example
         const body: CreateExampleRequest = await req.json();
@@ -141,6 +150,8 @@ serve(async (req: Request) => {
       }
 
       case "PUT": {
+        const unauthorized = requireMigrationAdmin(req, origin);
+        if (unauthorized) return unauthorized;
         // PUT /:id - Update an example
         if (!exampleId) {
           return errorResponse("Example ID required", 400, origin);
@@ -150,6 +161,8 @@ serve(async (req: Request) => {
       }
 
       case "DELETE": {
+        const unauthorized = requireMigrationAdmin(req, origin);
+        if (unauthorized) return unauthorized;
         // DELETE /:id - Delete an example
         if (!exampleId) {
           return errorResponse("Example ID required", 400, origin);
@@ -163,9 +176,11 @@ serve(async (req: Request) => {
   } catch (error) {
     console.error("Chat examples error:", error);
     return errorResponse(
-      `Internal server error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Internal server error: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
       500,
-      origin
+      origin,
     );
   }
 });
@@ -176,7 +191,7 @@ serve(async (req: Request) => {
 async function listExamples(
   supabase: ReturnType<typeof createOptimatClient>,
   req: Request,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   const url = new URL(req.url);
   const isActive = url.searchParams.get("is_active");
@@ -213,7 +228,7 @@ async function listExamples(
       },
     },
     200,
-    origin
+    origin,
   );
 }
 
@@ -223,7 +238,7 @@ async function listExamples(
 async function getExample(
   supabase: ReturnType<typeof createOptimatClient>,
   exampleId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   const { data: example, error } = await supabase
     .from(TABLES.CHAT_EXAMPLES)
@@ -244,7 +259,7 @@ async function getExample(
 async function getExampleWithStates(
   supabase: ReturnType<typeof createOptimatClient>,
   exampleId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   // Fetch example
   const { data: example, error: exError } = await supabase
@@ -291,7 +306,7 @@ async function getExampleWithStates(
 async function createExample(
   supabase: ReturnType<typeof createOptimatClient>,
   body: CreateExampleRequest,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   if (!body.conversation_id) {
     return errorResponse("conversation_id is required", 400, origin);
@@ -342,7 +357,7 @@ async function updateExample(
   supabase: ReturnType<typeof createOptimatClient>,
   exampleId: string,
   body: UpdateExampleRequest,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   // Build update object
   const updates: Record<string, unknown> = {
@@ -354,7 +369,9 @@ async function updateExample(
   if (body.tags !== undefined) updates.tags = body.tags;
   if (body.category !== undefined) updates.category = body.category;
   if (body.is_active !== undefined) updates.is_active = body.is_active;
-  if (body.replay_config !== undefined) updates.replay_config = body.replay_config;
+  if (body.replay_config !== undefined) {
+    updates.replay_config = body.replay_config;
+  }
 
   const { data, error } = await supabase
     .from(TABLES.CHAT_EXAMPLES)
@@ -380,7 +397,7 @@ async function updateExample(
 async function deleteExample(
   supabase: ReturnType<typeof createOptimatClient>,
   exampleId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   // Delete associated conversation states first
   await supabase
@@ -408,7 +425,7 @@ async function deleteExample(
 async function regenerateStates(
   supabase: ReturnType<typeof createOptimatClient>,
   exampleId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   // Fetch the example to get conversation_id
   const { data: example, error: exError } = await supabase
@@ -479,13 +496,15 @@ async function regenerateStates(
  */
 async function generateReplayStates(
   supabase: ReturnType<typeof createOptimatClient>,
-  conversationId: string
-): Promise<Array<{
-  sequence_number: number;
-  message: Record<string, unknown>;
-  state_snapshot: Record<string, unknown>;
-  ui_hints: Record<string, unknown>;
-}>> {
+  conversationId: string,
+): Promise<
+  Array<{
+    sequence_number: number;
+    message: Record<string, unknown>;
+    state_snapshot: Record<string, unknown>;
+    ui_hints: Record<string, unknown>;
+  }>
+> {
   // Fetch messages
   const { data: messages } = await supabase
     .from(TABLES.MESSAGES)
@@ -582,7 +601,8 @@ async function generateReplayStates(
 
     // Get tool calls up to this message
     const applicableCalls = toolCalls.filter(
-      (call) => call.created_at <= messageTime && !processedToolCalls.has(call.id)
+      (call) =>
+        call.created_at <= messageTime && !processedToolCalls.has(call.id),
     );
 
     // Apply tool calls to state
@@ -590,22 +610,38 @@ async function generateReplayStates(
       if (call.type === "find_providers") {
         const data = call.data;
         const providerData = data.provider_data || {};
-        const providers = Array.isArray(providerData) ? providerData : providerData.data || [];
+        const providers = Array.isArray(providerData)
+          ? providerData
+          : providerData.data || [];
 
         cumulativeState.providers = providers;
-        if (data.source_address) cumulativeState.source_address = data.source_address;
-        if (data.destination_address) cumulativeState.destination_address = data.destination_address;
-        if (data.public_transit_data) cumulativeState.public_transit = data.public_transit_data;
+        if (data.source_address) {
+          cumulativeState.source_address = data.source_address;
+        }
+        if (data.destination_address) {
+          cumulativeState.destination_address = data.destination_address;
+        }
+        if (data.public_transit_data) {
+          cumulativeState.public_transit = data.public_transit_data;
+        }
 
         // Extract origin/destination coordinates if available
         if (providerData.origin) cumulativeState.origin = providerData.origin;
-        if (providerData.destination) cumulativeState.destination = providerData.destination;
+        if (providerData.destination) {
+          cumulativeState.destination = providerData.destination;
+        }
       } else if (call.type === "search_addresses") {
         const placesData = call.data.places_data || {};
-        const places = Array.isArray(placesData) ? placesData : placesData.places || [];
-        const addresses = cumulativeState.addresses as Array<Record<string, unknown>>;
+        const places = Array.isArray(placesData)
+          ? placesData
+          : placesData.places || [];
+        const addresses = cumulativeState.addresses as Array<
+          Record<string, unknown>
+        >;
         for (const place of places) {
-          if (!addresses.find((a) => JSON.stringify(a) === JSON.stringify(place))) {
+          if (
+            !addresses.find((a) => JSON.stringify(a) === JSON.stringify(place))
+          ) {
             addresses.push(place);
           }
         }
@@ -613,7 +649,9 @@ async function generateReplayStates(
         const providerId = call.data.provider_id;
         const providerInfo = call.data.provider_info;
         if (providerId && providerInfo) {
-          (cumulativeState.provider_details as Record<string, unknown>)[String(providerId)] = providerInfo;
+          (cumulativeState.provider_details as Record<string, unknown>)[
+            String(providerId)
+          ] = providerInfo;
         }
       }
     }
@@ -629,9 +667,15 @@ async function generateReplayStates(
     };
 
     // Check for new tool calls
-    const newFindProviders = applicableCalls.some((c) => c.type === "find_providers");
-    const newSearchAddresses = applicableCalls.some((c) => c.type === "search_addresses");
-    const newGetProviderInfo = applicableCalls.some((c) => c.type === "get_provider_info");
+    const newFindProviders = applicableCalls.some((c) =>
+      c.type === "find_providers"
+    );
+    const newSearchAddresses = applicableCalls.some((c) =>
+      c.type === "search_addresses"
+    );
+    const newGetProviderInfo = applicableCalls.some((c) =>
+      c.type === "get_provider_info"
+    );
 
     if (role === "assistant" || role === "ai") {
       if (newFindProviders) {
@@ -642,12 +686,16 @@ async function generateReplayStates(
 
       if (newSearchAddresses) {
         uiHints.show_addresses = true;
-        if (!uiHints.highlight_tool) uiHints.highlight_tool = "search_addresses";
+        if (!uiHints.highlight_tool) {
+          uiHints.highlight_tool = "search_addresses";
+        }
         if (!uiHints.map_action) uiHints.map_action = "addPings";
       }
 
       if (newGetProviderInfo) {
-        if (!uiHints.highlight_tool) uiHints.highlight_tool = "get_provider_info";
+        if (!uiHints.highlight_tool) {
+          uiHints.highlight_tool = "get_provider_info";
+        }
       }
     }
 

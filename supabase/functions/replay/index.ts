@@ -9,10 +9,11 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
+  errorResponse,
   handleCorsPreflightRequest,
   jsonResponse,
-  errorResponse,
 } from "../_shared/cors.ts";
+import { requireMigrationAdmin } from "../_shared/admin.ts";
 import {
   createOptimatClient,
   sanitizeRecord,
@@ -112,12 +113,18 @@ serve(async (req: Request) => {
       case "GET": {
         const conversationId = url.searchParams.get("conversation_id");
         if (!conversationId) {
-          return errorResponse("conversation_id query parameter required", 400, origin);
+          return errorResponse(
+            "conversation_id query parameter required",
+            400,
+            origin,
+          );
         }
         return await generateReplay(supabase, conversationId, origin);
       }
 
       case "POST": {
+        const unauthorized = requireMigrationAdmin(req, origin);
+        if (unauthorized) return unauthorized;
         if (action === "save-as-example") {
           const body: SaveAsExampleRequest = await req.json();
           return await saveAsExample(supabase, body, origin);
@@ -131,9 +138,11 @@ serve(async (req: Request) => {
   } catch (error) {
     console.error("Replay error:", error);
     return errorResponse(
-      `Internal server error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Internal server error: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
       500,
-      origin
+      origin,
     );
   }
 });
@@ -144,7 +153,7 @@ serve(async (req: Request) => {
 async function generateReplay(
   supabase: ReturnType<typeof createOptimatClient>,
   conversationId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   // Fetch conversation
   const { data: conversation, error: convError } = await supabase
@@ -186,7 +195,7 @@ async function generateReplay(
 async function saveAsExample(
   supabase: ReturnType<typeof createOptimatClient>,
   body: SaveAsExampleRequest,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   if (!body.conversation_id) {
     return errorResponse("conversation_id is required", 400, origin);
@@ -279,7 +288,7 @@ async function saveAsExample(
  */
 async function generateReplayStates(
   supabase: ReturnType<typeof createOptimatClient>,
-  conversationId: string
+  conversationId: string,
 ): Promise<ConversationState[]> {
   // Fetch messages
   const { data: messages } = await supabase
@@ -389,14 +398,18 @@ async function generateReplayStates(
 
     // Get tool calls up to this message
     const applicableCalls = toolCalls.filter(
-      (call) => call.created_at <= messageTime && !processedToolCalls.has(call.id)
+      (call) =>
+        call.created_at <= messageTime && !processedToolCalls.has(call.id),
     );
 
     // Apply tool calls to state
     for (const call of applicableCalls) {
       if (call.type === "find_providers") {
         const data = call.data as Record<string, unknown>;
-        const providerData = (data.provider_data || {}) as Record<string, unknown>;
+        const providerData = (data.provider_data || {}) as Record<
+          string,
+          unknown
+        >;
         const providers = Array.isArray(providerData)
           ? providerData
           : (providerData.data as Array<Record<string, unknown>>) || [];
@@ -407,34 +420,62 @@ async function generateReplayStates(
           cumulativeState.source_address = data.source_address as string;
         }
         if (data.destination_address) {
-          cumulativeState.destination_address = data.destination_address as string;
+          cumulativeState.destination_address = data
+            .destination_address as string;
         }
         if (data.public_transit_data) {
-          cumulativeState.public_transit = data.public_transit_data as Record<string, unknown>;
+          cumulativeState.public_transit = data.public_transit_data as Record<
+            string,
+            unknown
+          >;
         }
 
         // Extract origin/destination coordinates if available
         if (providerData.origin) {
-          cumulativeState.origin = providerData.origin as Record<string, unknown>;
+          cumulativeState.origin = providerData.origin as Record<
+            string,
+            unknown
+          >;
         }
         if (providerData.destination) {
-          cumulativeState.destination = providerData.destination as Record<string, unknown>;
+          cumulativeState.destination = providerData.destination as Record<
+            string,
+            unknown
+          >;
         }
 
         // Fall back to coordinates produced by the tool, if present.
-        const sourceCoords = providerData.source_coordinates as Record<string, unknown> | undefined;
-        const destCoords = providerData.destination_coordinates as Record<string, unknown> | undefined;
-        if (!cumulativeState.origin && sourceCoords?.lat !== undefined && sourceCoords?.lng !== undefined) {
-          cumulativeState.origin = { lat: sourceCoords.lat, lon: sourceCoords.lng } as Record<string, unknown>;
+        const sourceCoords = providerData.source_coordinates as
+          | Record<string, unknown>
+          | undefined;
+        const destCoords = providerData.destination_coordinates as
+          | Record<string, unknown>
+          | undefined;
+        if (
+          !cumulativeState.origin && sourceCoords?.lat !== undefined &&
+          sourceCoords?.lng !== undefined
+        ) {
+          cumulativeState.origin = {
+            lat: sourceCoords.lat,
+            lon: sourceCoords.lng,
+          } as Record<string, unknown>;
         }
-        if (!cumulativeState.destination && destCoords?.lat !== undefined && destCoords?.lng !== undefined) {
-          cumulativeState.destination = { lat: destCoords.lat, lon: destCoords.lng } as Record<string, unknown>;
+        if (
+          !cumulativeState.destination && destCoords?.lat !== undefined &&
+          destCoords?.lng !== undefined
+        ) {
+          cumulativeState.destination = {
+            lat: destCoords.lat,
+            lon: destCoords.lng,
+          } as Record<string, unknown>;
         }
 
         // Extract service zones
         const serviceZones: Array<Record<string, unknown>> = [];
         for (const provider of providers) {
-          if (provider && typeof provider === "object" && provider.service_zone) {
+          if (
+            provider && typeof provider === "object" && provider.service_zone
+          ) {
             serviceZones.push({
               provider_id: provider.id || provider.provider_id,
               provider_name: provider.name || provider.provider_name,
@@ -453,7 +494,9 @@ async function generateReplayStates(
         for (const place of places) {
           if (
             place &&
-            !cumulativeState.addresses.find((a) => JSON.stringify(a) === JSON.stringify(place))
+            !cumulativeState.addresses.find((a) =>
+              JSON.stringify(a) === JSON.stringify(place)
+            )
           ) {
             cumulativeState.addresses.push(place);
           }
@@ -463,10 +506,11 @@ async function generateReplayStates(
         const providerId = data.provider_id;
         const providerInfo = data.provider_info;
         if (providerId && providerInfo) {
-          cumulativeState.provider_details[String(providerId)] = providerInfo as Record<
-            string,
-            unknown
-          >;
+          cumulativeState.provider_details[String(providerId)] =
+            providerInfo as Record<
+              string,
+              unknown
+            >;
         }
       } else if (call.type === "general_question") {
         // Web search results are exposed via attachments / ui_hints on the specific message state.
@@ -484,10 +528,18 @@ async function generateReplayStates(
     };
 
     // Check for new tool calls
-    const newFindProviders = applicableCalls.some((c) => c.type === "find_providers");
-    const newSearchAddresses = applicableCalls.some((c) => c.type === "search_addresses");
-    const newGetProviderInfo = applicableCalls.some((c) => c.type === "get_provider_info");
-    const newGeneralQuestion = applicableCalls.some((c) => c.type === "general_question");
+    const newFindProviders = applicableCalls.some((c) =>
+      c.type === "find_providers"
+    );
+    const newSearchAddresses = applicableCalls.some((c) =>
+      c.type === "search_addresses"
+    );
+    const newGetProviderInfo = applicableCalls.some((c) =>
+      c.type === "get_provider_info"
+    );
+    const newGeneralQuestion = applicableCalls.some((c) =>
+      c.type === "general_question"
+    );
 
     if (role === "assistant" || role === "ai") {
       if (newFindProviders) {
@@ -499,7 +551,10 @@ async function generateReplayStates(
         for (const call of applicableCalls) {
           if (call.type === "find_providers") {
             const data = call.data as Record<string, unknown>;
-            const providerData = (data.provider_data || {}) as Record<string, unknown>;
+            const providerData = (data.provider_data || {}) as Record<
+              string,
+              unknown
+            >;
             const providers = Array.isArray(providerData)
               ? providerData
               : (providerData.data as Array<Record<string, unknown>>) || [];
@@ -516,14 +571,19 @@ async function generateReplayStates(
 
       if (newSearchAddresses) {
         uiHints.show_addresses = true;
-        if (!uiHints.highlight_tool) uiHints.highlight_tool = "search_addresses";
+        if (!uiHints.highlight_tool) {
+          uiHints.highlight_tool = "search_addresses";
+        }
         if (!uiHints.map_action) uiHints.map_action = "addPings";
 
         // Add new address data to hints
         for (const call of applicableCalls) {
           if (call.type === "search_addresses") {
             const data = call.data as Record<string, unknown>;
-            const placesData = (data.places_data || {}) as Record<string, unknown>;
+            const placesData = (data.places_data || {}) as Record<
+              string,
+              unknown
+            >;
             const places = Array.isArray(placesData)
               ? placesData
               : (placesData.places as Array<Record<string, unknown>>) || [];
@@ -533,7 +593,9 @@ async function generateReplayStates(
       }
 
       if (newGetProviderInfo) {
-        if (!uiHints.highlight_tool) uiHints.highlight_tool = "get_provider_info";
+        if (!uiHints.highlight_tool) {
+          uiHints.highlight_tool = "get_provider_info";
+        }
 
         for (const call of applicableCalls) {
           if (call.type === "get_provider_info") {
@@ -544,14 +606,17 @@ async function generateReplayStates(
       }
 
       if (newGeneralQuestion) {
-        if (!uiHints.highlight_tool) uiHints.highlight_tool = "general_provider_question";
+        if (!uiHints.highlight_tool) {
+          uiHints.highlight_tool = "general_provider_question";
+        }
 
         for (const call of applicableCalls) {
           if (call.type === "general_question") {
             const data = call.data as Record<string, unknown>;
             uiHints.new_data.web_search = {
               query: data.question,
-              answer: (data.search_results as Record<string, unknown> | null)?.answer ?? null,
+              answer: (data.search_results as Record<string, unknown> | null)
+                ?.answer ?? null,
               sources: data.sources ?? [],
             };
           }
@@ -596,7 +661,10 @@ async function generateReplayStates(
           attachments.push({
             type: "provider_info",
             data: data.provider_info,
-            metadata: { tool_name: "get_provider_info", provider_id: data.provider_id ?? null },
+            metadata: {
+              tool_name: "get_provider_info",
+              provider_id: data.provider_id ?? null,
+            },
           });
         }
 
@@ -605,7 +673,8 @@ async function generateReplayStates(
             type: "web_search",
             data: {
               query: data.question,
-              answer: (data.search_results as Record<string, unknown> | null)?.answer ?? null,
+              answer: (data.search_results as Record<string, unknown> | null)
+                ?.answer ?? null,
               sources: data.sources ?? [],
             },
             metadata: { tool_name: "general_provider_question" },

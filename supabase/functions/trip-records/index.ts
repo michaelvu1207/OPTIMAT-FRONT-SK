@@ -18,6 +18,7 @@ import {
   handleCorsPreflightRequest,
   jsonResponse,
 } from "../_shared/cors.ts";
+import { requireMigrationAdmin } from "../_shared/admin.ts";
 import { createOptimatClient, TABLES } from "../_shared/supabase.ts";
 
 // Type definitions
@@ -170,13 +171,17 @@ function percentile(values: number[], p: number): number | null {
   }
   const lowerValue = sorted[lower];
   const upperValue = sorted[upper];
-  return Math.round((lowerValue + (upperValue - lowerValue) * (k - lower)) * 100) / 100;
+  return Math.round(
+    (lowerValue + (upperValue - lowerValue) * (k - lower)) * 100,
+  ) / 100;
 }
 
 /**
  * Split an address string into components.
  */
-function splitAddress(address: string | null): { street: string; city: string | null; state: string | null } {
+function splitAddress(
+  address: string | null,
+): { street: string; city: string | null; state: string | null } {
   if (!address) return { street: "", city: null, state: null };
   const parts = address.split(",").map((p) => p.trim());
   if (parts.length >= 3) {
@@ -192,7 +197,10 @@ function splitAddress(address: string | null): { street: string; city: string | 
  * Parse route info from URL path.
  */
 function parseRoute(pathname: string): { segments: string[] } {
-  const cleanPath = pathname.replace(/^\/trip-records\/?/, "").replace(/\/$/, "");
+  const cleanPath = pathname.replace(/^\/trip-records\/?/, "").replace(
+    /\/$/,
+    "",
+  );
   const segments = cleanPath.split("/").filter(Boolean);
   return { segments };
 }
@@ -207,7 +215,7 @@ function hashToIndex(value: string, modulo: number): number {
 
 function applyMockProviderIdsToManifestPairs(
   pairs: ManifestTripRecordPair[],
-  providerIds: number[]
+  providerIds: number[],
 ): ManifestTripRecordPair[] {
   if (!providerIds.length) return pairs;
   return pairs.map((pair) => {
@@ -220,10 +228,12 @@ function applyMockProviderIdsToManifestPairs(
 function applyMockProviderIdsToTripRows(
   rows: Record<string, unknown>[],
   providerIds: number[],
-  fallbackProviderId?: number | null
+  fallbackProviderId?: number | null,
 ): Record<string, unknown>[] {
   if (!providerIds.length) {
-    if (fallbackProviderId === null || fallbackProviderId === undefined) return rows;
+    if (fallbackProviderId === null || fallbackProviderId === undefined) {
+      return rows;
+    }
     return rows.map((row) => ({ ...row, provider_id: fallbackProviderId }));
   }
 
@@ -231,9 +241,13 @@ function applyMockProviderIdsToTripRows(
   for (const row of rows) {
     const tripIdRaw = row.trip_id;
     const returnTripIdRaw = row.trip_id_return;
-    const tripId = tripIdRaw === null || tripIdRaw === undefined ? NaN : Number(tripIdRaw);
+    const tripId = tripIdRaw === null || tripIdRaw === undefined
+      ? NaN
+      : Number(tripIdRaw);
     const returnTripId =
-      returnTripIdRaw === null || returnTripIdRaw === undefined ? NaN : Number(returnTripIdRaw);
+      returnTripIdRaw === null || returnTripIdRaw === undefined
+        ? NaN
+        : Number(returnTripIdRaw);
     if (
       Number.isFinite(tripId) &&
       Number.isFinite(returnTripId) &&
@@ -246,7 +260,9 @@ function applyMockProviderIdsToTripRows(
 
   return rows.map((row) => {
     const tripIdRaw = row.trip_id;
-    const tripId = tripIdRaw === null || tripIdRaw === undefined ? NaN : Number(tripIdRaw);
+    const tripId = tripIdRaw === null || tripIdRaw === undefined
+      ? NaN
+      : Number(tripIdRaw);
     const assignmentTripId = returnTripMap.get(tripId) ?? tripId;
     let providerIndex = 0;
     if (Number.isFinite(assignmentTripId)) {
@@ -284,7 +300,9 @@ async function fetchProviderIds(): Promise<number[]> {
   return [];
 }
 
-function dedupeTripRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+function dedupeTripRows(
+  rows: Record<string, unknown>[],
+): Record<string, unknown>[] {
   const seen = new Set<string>();
   const deduped: Record<string, unknown>[] = [];
 
@@ -371,7 +389,9 @@ function normalizeUploadHeader(header: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-function parseUploadRows(text: string): { headers: string[]; rows: string[][] } {
+function parseUploadRows(
+  text: string,
+): { headers: string[]; rows: string[][] } {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -381,10 +401,10 @@ function parseUploadRows(text: string): { headers: string[]; rows: string[][] } 
     const char = text[i];
 
     if (inQuotes) {
-      if (char === "\"") {
+      if (char === '"') {
         const nextChar = text[i + 1];
-        if (nextChar === "\"") {
-          field += "\"";
+        if (nextChar === '"') {
+          field += '"';
           i += 1;
         } else {
           inQuotes = false;
@@ -395,7 +415,7 @@ function parseUploadRows(text: string): { headers: string[]; rows: string[][] } 
       continue;
     }
 
-    if (char === "\"") {
+    if (char === '"') {
       inQuotes = true;
       continue;
     }
@@ -429,7 +449,10 @@ function parseUploadRows(text: string): { headers: string[]; rows: string[][] } 
   return { headers, rows: dataRows };
 }
 
-function coerceUploadValue(column: string, value: string): string | number | null {
+function coerceUploadValue(
+  column: string,
+  value: string,
+): string | number | null {
   if (value === "") return null;
   if (UPLOAD_NUMERIC_COLUMNS.has(column)) {
     const parsed = Number(value);
@@ -447,7 +470,7 @@ async function listManifestTripRecordPairs(
   serviceDate: string | null,
   providerId?: number | null,
   origin?: string | null,
-  mockProviderIds?: number[] | null
+  mockProviderIds?: number[] | null,
 ): Promise<Response> {
   try {
     const supabase = createOptimatClient();
@@ -458,13 +481,17 @@ async function listManifestTripRecordPairs(
       rpcParams.p_service_date = serviceDate;
     }
 
-    const { data, error } = await supabase.rpc("get_trip_record_pairs", rpcParams);
+    const { data, error } = await supabase.rpc(
+      "get_trip_record_pairs",
+      rpcParams,
+    );
 
     if (error) {
       // Fall back to direct query if RPC doesn't exist
       // Check both error code and message since Supabase/PostgREST may format errors differently
       const isRpcNotFound = error.code === "42883" ||
-        (error.message && error.message.includes("Could not find the function"));
+        (error.message &&
+          error.message.includes("Could not find the function"));
 
       if (isRpcNotFound) {
         let query = supabase
@@ -479,11 +506,17 @@ async function listManifestTripRecordPairs(
           query = query.eq("provider_id", providerId);
         }
 
-        const { data: rawData, error: queryError } = await query.order("service_date").order("trip_id").order("row_number");
+        const { data: rawData, error: queryError } = await query.order(
+          "service_date",
+        ).order("trip_id").order("row_number");
 
         if (queryError) {
           console.error("Error fetching trip records:", queryError);
-          return errorResponse(`Database error: ${queryError.message}`, 500, origin);
+          return errorResponse(
+            `Database error: ${queryError.message}`,
+            500,
+            origin,
+          );
         }
 
         // Process raw data into pairs (simplified version)
@@ -508,7 +541,10 @@ async function listManifestTripRecordPairs(
     }
 
     const filteredData = providerId !== null && providerId !== undefined
-      ? pairs.filter((row) => Number((row as { provider_id?: number | null }).provider_id) === providerId)
+      ? pairs.filter((row) =>
+        Number((row as { provider_id?: number | null }).provider_id) ===
+          providerId
+      )
       : pairs;
 
     return jsonResponse(filteredData, 200, origin);
@@ -522,7 +558,9 @@ async function listManifestTripRecordPairs(
  * Process raw trip records into pairs.
  * Simplified version of the Python logic.
  */
-function processRawTripRecords(records: Record<string, unknown>[]): ManifestTripRecordPair[] {
+function processRawTripRecords(
+  records: Record<string, unknown>[],
+): ManifestTripRecordPair[] {
   // Group records by (service_date, trip_id)
   const grouped = new Map<string, Record<string, unknown>[]>();
 
@@ -544,7 +582,9 @@ function processRawTripRecords(records: Record<string, unknown>[]): ManifestTrip
     const [serviceDateStr, tripId] = key.split("|");
 
     // Sort by row_number
-    rows.sort((a, b) => ((a.row_number as number) || 0) - ((b.row_number as number) || 0));
+    rows.sort((a, b) =>
+      ((a.row_number as number) || 0) - ((b.row_number as number) || 0)
+    );
 
     // Find LYARD and RYARD
     const lyard = rows.find((r) => r.stop_type === "LYARD");
@@ -563,41 +603,63 @@ function processRawTripRecords(records: Record<string, unknown>[]): ManifestTrip
     const lastDrop = dropRows[dropRows.length - 1];
 
     // Get provider/route/vehicle from first available
-    const providerId = rows.find((r) => r.provider_id)?.provider_id as number | null;
+    const providerId = rows.find((r) => r.provider_id)?.provider_id as
+      | number
+      | null;
     const route = (rows.find((r) => r.route)?.route as string) || null;
     const vehicle = (rows.find((r) => r.vehicle)?.vehicle as string) || null;
 
     // Calculate times
-    const lyardTime = (lyard.departure_time || lyard.arrival_time) as string | null;
-    const ryardTime = (ryard.arrival_time || ryard.departure_time) as string | null;
+    const lyardTime = (lyard.departure_time || lyard.arrival_time) as
+      | string
+      | null;
+    const ryardTime = (ryard.arrival_time || ryard.departure_time) as
+      | string
+      | null;
 
     // Calculate first service stop (excluding LYARD/RYARD)
-    const firstService = rows.find((r) => r.stop_type !== "LYARD" && r.stop_type !== "RYARD");
-    const lastService = [...rows].reverse().find((r) => r.stop_type !== "LYARD" && r.stop_type !== "RYARD");
+    const firstService = rows.find((r) =>
+      r.stop_type !== "LYARD" && r.stop_type !== "RYARD"
+    );
+    const lastService = [...rows].reverse().find((r) =>
+      r.stop_type !== "LYARD" && r.stop_type !== "RYARD"
+    );
 
     // Calculate outbound/inbound/activity times
-    const lyardEnd = timeToSeconds((lyard.departure_time || lyard.arrival_time) as string);
+    const lyardEnd = timeToSeconds(
+      (lyard.departure_time || lyard.arrival_time) as string,
+    );
     const firstServiceStart = timeToSeconds(
-      (firstService?.arrival_time || firstService?.departure_time) as string
+      (firstService?.arrival_time || firstService?.departure_time) as string,
     );
     const lastServiceEnd = timeToSeconds(
-      (lastService?.departure_time || lastService?.arrival_time) as string
+      (lastService?.departure_time || lastService?.arrival_time) as string,
     );
-    const ryardStart = timeToSeconds((ryard.arrival_time || ryard.departure_time) as string);
+    const ryardStart = timeToSeconds(
+      (ryard.arrival_time || ryard.departure_time) as string,
+    );
 
-    const outboundMinutes = secondsToMinutes(diffSeconds(lyardEnd, firstServiceStart));
-    const inboundMinutes = secondsToMinutes(diffSeconds(lastServiceEnd, ryardStart));
+    const outboundMinutes = secondsToMinutes(
+      diffSeconds(lyardEnd, firstServiceStart),
+    );
+    const inboundMinutes = secondsToMinutes(
+      diffSeconds(lastServiceEnd, ryardStart),
+    );
 
     // Activity time from first pick to last drop
     const activityStartRow = firstPick || firstService;
     const activityEndRow = lastDrop || lastService;
     const activityStart = timeToSeconds(
-      (activityStartRow?.departure_time || activityStartRow?.arrival_time) as string
+      (activityStartRow?.departure_time ||
+        activityStartRow?.arrival_time) as string,
     );
     const activityEnd = timeToSeconds(
-      (activityEndRow?.arrival_time || activityEndRow?.departure_time) as string
+      (activityEndRow?.arrival_time ||
+        activityEndRow?.departure_time) as string,
     );
-    const activityMinutes = secondsToMinutes(diffSeconds(activityStart, activityEnd));
+    const activityMinutes = secondsToMinutes(
+      diffSeconds(activityStart, activityEnd),
+    );
 
     pairs.push({
       service_date: serviceDateStr,
@@ -635,22 +697,30 @@ function processRawTripRecords(records: Record<string, unknown>[]): ManifestTrip
 async function listManifestTripRecordPairSummaries(
   origin?: string | null,
   providerId?: number | null,
-  mockProviderIds?: number[] | null
+  mockProviderIds?: number[] | null,
 ): Promise<Response> {
   try {
     const supabase = createOptimatClient();
 
     // First try RPC function
-    const { data, error } = await supabase.rpc("get_trip_record_pair_summaries");
+    const { data, error } = await supabase.rpc(
+      "get_trip_record_pair_summaries",
+    );
 
     if (error) {
       // Check both error code and message since Supabase/PostgREST may format errors differently
       const isRpcNotFound = error.code === "42883" ||
-        (error.message && error.message.includes("Could not find the function"));
+        (error.message &&
+          error.message.includes("Could not find the function"));
 
       if (isRpcNotFound) {
         // Fall back to computing from pairs
-        const pairsResponse = await listManifestTripRecordPairs(null, providerId, origin, mockProviderIds);
+        const pairsResponse = await listManifestTripRecordPairs(
+          null,
+          providerId,
+          origin,
+          mockProviderIds,
+        );
         const pairsData = await pairsResponse.json();
 
         if (!Array.isArray(pairsData)) {
@@ -683,18 +753,22 @@ async function listManifestTripRecordPairSummaries(
           summaries.push({
             service_date: serviceDate,
             pair_count: pairs.length,
-            average_outbound_minutes:
-              outbounds.length > 0
-                ? Math.round((outbounds.reduce((a, b) => a + b, 0) / outbounds.length) * 100) / 100
-                : null,
-            average_inbound_minutes:
-              inbounds.length > 0
-                ? Math.round((inbounds.reduce((a, b) => a + b, 0) / inbounds.length) * 100) / 100
-                : null,
-            average_activity_minutes:
-              activities.length > 0
-                ? Math.round((activities.reduce((a, b) => a + b, 0) / activities.length) * 100) / 100
-                : null,
+            average_outbound_minutes: outbounds.length > 0
+              ? Math.round(
+                (outbounds.reduce((a, b) => a + b, 0) / outbounds.length) * 100,
+              ) / 100
+              : null,
+            average_inbound_minutes: inbounds.length > 0
+              ? Math.round(
+                (inbounds.reduce((a, b) => a + b, 0) / inbounds.length) * 100,
+              ) / 100
+              : null,
+            average_activity_minutes: activities.length > 0
+              ? Math.round(
+                (activities.reduce((a, b) => a + b, 0) / activities.length) *
+                  100,
+              ) / 100
+              : null,
           });
         }
 
@@ -708,7 +782,10 @@ async function listManifestTripRecordPairSummaries(
 
     return jsonResponse(data || [], 200, origin);
   } catch (err) {
-    console.error("Unexpected error in listManifestTripRecordPairSummaries:", err);
+    console.error(
+      "Unexpected error in listManifestTripRecordPairSummaries:",
+      err,
+    );
     return errorResponse("Internal server error", 500, origin);
   }
 }
@@ -716,21 +793,31 @@ async function listManifestTripRecordPairSummaries(
 /**
  * Upload trip records into trip_record_pairs_raw.
  */
-async function uploadTripRecords(request: Request, origin?: string | null): Promise<Response> {
+async function uploadTripRecords(
+  request: Request,
+  origin?: string | null,
+): Promise<Response> {
   try {
-    const payload = await request.json().catch(() => null) as Record<string, unknown> | null;
+    const payload = await request.json().catch(() => null) as
+      | Record<string, unknown>
+      | null;
     if (!payload || typeof payload !== "object") {
       return errorResponse("Invalid JSON payload", 400, origin);
     }
 
-    const recordsText = typeof payload.records === "string" ? payload.records : "";
+    const recordsText = typeof payload.records === "string"
+      ? payload.records
+      : "";
     if (!recordsText.trim()) {
       return errorResponse("Trip records payload is required", 400, origin);
     }
 
     const providerIdRaw = payload.provider_id;
     let providerId: number | null = null;
-    if (providerIdRaw !== undefined && providerIdRaw !== null && String(providerIdRaw).trim() !== "") {
+    if (
+      providerIdRaw !== undefined && providerIdRaw !== null &&
+      String(providerIdRaw).trim() !== ""
+    ) {
       const parsed = Number(providerIdRaw);
       if (Number.isNaN(parsed)) {
         return errorResponse("Invalid provider_id", 400, origin);
@@ -771,7 +858,11 @@ async function uploadTripRecords(request: Request, origin?: string | null): Prom
 
     const skippedCount = rows.length - records.length;
     if (records.length === 0) {
-      return jsonResponse({ inserted_count: 0, skipped_count: skippedCount }, 200, origin);
+      return jsonResponse(
+        { inserted_count: 0, skipped_count: skippedCount },
+        200,
+        origin,
+      );
     }
 
     const supabase = createOptimatClient();
@@ -779,7 +870,9 @@ async function uploadTripRecords(request: Request, origin?: string | null): Prom
 
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
-      const { error } = await supabase.from("trip_record_pairs_raw").insert(batch);
+      const { error } = await supabase.from("trip_record_pairs_raw").insert(
+        batch,
+      );
       if (error) {
         console.error("Error inserting trip records:", error);
         return errorResponse(`Database error: ${error.message}`, 500, origin);
@@ -789,7 +882,7 @@ async function uploadTripRecords(request: Request, origin?: string | null): Prom
     return jsonResponse(
       { inserted_count: records.length, skipped_count: skippedCount },
       200,
-      origin
+      origin,
     );
   } catch (err) {
     console.error("Unexpected error in uploadTripRecords:", err);
@@ -803,7 +896,7 @@ async function uploadTripRecords(request: Request, origin?: string | null): Prom
 async function listTripRecordPairs(
   origin?: string | null,
   providerId?: number | null,
-  mockProviderIds?: number[] | null
+  mockProviderIds?: number[] | null,
 ): Promise<Response> {
   try {
     const supabase = createOptimatClient();
@@ -843,7 +936,8 @@ async function listTripRecordPairs(
     const records: TripPairRecord[] = rows.map((row) => {
       const pickSeconds = timeToSeconds(row.pick_time);
       const dropSeconds = timeToSeconds(row.drop_time);
-      const durationMinutes = secondsToMinutes(diffSeconds(pickSeconds, dropSeconds)) || 0;
+      const durationMinutes =
+        secondsToMinutes(diffSeconds(pickSeconds, dropSeconds)) || 0;
 
       let returnPickTime: string | null = null;
       let returnGapMinutes: number | null = null;
@@ -852,12 +946,14 @@ async function listTripRecordPairs(
         returnPickTime = pickLookup.get(Number(tripIdReturn)) || null;
         if (returnPickTime) {
           returnGapMinutes = secondsToMinutes(
-            diffSeconds(dropSeconds, timeToSeconds(returnPickTime))
+            diffSeconds(dropSeconds, timeToSeconds(returnPickTime)),
           );
         }
       }
 
-      const { street: pickupAddress, city: pickupCity } = splitAddress(row.addr_pk);
+      const { street: pickupAddress, city: pickupCity } = splitAddress(
+        row.addr_pk,
+      );
       const { street: dropAddress, city: dropCity } = splitAddress(row.addr_dp);
 
       // Parse outbound duration from interval if present
@@ -868,7 +964,8 @@ async function listTripRecordPairs(
           const h = parseInt(parts[0], 10) || 0;
           const m = parseInt(parts[1], 10) || 0;
           const s = parts.length > 2 ? parseInt(parts[2], 10) || 0 : 0;
-          outboundDurationMinutes = Math.round((h * 60 + m + s / 60) * 100) / 100;
+          outboundDurationMinutes = Math.round((h * 60 + m + s / 60) * 100) /
+            100;
         }
       }
 
@@ -883,7 +980,9 @@ async function listTripRecordPairs(
         drop_address: dropAddress,
         drop_city: dropCity,
         passengers_on_board: Number(row.psg_on_brd),
-        trip_id_return: tripIdReturn !== null && tripIdReturn >= 0 ? Number(tripIdReturn) : null,
+        trip_id_return: tripIdReturn !== null && tripIdReturn >= 0
+          ? Number(tripIdReturn)
+          : null,
         return_pick_time: returnPickTime,
         duration_minutes: durationMinutes,
         return_gap_minutes: returnGapMinutes,
@@ -908,7 +1007,7 @@ async function listTripRecordPairs(
 async function listTripRecordPairsGrouped(
   origin?: string | null,
   providerId?: number | null,
-  mockProviderIds?: number[] | null
+  mockProviderIds?: number[] | null,
 ): Promise<Response> {
   try {
     const supabase = createOptimatClient();
@@ -967,9 +1066,12 @@ async function listTripRecordPairsGrouped(
       // Build outbound leg
       const pickSeconds = timeToSeconds(row.pick_time);
       const dropSeconds = timeToSeconds(row.drop_time);
-      const durationMinutes = secondsToMinutes(diffSeconds(pickSeconds, dropSeconds)) || 0;
+      const durationMinutes =
+        secondsToMinutes(diffSeconds(pickSeconds, dropSeconds)) || 0;
 
-      const { street: pickupAddress, city: pickupCity } = splitAddress(row.addr_pk);
+      const { street: pickupAddress, city: pickupCity } = splitAddress(
+        row.addr_pk,
+      );
       const { street: dropAddress, city: dropCity } = splitAddress(row.addr_dp);
 
       const outboundLeg: TripPairLeg = {
@@ -1002,15 +1104,22 @@ async function listTripRecordPairsGrouped(
         if (returnRow) {
           isRoundTrip = true;
 
-          const returnPickSeconds = timeToSeconds(returnRow.pick_time as string);
-          const returnDropSeconds = timeToSeconds(returnRow.drop_time as string);
-          const returnDuration = secondsToMinutes(diffSeconds(returnPickSeconds, returnDropSeconds)) || 0;
-
-          const { street: returnPickupAddr, city: returnPickupCity } = splitAddress(
-            returnRow.addr_pk as string
+          const returnPickSeconds = timeToSeconds(
+            returnRow.pick_time as string,
           );
+          const returnDropSeconds = timeToSeconds(
+            returnRow.drop_time as string,
+          );
+          const returnDuration = secondsToMinutes(
+            diffSeconds(returnPickSeconds, returnDropSeconds),
+          ) || 0;
+
+          const { street: returnPickupAddr, city: returnPickupCity } =
+            splitAddress(
+              returnRow.addr_pk as string,
+            );
           const { street: returnDropAddr, city: returnDropCity } = splitAddress(
-            returnRow.addr_dp as string
+            returnRow.addr_dp as string,
           );
 
           returnLeg = {
@@ -1026,16 +1135,22 @@ async function listTripRecordPairsGrouped(
             passengers_on_board: Number(returnRow.psg_on_brd),
             duration_minutes: returnDuration,
             route_polyline: (returnRow.google_maps_route as string) || null,
-            route_distance_meters: (returnRow.google_route_distance_m as number) || 0,
-            route_duration_seconds: (returnRow.google_route_duration_s as number) || 0,
+            route_distance_meters:
+              (returnRow.google_route_distance_m as number) || 0,
+            route_duration_seconds:
+              (returnRow.google_route_duration_s as number) || 0,
             route_summary: (returnRow.google_route_summary as string) || null,
           };
 
           // Calculate gap between outbound drop and return pickup
-          gapMinutes = secondsToMinutes(diffSeconds(dropSeconds, returnPickSeconds));
+          gapMinutes = secondsToMinutes(
+            diffSeconds(dropSeconds, returnPickSeconds),
+          );
 
           // Calculate round trip duration (outbound pickup to return drop)
-          roundTripDuration = secondsToMinutes(diffSeconds(pickSeconds, returnDropSeconds));
+          roundTripDuration = secondsToMinutes(
+            diffSeconds(pickSeconds, returnDropSeconds),
+          );
         }
       }
 
@@ -1061,11 +1176,15 @@ async function listTripRecordPairsGrouped(
 async function getTripRecordStats(
   origin?: string | null,
   providerId?: number | null,
-  mockProviderIds?: number[] | null
+  mockProviderIds?: number[] | null,
 ): Promise<Response> {
   try {
     // Get all trip records
-    const pairsResponse = await listTripRecordPairs(origin, providerId, mockProviderIds);
+    const pairsResponse = await listTripRecordPairs(
+      origin,
+      providerId,
+      mockProviderIds,
+    );
     const records = (await pairsResponse.json()) as TripPairRecord[];
 
     if (!Array.isArray(records) || records.length === 0) {
@@ -1085,7 +1204,7 @@ async function getTripRecordStats(
           busiest_pick_hours: [],
         },
         200,
-        origin
+        origin,
       );
     }
 
@@ -1099,8 +1218,14 @@ async function getTripRecordStats(
       .filter((g): g is number => g !== null);
 
     // Calculate hotspots
-    const pickupHotspots = new Map<string, { city: string | null; count: number }>();
-    const dropHotspots = new Map<string, { city: string | null; count: number }>();
+    const pickupHotspots = new Map<
+      string,
+      { city: string | null; count: number }
+    >();
+    const dropHotspots = new Map<
+      string,
+      { city: string | null; count: number }
+    >();
     const pickHours = new Map<number, number>();
 
     for (const record of records) {
@@ -1130,30 +1255,38 @@ async function getTripRecordStats(
     }
 
     // Sort hotspots by count
-    const topPickupHotspots: TripRecordHotspot[] = Array.from(pickupHotspots.entries())
+    const topPickupHotspots: TripRecordHotspot[] = Array.from(
+      pickupHotspots.entries(),
+    )
       .map(([label, data]) => ({ label, city: data.city, count: data.count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
-    const topDropHotspots: TripRecordHotspot[] = Array.from(dropHotspots.entries())
+    const topDropHotspots: TripRecordHotspot[] = Array.from(
+      dropHotspots.entries(),
+    )
       .map(([label, data]) => ({ label, city: data.city, count: data.count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
     // Sort hours by count (descending), then hour (ascending)
-    const busiestPickHours: TripRecordHourCount[] = Array.from(pickHours.entries())
+    const busiestPickHours: TripRecordHourCount[] = Array.from(
+      pickHours.entries(),
+    )
       .map(([hour, count]) => ({ hour, count }))
       .sort((a, b) => b.count - a.count || a.hour - b.hour);
 
     // Calculate averages
-    const avgDuration =
-      durations.length > 0
-        ? Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 100) / 100
-        : 0;
-    const avgReturnGap =
-      returnGaps.length > 0
-        ? Math.round((returnGaps.reduce((a, b) => a + b, 0) / returnGaps.length) * 100) / 100
-        : null;
+    const avgDuration = durations.length > 0
+      ? Math.round(
+        (durations.reduce((a, b) => a + b, 0) / durations.length) * 100,
+      ) / 100
+      : 0;
+    const avgReturnGap = returnGaps.length > 0
+      ? Math.round(
+        (returnGaps.reduce((a, b) => a + b, 0) / returnGaps.length) * 100,
+      ) / 100
+      : null;
 
     // Get earliest/latest times
     const pickTimes = records.map((r) => r.pick_time).filter(Boolean).sort();
@@ -1162,7 +1295,8 @@ async function getTripRecordStats(
     const stats: TripPairStats = {
       total_records: records.length,
       with_return_count: withReturn.length,
-      pct_with_return: Math.round((withReturn.length / records.length) * 1000) / 10,
+      pct_with_return: Math.round((withReturn.length / records.length) * 1000) /
+        10,
       avg_duration_minutes: avgDuration,
       median_duration_minutes: percentile(durations, 0.5) || 0,
       p90_duration_minutes: percentile(durations, 0.9) || 0,
@@ -1214,37 +1348,75 @@ serve(async (req: Request): Promise<Response> => {
     // Route handling
     // GET /trip-records/pairs - List trip record pairs
     if (method === "GET" && segments[0] === "pairs" && segments.length === 1) {
-      return await listTripRecordPairs(requestOrigin, providerId, mockProviderIds);
+      return await listTripRecordPairs(
+        requestOrigin,
+        providerId,
+        mockProviderIds,
+      );
     }
 
     // GET /trip-records/pairs-grouped - Get grouped trip pairs
-    if (method === "GET" && segments[0] === "pairs-grouped" && segments.length === 1) {
-      return await listTripRecordPairsGrouped(requestOrigin, providerId, mockProviderIds);
+    if (
+      method === "GET" && segments[0] === "pairs-grouped" &&
+      segments.length === 1
+    ) {
+      return await listTripRecordPairsGrouped(
+        requestOrigin,
+        providerId,
+        mockProviderIds,
+      );
     }
 
     // GET /trip-records/stats - Get trip record stats
     if (method === "GET" && segments[0] === "stats" && segments.length === 1) {
-      return await getTripRecordStats(requestOrigin, providerId, mockProviderIds);
+      return await getTripRecordStats(
+        requestOrigin,
+        providerId,
+        mockProviderIds,
+      );
     }
 
     // POST /trip-records/upload - Upload trip records
-    if (method === "POST" && segments[0] === "upload" && segments.length === 1) {
+    if (
+      method === "POST" && segments[0] === "upload" && segments.length === 1
+    ) {
+      const unauthorized = requireMigrationAdmin(req, requestOrigin);
+      if (unauthorized) return unauthorized;
       return await uploadTripRecords(req, requestOrigin);
     }
 
     // GET /trip-records/manifest/pairs - List manifest trip record pairs
-    if (method === "GET" && segments[0] === "manifest" && segments[1] === "pairs" && segments.length === 2) {
+    if (
+      method === "GET" && segments[0] === "manifest" &&
+      segments[1] === "pairs" && segments.length === 2
+    ) {
       const serviceDate = url.searchParams.get("service_date");
-      return await listManifestTripRecordPairs(serviceDate, providerId, requestOrigin, mockProviderIds);
+      return await listManifestTripRecordPairs(
+        serviceDate,
+        providerId,
+        requestOrigin,
+        mockProviderIds,
+      );
     }
 
     // GET /trip-records/manifest/pair-summaries - Get manifest daily summaries
-    if (method === "GET" && segments[0] === "manifest" && segments[1] === "pair-summaries" && segments.length === 2) {
-      return await listManifestTripRecordPairSummaries(requestOrigin, providerId, mockProviderIds);
+    if (
+      method === "GET" && segments[0] === "manifest" &&
+      segments[1] === "pair-summaries" && segments.length === 2
+    ) {
+      return await listManifestTripRecordPairSummaries(
+        requestOrigin,
+        providerId,
+        mockProviderIds,
+      );
     }
 
     // Route not found
-    return errorResponse(`Not found: ${method} ${pathname}`, 404, requestOrigin);
+    return errorResponse(
+      `Not found: ${method} ${pathname}`,
+      404,
+      requestOrigin,
+    );
   } catch (err) {
     console.error("Unhandled error:", err);
     return errorResponse("Internal server error", 500, requestOrigin);

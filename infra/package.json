@@ -1,0 +1,25 @@
+{
+  "name": "optimat-lambda",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:baseline": "node ../scripts/migration/build-aurora-baseline.mjs",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.700.0",
+    "@aws-sdk/client-geo-places": "^3.1098.0",
+    "@aws-sdk/client-geo-routes": "^3.1098.0",
+    "@aws-sdk/client-s3": "^3.1098.0",
+    "@aws-sdk/client-secrets-manager": "^3.700.0",
+    "@aws-sdk/client-transcribe": "^3.1098.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/pg": "^8.11.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}

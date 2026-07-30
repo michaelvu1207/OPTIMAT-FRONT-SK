@@ -11,10 +11,11 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
+  errorResponse,
   handleCorsPreflightRequest,
   jsonResponse,
-  errorResponse,
 } from "../_shared/cors.ts";
+import { requireMigrationAdmin } from "../_shared/admin.ts";
 import {
   createOptimatClient,
   sanitizeRecord,
@@ -39,7 +40,9 @@ interface Message {
 }
 
 // Parse URL path to extract message ID
-function parseUrlPath(url: string): { messageId: string | null; conversationId: string | null } {
+function parseUrlPath(
+  url: string,
+): { messageId: string | null; conversationId: string | null } {
   const urlObj = new URL(url);
   const pathParts = urlObj.pathname.split("/").filter(Boolean);
   const conversationId = urlObj.searchParams.get("conversation_id");
@@ -56,7 +59,9 @@ function parseUrlPath(url: string): { messageId: string | null; conversationId: 
 
   // Check if last part looks like a UUID
   const lastPart = pathParts[pathParts.length - 1];
-  if (lastPart && /^[0-9a-f-]{36}$/i.test(lastPart) && lastPart !== "messages") {
+  if (
+    lastPart && /^[0-9a-f-]{36}$/i.test(lastPart) && lastPart !== "messages"
+  ) {
     return { messageId: lastPart, conversationId };
   }
 
@@ -100,20 +105,30 @@ serve(async (req: Request) => {
           // GET /?conversation_id=:id - List messages for a conversation
           return await listMessages(supabase, conversationId, req, origin);
         } else {
-          return errorResponse("conversation_id query parameter required", 400, origin);
+          return errorResponse(
+            "conversation_id query parameter required",
+            400,
+            origin,
+          );
         }
       }
 
       case "POST": {
         // POST / - Create a new message
         if (messageId) {
-          return errorResponse("Cannot POST to a specific message ID", 400, origin);
+          return errorResponse(
+            "Cannot POST to a specific message ID",
+            400,
+            origin,
+          );
         }
         const body: CreateMessageRequest = await req.json();
         return await createMessage(supabase, body, origin);
       }
 
       case "DELETE": {
+        const unauthorized = requireMigrationAdmin(req, origin);
+        if (unauthorized) return unauthorized;
         // DELETE /:id - Delete a message
         if (!messageId) {
           return errorResponse("Message ID required", 400, origin);
@@ -127,9 +142,11 @@ serve(async (req: Request) => {
   } catch (error) {
     console.error("Messages error:", error);
     return errorResponse(
-      `Internal server error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Internal server error: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
       500,
-      origin
+      origin,
     );
   }
 });
@@ -141,7 +158,7 @@ async function listMessages(
   supabase: ReturnType<typeof createOptimatClient>,
   conversationId: string,
   req: Request,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   const url = new URL(req.url);
   const limit = parseInt(url.searchParams.get("limit") || "100", 10);
@@ -184,7 +201,7 @@ async function listMessages(
       },
     },
     200,
-    origin
+    origin,
   );
 }
 
@@ -194,7 +211,7 @@ async function listMessages(
 async function getMessage(
   supabase: ReturnType<typeof createOptimatClient>,
   messageId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   const { data: message, error } = await supabase
     .from(TABLES.MESSAGES)
@@ -215,7 +232,7 @@ async function getMessage(
 async function createMessage(
   supabase: ReturnType<typeof createOptimatClient>,
   body: CreateMessageRequest,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   if (!body.conversation_id) {
     return errorResponse("conversation_id is required", 400, origin);
@@ -275,7 +292,7 @@ async function createMessage(
 async function deleteMessage(
   supabase: ReturnType<typeof createOptimatClient>,
   messageId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   // Get message first to find conversation_id
   const { data: message, error: fetchError } = await supabase

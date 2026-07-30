@@ -14,7 +14,7 @@ import { execSync } from 'node:child_process';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const SUPABASE_URL = 'https://htjohidcoyfuwfjecazu.supabase.co';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0am9oaWRjb3lmdXdmamVjYXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0MjM4MzcsImV4cCI6MjA4MTk5OTgzN30.NLeuvMPngtD7HLu1FDZJgT9-B1cqcuHixdSbfmjIi0k';
+const ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 const AWS_PROFILE = 'path';
 const AWS_REGION = 'us-west-1';
 const LAMBDA_FUNCTION = 'optimat-api-DbSetupFunction-5xHdMWRWSxQT';
@@ -78,6 +78,9 @@ function escJson(obj) {
 }
 
 async function main() {
+  if (!ANON_KEY) {
+    throw new Error('Set SUPABASE_ANON_KEY or VITE_SUPABASE_ANON_KEY.');
+  }
   console.log('=== Fix remaining migration gaps ===\n');
 
   // ---------------------------------------------------------------

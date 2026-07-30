@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_CSV_PATH = '/Users/maikyon/Downloads/OPTIMAT Provider Validation Updated Providers (3).csv';
 const FUNCTIONS_BASE = 'https://htjohidcoyfuwfjecazu.functions.supabase.co';
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_SBYfj4PnJcyhTX4U77jp2w_BvEN2aEL';
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 const BACKUP_DIR = path.join(__dirname, 'backup');
 
 const CSV_PATH = getArgValue(process.argv, '--csv') || DEFAULT_CSV_PATH;
@@ -156,6 +156,9 @@ async function applyUpdates(updates) {
 }
 
 async function main() {
+  if (!SUPABASE_ANON_KEY) {
+    throw new Error('Set VITE_SUPABASE_ANON_KEY or SUPABASE_ANON_KEY.');
+  }
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
 

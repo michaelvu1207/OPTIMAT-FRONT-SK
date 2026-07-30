@@ -1,0 +1,498 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: OPTIMAT v2 cost-optimized dual-stack network, Aurora, and secrets
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: prod-v2
+    AllowedPattern: "[a-z0-9-]+"
+  AuroraMinCapacity:
+    Type: Number
+    Default: 0.5
+  AuroraMaxCapacity:
+    Type: Number
+    Default: 2
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-vpc
+        - Key: Application
+          Value: OPTIMAT
+
+  VpcIpv6Cidr:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      VpcId: !Ref Vpc
+      AmazonProvidedIpv6CidrBlock: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-igw
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  EgressOnlyInternetGateway:
+    Type: AWS::EC2::EgressOnlyInternetGateway
+    Properties:
+      VpcId: !Ref Vpc
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    DependsOn: VpcIpv6Cidr
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.20.0.0/24
+      Ipv6CidrBlock:
+        Fn::Select:
+          - 0
+          - Fn::Cidr:
+              - Fn::Select: [0, !GetAtt Vpc.Ipv6CidrBlocks]
+              - 6
+              - 64
+      AssignIpv6AddressOnCreation: true
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-public-a
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    DependsOn: VpcIpv6Cidr
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.20.1.0/24
+      Ipv6CidrBlock:
+        Fn::Select:
+          - 1
+          - Fn::Cidr:
+              - Fn::Select: [0, !GetAtt Vpc.Ipv6CidrBlocks]
+              - 6
+              - 64
+      AssignIpv6AddressOnCreation: true
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-public-b
+
+  AppSubnetA:
+    Type: AWS::EC2::Subnet
+    DependsOn: VpcIpv6Cidr
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.20.10.0/24
+      Ipv6CidrBlock:
+        Fn::Select:
+          - 2
+          - Fn::Cidr:
+              - Fn::Select: [0, !GetAtt Vpc.Ipv6CidrBlocks]
+              - 6
+              - 64
+      AssignIpv6AddressOnCreation: true
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-app-a
+
+  AppSubnetB:
+    Type: AWS::EC2::Subnet
+    DependsOn: VpcIpv6Cidr
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.20.11.0/24
+      Ipv6CidrBlock:
+        Fn::Select:
+          - 3
+          - Fn::Cidr:
+              - Fn::Select: [0, !GetAtt Vpc.Ipv6CidrBlocks]
+              - 6
+              - 64
+      AssignIpv6AddressOnCreation: true
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-app-b
+
+  DatabaseSubnetA:
+    Type: AWS::EC2::Subnet
+    DependsOn: VpcIpv6Cidr
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.20.20.0/24
+      Ipv6CidrBlock:
+        Fn::Select:
+          - 4
+          - Fn::Cidr:
+              - Fn::Select: [0, !GetAtt Vpc.Ipv6CidrBlocks]
+              - 6
+              - 64
+      AssignIpv6AddressOnCreation: false
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-db-a
+
+  DatabaseSubnetB:
+    Type: AWS::EC2::Subnet
+    DependsOn: VpcIpv6Cidr
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.20.21.0/24
+      Ipv6CidrBlock:
+        Fn::Select:
+          - 5
+          - Fn::Cidr:
+              - Fn::Select: [0, !GetAtt Vpc.Ipv6CidrBlocks]
+              - 6
+              - 64
+      AssignIpv6AddressOnCreation: false
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-db-b
+
+  NatEip:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-nat-eip
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-nat
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-public-rt
+
+  PublicIpv4Route:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicIpv6Route:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationIpv6CidrBlock: ::/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  AppRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-app-rt
+
+  AppIpv4Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AppRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  AppIpv6Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AppRouteTable
+      DestinationIpv6CidrBlock: ::/0
+      EgressOnlyInternetGatewayId: !Ref EgressOnlyInternetGateway
+
+  AppSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AppSubnetA
+      RouteTableId: !Ref AppRouteTable
+
+  AppSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AppSubnetB
+      RouteTableId: !Ref AppRouteTable
+
+  DatabaseRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-db-rt
+
+  DatabaseSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DatabaseSubnetA
+      RouteTableId: !Ref DatabaseRouteTable
+
+  DatabaseSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DatabaseSubnetB
+      RouteTableId: !Ref DatabaseRouteTable
+
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Vpc
+      VpcEndpointType: Gateway
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      RouteTableIds:
+        - !Ref AppRouteTable
+        - !Ref DatabaseRouteTable
+
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: OPTIMAT v2 Lambda and application tasks
+      VpcId: !Ref Vpc
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS dependencies through NAT
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: ::/0
+          Description: HTTPS dependencies through IPv6 egress
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-app-sg
+
+  DmsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: OPTIMAT DMS source and target connectivity
+      VpcId: !Ref Vpc
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIpv6: ::/0
+          Description: Supabase direct IPv6 PostgreSQL source
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: AWS service APIs through NAT
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: ::/0
+          Description: AWS service APIs through IPv6 egress
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-dms-sg
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: OPTIMAT v2 Aurora
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ApplicationSecurityGroup
+          Description: Application PostgreSQL
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref DmsSecurityGroup
+          Description: DMS target PostgreSQL
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-db-sg
+
+  ApplicationToDatabaseEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ApplicationSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Ref DatabaseSecurityGroup
+      Description: Application PostgreSQL
+
+  DmsToDatabaseEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref DmsSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Ref DatabaseSecurityGroup
+      Description: DMS target PostgreSQL
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: OPTIMAT v2 private Aurora subnets
+      SubnetIds:
+        - !Ref DatabaseSubnetA
+        - !Ref DatabaseSubnetB
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}-db-subnets
+
+  DatabaseClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Description: OPTIMAT v2 Aurora PostgreSQL parameters
+      Family: aurora-postgresql17
+      Parameters:
+        rds.force_ssl: "1"
+        log_min_duration_statement: "1000"
+
+  DatabaseCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBClusterIdentifier: !Sub optimat-${EnvironmentName}
+      Engine: aurora-postgresql
+      EngineVersion: "17.7"
+      DatabaseName: optimat
+      Port: 5432
+      MasterUsername: optimat_migrator
+      ManageMasterUserPassword: true
+      BackupRetentionPeriod: 7
+      CopyTagsToSnapshot: true
+      DatabaseInsightsMode: standard
+      DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      DeletionProtection: true
+      EnableCloudwatchLogsExports:
+        - postgresql
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: !Ref AuroraMinCapacity
+        MaxCapacity: !Ref AuroraMaxCapacity
+      StorageEncrypted: true
+      VpcSecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub optimat-${EnvironmentName}
+        - Key: Application
+          Value: OPTIMAT
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DatabaseWriter:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DatabaseCluster
+      DBInstanceIdentifier: !Sub optimat-${EnvironmentName}-writer
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      PubliclyAccessible: false
+      PromotionTier: 0
+      Tags:
+        - Key: Application
+          Value: OPTIMAT
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  ApplicationDatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub optimat/${EnvironmentName}/database-app
+      Description: OPTIMAT least-privilege application database login
+      GenerateSecretString:
+        SecretStringTemplate: !Sub |
+          {"username":"optimat_app","host":"${DatabaseCluster.Endpoint.Address}","port":"5432","dbname":"optimat"}
+        GenerateStringKey: password
+        PasswordLength: 40
+        ExcludePunctuation: true
+      Tags:
+        - Key: Application
+          Value: OPTIMAT
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  ApiKeysSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub optimat/${EnvironmentName}/api-keys
+      Description: OPTIMAT third-party API credentials
+      SecretString: '{"GOOGLE_MAPS_API_KEY":"","TAVILY_API_KEY":"","OPENAI_API_KEY":"","OPENAI_TRANSCRIBE_MODEL":"gpt-4o-mini-transcribe","CHAT_MODEL_ID":"us.anthropic.claude-opus-5"}'
+      Tags:
+        - Key: Application
+          Value: OPTIMAT
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Outputs:
+  VpcId:
+    Value: !Ref Vpc
+  AppSubnetAId:
+    Value: !Ref AppSubnetA
+  AppSubnetBId:
+    Value: !Ref AppSubnetB
+  DatabaseSubnetAId:
+    Value: !Ref DatabaseSubnetA
+  DatabaseSubnetBId:
+    Value: !Ref DatabaseSubnetB
+  ApplicationSecurityGroupId:
+    Value: !Ref ApplicationSecurityGroup
+  DmsSecurityGroupId:
+    Value: !Ref DmsSecurityGroup
+  DatabaseClusterEndpoint:
+    Value: !GetAtt DatabaseCluster.Endpoint.Address
+  DatabaseClusterArn:
+    Value: !GetAtt DatabaseCluster.DBClusterArn
+  DatabaseMasterSecretArn:
+    Value: !GetAtt DatabaseCluster.MasterUserSecret.SecretArn
+  ApplicationDatabaseSecretArn:
+    Value: !Ref ApplicationDatabaseSecret
+  ApiKeysSecretArn:
+    Value: !Ref ApiKeysSecret

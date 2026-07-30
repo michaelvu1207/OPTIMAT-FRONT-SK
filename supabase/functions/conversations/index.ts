@@ -14,10 +14,11 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
+  errorResponse,
   handleCorsPreflightRequest,
   jsonResponse,
-  errorResponse,
 } from "../_shared/cors.ts";
+import { requireMigrationAdmin } from "../_shared/admin.ts";
 import {
   createOptimatClient,
   sanitizeRecord,
@@ -97,6 +98,8 @@ serve(async (req: Request) => {
           // GET /:id - Get a specific conversation with messages
           return await getConversation(supabase, conversationId, origin);
         } else {
+          const unauthorized = requireMigrationAdmin(req, origin);
+          if (unauthorized) return unauthorized;
           // GET / - List all conversations
           return await listConversations(supabase, req, origin);
         }
@@ -105,13 +108,19 @@ serve(async (req: Request) => {
       case "POST": {
         // POST / - Create a new conversation
         if (conversationId) {
-          return errorResponse("Cannot POST to a specific conversation ID", 400, origin);
+          return errorResponse(
+            "Cannot POST to a specific conversation ID",
+            400,
+            origin,
+          );
         }
         const body: CreateConversationRequest = await req.json();
         return await createConversation(supabase, body, origin);
       }
 
       case "PUT": {
+        const unauthorized = requireMigrationAdmin(req, origin);
+        if (unauthorized) return unauthorized;
         // PUT /:id - Update a conversation
         if (!conversationId) {
           return errorResponse("Conversation ID required", 400, origin);
@@ -121,6 +130,8 @@ serve(async (req: Request) => {
       }
 
       case "DELETE": {
+        const unauthorized = requireMigrationAdmin(req, origin);
+        if (unauthorized) return unauthorized;
         // DELETE /:id - Delete a conversation
         if (!conversationId) {
           return errorResponse("Conversation ID required", 400, origin);
@@ -134,9 +145,11 @@ serve(async (req: Request) => {
   } catch (error) {
     console.error("Conversations error:", error);
     return errorResponse(
-      `Internal server error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Internal server error: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
       500,
-      origin
+      origin,
     );
   }
 });
@@ -147,7 +160,7 @@ serve(async (req: Request) => {
 async function listConversations(
   supabase: ReturnType<typeof createOptimatClient>,
   req: Request,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   const url = new URL(req.url);
   const limit = parseInt(url.searchParams.get("limit") || "50", 10);
@@ -179,7 +192,7 @@ async function listConversations(
       },
     },
     200,
-    origin
+    origin,
   );
 }
 
@@ -189,7 +202,7 @@ async function listConversations(
 async function getConversation(
   supabase: ReturnType<typeof createOptimatClient>,
   conversationId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   // Fetch conversation
   const { data: conversation, error: convError } = await supabase
@@ -228,7 +241,7 @@ async function getConversation(
 async function createConversation(
   supabase: ReturnType<typeof createOptimatClient>,
   body: CreateConversationRequest,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   const title = body.title || "New Conversation";
   const metadata = body.metadata || null;
@@ -251,7 +264,8 @@ async function createConversation(
   const { error: msgError } = await supabase.from(TABLES.MESSAGES).insert({
     conversation_id: data.id,
     role: "assistant",
-    content: "Hi! I'm here to help you find transportation services. How can I assist you today?",
+    content:
+      "Hi! I'm here to help you find transportation services. How can I assist you today?",
   });
 
   if (msgError) {
@@ -268,7 +282,7 @@ async function updateConversation(
   supabase: ReturnType<typeof createOptimatClient>,
   conversationId: string,
   body: UpdateConversationRequest,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   // Build update object
   const updates: Record<string, unknown> = {
@@ -307,7 +321,7 @@ async function updateConversation(
 async function deleteConversation(
   supabase: ReturnType<typeof createOptimatClient>,
   conversationId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   // Delete related records first (foreign key constraints)
 
@@ -323,18 +337,36 @@ async function deleteConversation(
   }
 
   // Delete tool call records
-  await supabase.from(TABLES.FIND_PROVIDERS_CALLS).delete().eq("conversation_id", conversationId);
-  await supabase.from(TABLES.SEARCH_ADDRESSES_CALLS).delete().eq("conversation_id", conversationId);
-  await supabase.from(TABLES.GET_PROVIDER_INFO_CALLS).delete().eq("conversation_id", conversationId);
+  await supabase.from(TABLES.FIND_PROVIDERS_CALLS).delete().eq(
+    "conversation_id",
+    conversationId,
+  );
+  await supabase.from(TABLES.SEARCH_ADDRESSES_CALLS).delete().eq(
+    "conversation_id",
+    conversationId,
+  );
+  await supabase.from(TABLES.GET_PROVIDER_INFO_CALLS).delete().eq(
+    "conversation_id",
+    conversationId,
+  );
 
   // Delete conversation states
-  await supabase.from(TABLES.CONVERSATION_STATES).delete().eq("conversation_id", conversationId);
+  await supabase.from(TABLES.CONVERSATION_STATES).delete().eq(
+    "conversation_id",
+    conversationId,
+  );
 
   // Delete chat examples that reference this conversation
-  await supabase.from(TABLES.CHAT_EXAMPLES).delete().eq("conversation_id", conversationId);
+  await supabase.from(TABLES.CHAT_EXAMPLES).delete().eq(
+    "conversation_id",
+    conversationId,
+  );
 
   // Delete the conversation
-  const { error } = await supabase.from(TABLES.CONVERSATIONS).delete().eq("id", conversationId);
+  const { error } = await supabase.from(TABLES.CONVERSATIONS).delete().eq(
+    "id",
+    conversationId,
+  );
 
   if (error) {
     console.error("Error deleting conversation:", error);
