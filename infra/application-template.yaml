@@ -156,6 +156,9 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: $default
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 25
       AccessLogSettings:
         DestinationArn: !GetAtt HttpApiAccessLogGroup.Arn
         Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","integrationError":"$context.integrationErrorMessage"}'
@@ -166,6 +169,8 @@ Resources:
           - http://localhost:4173
           - https://optimat.us
           - https://www.optimat.us
+          - https://master.d3loqorszhsxp7.amplifyapp.com
+          - https://codex-supabase-to-aws-migration.d3loqorszhsxp7.amplifyapp.com
         AllowMethods:
           - GET
           - POST
