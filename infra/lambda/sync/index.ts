@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import pg from 'pg';
 import type { Context } from 'aws-lambda';
 import { getSecret } from '../_shared/secrets.js';
@@ -33,7 +34,7 @@ const ALL_TABLES = [
 ] as const;
 
 type SyncEvent = {
-  action?: 'status' | 'status-all' | 'rehearsal-all' | 'sync-mutable' | 'sync-all';
+  action?: 'status' | 'status-all' | 'verify-all' | 'rehearsal-all' | 'sync-mutable' | 'sync-all';
   confirm_write_fence?: boolean;
 };
 
@@ -75,6 +76,85 @@ async function getCounts(client: pg.Client, tables: readonly string[]): Promise<
     counts[table] = Number(result.rows[0]?.count || 0);
   }
   return counts;
+}
+
+function fingerprintDigestCounts(digestCounts: Map<string, number>): string {
+  const fingerprint = createHash('sha256');
+  for (const [digest, count] of [...digestCounts.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    fingerprint.update(`${digest}:${count}\n`);
+  }
+  return fingerprint.digest('hex');
+}
+
+function rowDigest(row: Record<string, unknown>): string {
+  return createHash('sha256').update(JSON.stringify(row)).digest('hex');
+}
+
+async function verifySourceRows(
+  source: pg.Client,
+  target: pg.Client,
+  tables: readonly string[],
+): Promise<Record<string, {
+  source_rows: number;
+  target_rows: number;
+  missing_source_rows: number;
+  post_cutover_rows: number;
+  source_fingerprint: string;
+}>> {
+  const verification: Record<string, {
+    source_rows: number;
+    target_rows: number;
+    missing_source_rows: number;
+    post_cutover_rows: number;
+    source_fingerprint: string;
+  }> = {};
+
+  for (const table of tables) {
+    const sourceColumns = await tableColumns(source, table);
+    const targetColumns = new Map(
+      (await tableColumns(target, table)).map((column) => [column.name, column]),
+    );
+    const columns = sourceColumns
+      .map((column) => targetColumns.get(column.name))
+      .filter((column): column is ColumnInfo => Boolean(column));
+    if (!columns.length) throw new Error(`No shared columns found for optimat.${table}`);
+
+    const columnSql = columns.map((column) => quoteIdentifier(column.name)).join(', ');
+    const sourceResult = await source.query<Record<string, unknown>>(
+      `select ${columnSql} from optimat.${quoteIdentifier(table)}`,
+    );
+    const digestCounts = new Map<string, number>();
+    for (const row of sourceResult.rows) {
+      const digest = rowDigest(row);
+      digestCounts.set(digest, (digestCounts.get(digest) || 0) + 1);
+    }
+    const sourceRows = sourceResult.rowCount || 0;
+    const sourceFingerprint = fingerprintDigestCounts(digestCounts);
+    sourceResult.rows.length = 0;
+
+    const targetResult = await target.query<Record<string, unknown>>(
+      `select ${columnSql} from optimat.${quoteIdentifier(table)}`,
+    );
+    let postCutoverRows = 0;
+    for (const row of targetResult.rows) {
+      const digest = rowDigest(row);
+      const remaining = digestCounts.get(digest) || 0;
+      if (remaining > 1) digestCounts.set(digest, remaining - 1);
+      else if (remaining === 1) digestCounts.delete(digest);
+      else postCutoverRows += 1;
+    }
+    const targetRows = targetResult.rowCount || 0;
+    targetResult.rows.length = 0;
+
+    verification[table] = {
+      source_rows: sourceRows,
+      target_rows: targetRows,
+      missing_source_rows: [...digestCounts.values()].reduce((sum, count) => sum + count, 0),
+      post_cutover_rows: postCutoverRows,
+      source_fingerprint: sourceFingerprint,
+    };
+  }
+  return verification;
 }
 
 type ColumnInfo = { name: string; udtName: string };
@@ -159,7 +239,7 @@ async function syncTables(source: pg.Client, target: pg.Client, tables: readonly
 
 export const handler = async (event: SyncEvent = {}, _context?: Context) => {
   const action = event.action || 'status';
-  if (!['status', 'status-all', 'rehearsal-all', 'sync-mutable', 'sync-all'].includes(action)) {
+  if (!['status', 'status-all', 'verify-all', 'rehearsal-all', 'sync-mutable', 'sync-all'].includes(action)) {
     return { success: false, error: 'Unsupported sync action' };
   }
   if ((action === 'sync-mutable' || action === 'sync-all') && event.confirm_write_fence !== true) {
@@ -176,6 +256,21 @@ export const handler = async (event: SyncEvent = {}, _context?: Context) => {
         action,
         source_counts: await getCounts(source, tables),
         target_counts: await getCounts(target, tables),
+      };
+    }
+    if (action === 'verify-all') {
+      const verification = await verifySourceRows(source, target, ALL_TABLES);
+      const missingSourceRows = Object.values(verification)
+        .reduce((sum, table) => sum + table.missing_source_rows, 0);
+      const postCutoverRows = Object.values(verification)
+        .reduce((sum, table) => sum + table.post_cutover_rows, 0);
+      return {
+        success: missingSourceRows === 0,
+        action,
+        verified_tables: ALL_TABLES.length,
+        missing_source_rows: missingSourceRows,
+        post_cutover_rows: postCutoverRows,
+        tables: verification,
       };
     }
     const tables = action === 'sync-mutable' ? MUTABLE_TABLES : ALL_TABLES;

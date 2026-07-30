@@ -9,9 +9,9 @@ Authoritative machine-readable evidence:
 
 - `live-supabase-2026-07-30.json` — catalog, exact row counts, content checksums, functions, auth/storage configuration, grants, policies, publications, and cron.
 - `supabase-schema-raw.sql` — native `pg_dump --schema-only` output from the production database.
-- Encrypted retained snapshot in the `optimat-migration-archive` CloudFormation stack under `supabase-snapshots/2026-07-30T02-52-09-156Z/`.
+- Final fenced, encrypted snapshot in the `optimat-migration-archive` CloudFormation stack under `supabase-snapshots/2026-07-30T05-30-52-298Z/`.
 
-The archive contains a transaction-consistent custom-format data dump, schema, inventory, downloaded live Edge Function sources, SHA-256 checksums, and a manifest. S3 versioning, SSE-KMS, Block Public Access, access logging, and no-expiration Glacier transitions are enabled.
+The archive contains a transaction-consistent custom-format data dump, schema, inventory, downloaded live Edge Function sources, SHA-256 checksums, and a manifest. S3 versioning, SSE-S3, Block Public Access, access logging, and no-expiration Glacier transitions are enabled. A post-upload download verified the dump checksum and all 20 table-data entries.
 
 ## Product capabilities
 
@@ -94,4 +94,6 @@ Downloaded production sources match repository sources for every live function e
 - Public provider PostgREST mutations are denied by table grants.
 - Two narrow database roles and a SELECT-only RLS policy exist for dump/DMS capture. Remove them after final archive verification.
 - Database SSL enforcement is enabled and both migration logins have been revalidated over TLS. The current open IP allowlist remains temporary until it can be narrowed to the DMS path without breaking production.
-- Supabase Bedrock access now uses a dedicated IAM user limited to the production Claude Opus inference profile. Delete it after AWS workload-role cutover.
+- A trigger fence is enabled on all 12 mutable tables; Supabase is retained read-only through the rollback window.
+- The SELECT-only migration reader remains temporarily available for rollback verification and will be deleted with the migration roles after the window.
+- The temporary Supabase Bedrock IAM user, access key, inline policy, and stored credential were deleted after AWS workload-role cutover.
