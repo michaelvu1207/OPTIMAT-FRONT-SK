@@ -1,38 +1,38 @@
-# sv
+# OPTIMAT
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+OPTIMAT helps seniors and people with disabilities find transportation providers serving trips in Contra Costa County.
 
-## Creating a project
+- Web application: [https://optimat.us](https://optimat.us)
+- Public API: [https://api.optimat.us](https://api.optimat.us)
+- OpenAPI 3.1: [https://api.optimat.us/openapi.json](https://api.optimat.us/openapi.json)
+- API guide: [docs/public-api.md](docs/public-api.md)
+- Production architecture: [docs/migration/2026-07-30-production-cutover.md](docs/migration/2026-07-30-production-cutover.md)
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Architecture
 
-```sh
-# create a new project in the current directory
-npx sv create
+The frontend is a SvelteKit static SPA hosted by AWS Amplify. The public JSON API runs on API Gateway and Node.js 24 Lambda functions backed by Aurora PostgreSQL Serverless v2. Amazon Bedrock powers the rider assistant, Amazon Location provides geocoding/routing, and Amazon Transcribe handles voice input.
 
-# create a new project in my-app
-npx sv create my-app
-```
+## Development
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
+```bash
+npm install
+cp .env.example .env
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
+The default example configuration uses the public production API and requires no browser API key.
 
-To create a production version of your app:
+## Validation
 
-```sh
+```bash
+npm run check
 npm run build
+npm run security:secrets
+
+AWS_API_URL=https://api.optimat.us \
+  node tests/api-harness.mjs --target aws --skip conversations,chat,tool-calls
 ```
 
-You can preview the production build with `npm run preview`.
+## Infrastructure
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+Version-controlled AWS SAM/CloudFormation templates and Lambda code live under `infra/`. Production infrastructure changes must pass SAM validation, TypeScript checks, secret scanning, and API smoke tests before promotion.
