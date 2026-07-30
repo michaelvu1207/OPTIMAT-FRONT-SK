@@ -1,7 +1,7 @@
 # OPTIMAT Supabase-to-AWS Backend Migration Plan
 
 **Date:** 2026-07-29
-**Status:** Execution in progress; AWS green stack and full-data rehearsal complete
+**Status:** Production cutover complete; 30-day read-only Supabase rollback window active
 **Scope:** Migrate every production dependency on the OPTIMAT Supabase project to AWS, prove behavioral and data parity, cut over safely, and retire Supabase.
 
 ## 1. Executive recommendation
@@ -24,7 +24,15 @@ The approved migration objective is zero data loss with minimized downtime. Use 
 
 Live validation proved that Supabase exposes `wal2json` but not the `pglogical` or `test_decoding` output plugins supported by AWS DMS. The dual-stack DMS endpoints and target connection were proven, but source CDC was therefore abandoned before cutover and the temporary DMS instance was deleted to stop cost. The zero-loss mechanism is now a reviewed dual-stack Lambda synchronizer: it opens a repeatable-read source snapshot, replaces all 20 target tables inside one Aurora transaction with foreign-key triggers disabled for that transaction, and commits only after exact per-table row-count verification. The full rehearsal copied and verified all tables, including 151,390 manifest rows, in approximately 22 seconds. Production cutover requires the Supabase write fence before invoking `sync-all`; without `confirm_write_fence=true`, the function refuses the final action.
 
-The green stack is live in `us-west-1`: Aurora PostgreSQL 17.7 Serverless v2, API Gateway, all 16 Lambda function equivalents, Amazon Location replacing the invalid Google credential, Amazon Transcribe replacing the missing OpenAI credential, an indefinite versioned S3 archive, and organization-scoped read access. The remaining production gates are the Amplify AWS-backend build, fenced final sync, production frontend promotion, post-cutover observation, Identity Center delegated-administrator access, and the 30-day Supabase rollback window.
+The green stack is live in `us-west-1`: Aurora PostgreSQL 17.7 Serverless v2, API Gateway, all 16 Lambda function equivalents, Amazon Location replacing the invalid Google credential, Amazon Transcribe replacing the missing OpenAI credential, an indefinite versioned S3 archive, and organization-scoped read access.
+
+### Production cutover closeout — 2026-07-30
+
+Production cutover completed through merge commit `2814a6acbc2e1c9e6ff4c147b70c37d24fe1777d`. A database-level trigger fence atomically made all 12 mutable Supabase tables read-only before the final synchronizer ran. The final transaction copied 171,795 rows across all 20 tables and returned no row-count differences. A post-cutover SHA-256 row-multiset verification proved that all 171,795 fenced source rows remain present in Aurora; the only additional target records were the expected live AWS production conversation/message writes.
+
+Amplify production now selects the AWS backend and contains no Supabase environment variables. The AWS preview passed 47 read-only API tests, and the production browser completed health, conversation creation, example loading, and a Bedrock chat response after cutover. The final fenced Supabase archive is `s3://optimat-archive-147229569658-us-west-1/supabase-snapshots/2026-07-30T05-30-52-298Z/`; its downloaded dump matched the recorded SHA-256 and exposed table-data entries for all 20 tables. Supabase remains fenced for the 30-day rollback window. The temporary Supabase Bedrock IAM user, access key, inline policy, and stored credential were deleted.
+
+The only organization-level follow-up is Identity Center-to-Cognito workforce federation for provider/admin browser mutations. The `path` profile is a member-account IAM principal: it cannot enumerate the organization's Identity Center instance or assume the management-account administration role. Organization-wide archive read/list access is already active through `aws:PrincipalOrgID` bucket policies; completing application federation requires management-account or delegated-administrator access.
 
 ## 2. Decisions required before implementation
 
