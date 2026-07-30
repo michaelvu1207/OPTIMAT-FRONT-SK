@@ -16,6 +16,12 @@ Parameters:
     Type: String
   ApiKeysSecretArn:
     Type: String
+  PublicApiDomainName:
+    Type: String
+    Default: api.optimat.us
+  PublicHostedZoneId:
+    Type: String
+    Default: Z064023327L9OZ33R01U9
 
 Globals:
   Function:
@@ -152,10 +158,32 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/apigateway/optimat-${EnvironmentName}
 
+  PublicApiCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref PublicApiDomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref PublicApiDomainName
+          HostedZoneId: !Ref PublicHostedZoneId
+      Tags:
+        - Key: Application
+          Value: OPTIMAT
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: $default
+      Domain:
+        DomainName: !Ref PublicApiDomainName
+        CertificateArn: !Ref PublicApiCertificate
+        EndpointConfiguration: REGIONAL
+        SecurityPolicy: TLS_1_2
+        Route53:
+          HostedZoneId: !Ref PublicHostedZoneId
+          EvaluateTargetHealth: false
       DefaultRouteSettings:
         ThrottlingBurstLimit: 50
         ThrottlingRateLimit: 25
@@ -164,13 +192,7 @@ Resources:
         Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","integrationError":"$context.integrationErrorMessage"}'
       CorsConfiguration:
         AllowOrigins:
-          - http://localhost:5173
-          - http://localhost:3000
-          - http://localhost:4173
-          - https://optimat.us
-          - https://www.optimat.us
-          - https://master.d3loqorszhsxp7.amplifyapp.com
-          - https://codex-supabase-to-aws-migration.d3loqorszhsxp7.amplifyapp.com
+          - "*"
         AllowMethods:
           - GET
           - POST
@@ -205,6 +227,23 @@ Resources:
         Format: cjs
         Minify: true
         Target: node24
+
+  PublicApiDocsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-public-api-docs
+      Handler: openapi/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Root:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /, Method: GET }
+        OpenApi:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /openapi.json, Method: GET }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [openapi/index.ts], Format: cjs, Minify: true, Target: node24 }
 
   GeocodeFunction:
     Type: AWS::Serverless::Function
@@ -444,4 +483,8 @@ Outputs:
   HttpApiId:
     Value: !Ref HttpApi
   ApiUrl:
+    Value: !Sub https://${PublicApiDomainName}
+  ExecuteApiUrl:
     Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  OpenApiUrl:
+    Value: !Sub https://${PublicApiDomainName}/openapi.json

@@ -25,28 +25,13 @@ export type LambdaResponse = APIGatewayProxyResultV2;
 
 // ─── CORS Configuration ────────────────────────────────────────────────────
 
-const ALLOWED_ORIGINS = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:4173',
-];
-
-function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const headers: Record<string, string> = {
+function getCorsHeaders(_origin?: string | null): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
-    'Access-Control-Allow-Headers': 'authorization, content-type, x-requested-with, x-api-key, apikey, x-client-info',
+    'Access-Control-Allow-Headers': 'authorization, content-type, x-requested-with, x-api-key, x-optimat-admin-token, x-admin-token, apikey, x-client-info',
     'Access-Control-Max-Age': '86400',
   };
-
-  // Reflect origin if it's in the allow list or matches amplifyapp.com
-  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.amplifyapp.com') || origin.endsWith('.optimat.us'))) {
-    headers['Access-Control-Allow-Origin'] = origin;
-    headers['Access-Control-Allow-Credentials'] = 'true';
-  } else {
-    headers['Access-Control-Allow-Origin'] = '*';
-  }
-
-  return headers;
 }
 
 // ─── Request Parsing ────────────────────────────────────────────────────────
