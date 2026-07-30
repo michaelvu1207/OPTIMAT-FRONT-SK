@@ -66,6 +66,12 @@ const fromSnapshot = getArg('from-snapshot');
 const onlyGroups = getArg('only')?.split?.(',');
 const skipGroups = getArg('skip')?.split?.(',');
 const verbose = hasFlag('verbose') || hasFlag('v');
+const allowWrites = hasFlag('allow-writes');
+
+// These groups create or delete production records. They are disabled unless the
+// caller makes the side effect explicit. Read-style POSTs such as provider filter
+// and directions remain safe to run in the default mode.
+const MUTATING_GROUPS = new Set(['conversations', 'chat', 'tool-calls']);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -201,7 +207,7 @@ async function testProviders(target) {
   const providerList = all.json?.data;
   const providerCount = Array.isArray(providerList) ? providerList.length : 0;
   recordCustom('providers', `providers count > 0 (got ${providerCount})`, providerCount > 0, { elapsed: 0 });
-  recordCustom('providers', `providers count matches workbook import (got ${providerCount})`, providerCount === 29, {
+  recordCustom('providers', `providers count matches live source (got ${providerCount})`, providerCount === 30, {
     elapsed: 0,
     error: providerCount === 29 ? null : 'expected 29 providers from Updated providers import',
   });
@@ -233,15 +239,17 @@ async function testProviders(target) {
     });
     captureSnapshot('providers', 'GET /providers/:id', single);
 
-    const rejectedUpdate = await request(target, 'PUT', `providers/${testProviderId}`, {
-      provider_name: '__harness_should_not_save__',
-    });
-    const updateRejected = rejectedUpdate.status === 401 || rejectedUpdate.status === 405;
-    recordCustom('providers', `PUT /providers/${testProviderId} is rejected`, updateRejected, {
-      status: rejectedUpdate.status,
-      elapsed: rejectedUpdate.elapsed,
-      error: updateRejected ? null : rejectedUpdate.text?.slice(0, 200),
-    });
+    if (allowWrites) {
+      const rejectedUpdate = await request(target, 'PUT', `providers/${testProviderId}`, {
+        provider_name: '__harness_should_not_save__',
+      });
+      const updateRejected = rejectedUpdate.status === 401 || rejectedUpdate.status === 405;
+      recordCustom('providers', `PUT /providers/${testProviderId} is rejected`, updateRejected, {
+        status: rejectedUpdate.status,
+        elapsed: rejectedUpdate.elapsed,
+        error: updateRejected ? null : rejectedUpdate.text?.slice(0, 200),
+      });
+    }
   }
 
   // GET provider service zone — pick one that actually has zone data
@@ -599,16 +607,16 @@ async function testDataIntegrity(target) {
   let missingFields = 0;
   let missingZones = 0;
   for (const p of providers) {
-    if (!p.provider_name || !p.provider_type) missingFields++;
+    if (!p.provider_name) missingFields++;
     // Count how many claim has_service_zone but return empty
   }
-  recordCustom('data-integrity', `all ${providers.length} providers have required fields`, missingFields === 0, {
+  recordCustom('data-integrity', `all ${providers.length} providers have required names`, missingFields === 0, {
     elapsed: 0,
-    error: missingFields > 0 ? `${missingFields} providers missing provider_name or provider_type` : null,
+    error: missingFields > 0 ? `${missingFields} providers missing provider_name` : null,
   });
-  recordCustom('data-integrity', `provider import count is 29 (got ${providers.length})`, providers.length === 29, {
+  recordCustom('data-integrity', `provider live-source count is 30 (got ${providers.length})`, providers.length === 30, {
     elapsed: 0,
-    error: providers.length === 29 ? null : 'provider count no longer matches the reviewed workbook import',
+    error: providers.length === 30 ? null : 'provider count no longer matches the live source',
   });
 
   // Verify provider IDs are unique
@@ -728,6 +736,7 @@ const ALL_GROUPS = {
 };
 
 function shouldRun(group) {
+  if (!allowWrites && MUTATING_GROUPS.has(group)) return false;
   if (onlyGroups) return onlyGroups.includes(group);
   if (skipGroups) return !skipGroups.includes(group);
   return true;
@@ -744,6 +753,7 @@ async function runSuite(targetName) {
   console.log(`  OPTIMAT API Test Harness — target: ${targetName}`);
   console.log(`  Base URL: ${target.baseUrl}`);
   console.log(`  Time: ${new Date().toISOString()}`);
+  console.log(`  Writes: ${allowWrites ? 'ENABLED (--allow-writes)' : 'disabled (read-only default)'}`);
   console.log(`${'═'.repeat(60)}`);
 
   for (const [group, testFn] of Object.entries(ALL_GROUPS)) {

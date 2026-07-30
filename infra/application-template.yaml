@@ -1,0 +1,447 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: OPTIMAT v2 Lambda and HTTP API application layer
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: prod-v2
+  AppSubnetAId:
+    Type: AWS::EC2::Subnet::Id
+  AppSubnetBId:
+    Type: AWS::EC2::Subnet::Id
+  ApplicationSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  ApplicationDatabaseSecretArn:
+    Type: String
+  ApiKeysSecretArn:
+    Type: String
+
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Architectures:
+      - arm64
+    CodeUri: lambda/
+    MemorySize: 256
+    Timeout: 30
+    VpcConfig:
+      Ipv6AllowedForDualStack: true
+      SubnetIds:
+        - !Ref AppSubnetAId
+        - !Ref AppSubnetBId
+      SecurityGroupIds:
+        - !Ref ApplicationSecurityGroupId
+    Environment:
+      Variables:
+        DB_SECRET_ARN: !Ref ApplicationDatabaseSecretArn
+        API_KEYS_SECRET_ARN: !Ref ApiKeysSecretArn
+        NODE_EXTRA_CA_CERTS: /var/runtime/ca-cert.pem
+    Tags:
+      Application: OPTIMAT
+      Environment: !Ref EnvironmentName
+
+Resources:
+  ApplicationFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub optimat-${EnvironmentName}-lambda
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: ReadApplicationSecrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource:
+                  - !Ref ApplicationDatabaseSecretArn
+                  - !Ref ApiKeysSecretArn
+        - PolicyName: InvokeApprovedBedrockModels
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource:
+                  - arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+                  - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0
+        - PolicyName: UseAmazonLocation
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - geo-places:SearchText
+                  - geo-routes:CalculateRoutes
+                Resource: "*"
+        - PolicyName: UseAmazonTranscribe
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - transcribe:StartTranscriptionJob
+                  - transcribe:GetTranscriptionJob
+                  - transcribe:DeleteTranscriptionJob
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource: !Sub ${TranscribeBucket.Arn}/*
+
+  TranscribeBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: RemoveTransientAudio
+            Status: Enabled
+            ExpirationInDays: 1
+      Tags:
+        - Key: Application
+          Value: OPTIMAT
+        - Key: Purpose
+          Value: TransientTranscriptionInput
+
+  TranscribeBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TranscribeBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAmazonTranscribeRead
+            Effect: Allow
+            Principal:
+              Service: transcribe.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${TranscribeBucket.Arn}/*
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+
+  HttpApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/optimat-${EnvironmentName}
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 25
+      AccessLogSettings:
+        DestinationArn: !GetAtt HttpApiAccessLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","integrationError":"$context.integrationErrorMessage"}'
+      CorsConfiguration:
+        AllowOrigins:
+          - http://localhost:5173
+          - http://localhost:3000
+          - http://localhost:4173
+          - https://optimat.us
+          - https://www.optimat.us
+          - https://master.d3loqorszhsxp7.amplifyapp.com
+          - https://codex-supabase-to-aws-migration.d3loqorszhsxp7.amplifyapp.com
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - authorization
+          - content-type
+          - x-api-key
+          - x-optimat-admin-token
+          - x-admin-token
+          - x-client-info
+          - apikey
+        MaxAge: 86400
+
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-health
+      Handler: health/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /health, Method: GET }
+    Metadata: &EsbuildMetadata
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [health/index.ts]
+        Format: cjs
+        Minify: true
+        Target: node24
+
+  GeocodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-geocode
+      Handler: geocode/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /geocode, Method: GET }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [geocode/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  DirectionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-directions
+      Handler: directions/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /directions, Method: POST }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [directions/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  FeedbackFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-feedback
+      Handler: feedback/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /feedback, Method: POST }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [feedback/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  ProvidersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-providers
+      Handler: providers/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Root:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /providers, Method: ANY }
+        Proxy:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: '/providers/{proxy+}', Method: ANY }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [providers/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  ConversationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-conversations
+      Handler: conversations/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Root:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /conversations, Method: ANY }
+        Proxy:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: '/conversations/{proxy+}', Method: ANY }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [conversations/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  MessagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-messages
+      Handler: messages/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Root:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /messages, Method: ANY }
+        Proxy:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: '/messages/{proxy+}', Method: ANY }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [messages/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-chat
+      Handler: chat/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      MemorySize: 512
+      Timeout: 90
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /chat, Method: POST, TimeoutInMillis: 30000 }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [chat/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  TranscribeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-transcribe
+      Handler: transcribe/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Environment:
+        Variables:
+          TRANSCRIBE_BUCKET: !Ref TranscribeBucket
+      MemorySize: 512
+      Timeout: 60
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /transcribe, Method: POST, TimeoutInMillis: 30000 }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [transcribe/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  ToolCallsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-tool-calls
+      Handler: tool-calls/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /tool-calls, Method: GET }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [tool-calls/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  ChatExamplesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-chat-examples
+      Handler: chat-examples/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Root:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /chat-examples, Method: ANY }
+        Proxy:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: '/chat-examples/{proxy+}', Method: ANY }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [chat-examples/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  ReplayFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-replay
+      Handler: replay/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Root:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /replay, Method: ANY }
+        Proxy:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: '/replay/{proxy+}', Method: ANY }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [replay/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  TripRecordsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-trip-records
+      Handler: trip-records/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      MemorySize: 512
+      Timeout: 60
+      Events:
+        Proxy:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: '/trip-records/{proxy+}', Method: ANY }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [trip-records/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  TriDeltaTransitFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-tri-delta-transit
+      Handler: tri-delta-transit/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Proxy:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: '/tri-delta-transit/{proxy+}', Method: ANY }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [tri-delta-transit/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  ProviderImportAdminFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-provider-import-admin
+      Handler: provider-import-admin/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /provider-import-admin, Method: ANY }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [provider-import-admin/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+  AdminProviderAdvanceUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-admin-provider-advance-update
+      Handler: admin-provider-advance-update/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /admin-provider-advance-update, Method: POST }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [admin-provider-advance-update/index.ts], Format: cjs, Minify: true, Target: node24 }
+
+Outputs:
+  HttpApiId:
+    Value: !Ref HttpApi
+  ApiUrl:
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com

@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: OPTIMAT indefinite application-data and security-log archives
+
+Parameters:
+  OrganizationId:
+    Type: String
+    Default: o-uowlpq5ezy
+    AllowedPattern: o-[a-z0-9]{10,32}
+
+Resources:
+  SecurityLogBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub optimat-security-logs-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: RetainSecurityLogsIndefinitely
+            Status: Enabled
+            Prefix: ""
+            Transitions:
+              - StorageClass: GLACIER
+                TransitionInDays: 90
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 365
+            NoncurrentVersionTransitions:
+              - StorageClass: GLACIER
+                TransitionInDays: 90
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 365
+      Tags:
+        - Key: Application
+          Value: OPTIMAT
+        - Key: Retention
+          Value: Indefinite
+        - Key: DataClass
+          Value: SecurityLogs
+
+  SecurityLogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SecurityLogBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: RequireTLS
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt SecurityLogBucket.Arn
+              - !Sub ${SecurityLogBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: AllowS3ServerAccessLogs
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub ${SecurityLogBucket.Arn}/s3-access/optimat-archive/*
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !GetAtt ApplicationArchiveBucket.Arn
+          - Sid: AllowOrganizationRead
+            Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource: !Sub ${SecurityLogBucket.Arn}/*
+            Condition:
+              StringEquals:
+                aws:PrincipalOrgID: !Ref OrganizationId
+          - Sid: AllowOrganizationList
+            Effect: Allow
+            Principal: "*"
+            Action: s3:ListBucket
+            Resource: !GetAtt SecurityLogBucket.Arn
+            Condition:
+              StringEquals:
+                aws:PrincipalOrgID: !Ref OrganizationId
+
+  ApplicationArchiveBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub optimat-archive-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LoggingConfiguration:
+        DestinationBucketName: !Ref SecurityLogBucket
+        LogFilePrefix: s3-access/optimat-archive/
+      LifecycleConfiguration:
+        Rules:
+          - Id: RetainApplicationDataIndefinitely
+            Status: Enabled
+            Prefix: ""
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+              - StorageClass: GLACIER
+                TransitionInDays: 90
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 365
+            NoncurrentVersionTransitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+              - StorageClass: GLACIER
+                TransitionInDays: 90
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 365
+      Tags:
+        - Key: Application
+          Value: OPTIMAT
+        - Key: Retention
+          Value: Indefinite
+        - Key: DataClass
+          Value: ApplicationArchive
+
+  ApplicationArchiveBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ApplicationArchiveBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: RequireTLS
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt ApplicationArchiveBucket.Arn
+              - !Sub ${ApplicationArchiveBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: AllowOrganizationRead
+            Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource: !Sub ${ApplicationArchiveBucket.Arn}/*
+            Condition:
+              StringEquals:
+                aws:PrincipalOrgID: !Ref OrganizationId
+          - Sid: AllowOrganizationList
+            Effect: Allow
+            Principal: "*"
+            Action: s3:ListBucket
+            Resource: !GetAtt ApplicationArchiveBucket.Arn
+            Condition:
+              StringEquals:
+                aws:PrincipalOrgID: !Ref OrganizationId
+
+Outputs:
+  ApplicationArchiveBucketName:
+    Value: !Ref ApplicationArchiveBucket
+  SecurityLogBucketName:
+    Value: !Ref SecurityLogBucket

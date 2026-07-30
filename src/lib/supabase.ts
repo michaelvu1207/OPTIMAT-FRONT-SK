@@ -9,15 +9,20 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// Environment variables with Supabase-first defaults for the current dev deployment.
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://htjohidcoyfuwfjecazu.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_SBYfj4PnJcyhTX4U77jp2w_BvEN2aEL';
+// Supabase is temporary migration infrastructure. Never fall back to a production
+// project or credential when an environment is not explicitly configured.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const AWS_API_URL = (import.meta.env.VITE_AWS_API_URL || '').replace(/\/$/, '');
+const API_BACKEND = (import.meta.env.VITE_API_BACKEND || 'supabase').toLowerCase() === 'aws'
+  ? 'aws'
+  : 'supabase';
 const SUPABASE_FUNCTIONS_URL =
   import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
   SUPABASE_URL.replace(/^https:\/\/([^.]+)\.supabase\.co$/, 'https://$1.functions.supabase.co');
 
 // Validate required environment variables
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+if (API_BACKEND === 'supabase' && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
   console.warn(
     'Supabase environment variables not configured. ' +
     'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable Supabase integration.'
@@ -41,7 +46,7 @@ export const supabase: SupabaseClient | null =
  * Check if Supabase is configured and available
  */
 export function isSupabaseConfigured(): boolean {
-  return supabase !== null;
+  return API_BACKEND === 'aws' ? Boolean(AWS_API_URL) : supabase !== null;
 }
 
 /**
@@ -111,15 +116,20 @@ export async function fetchEdgeFunction<T = unknown>(
     signal?: AbortSignal;
   } = {}
 ): Promise<EdgeFunctionResponse<T>> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  if ((API_BACKEND === 'aws' && !AWS_API_URL) ||
+      (API_BACKEND === 'supabase' && (!SUPABASE_URL || !SUPABASE_ANON_KEY))) {
     return {
       data: null,
-      error: new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'),
+      error: new Error('The selected API backend is not configured.'),
     };
   }
 
   try {
-    const baseUrl = options.useApiFunctionsHost ? `${SUPABASE_URL}/functions/v1` : SUPABASE_FUNCTIONS_URL;
+    const baseUrl = API_BACKEND === 'aws'
+      ? AWS_API_URL
+      : options.useApiFunctionsHost
+        ? `${SUPABASE_URL}/functions/v1`
+        : SUPABASE_FUNCTIONS_URL;
     let url = `${baseUrl}/${path}`;
 
     // Add query parameters for GET requests
@@ -192,6 +202,10 @@ export async function fetchEdgeFunction<T = unknown>(
  * @returns Full URL to the Edge Function
  */
 export function getEdgeFunctionUrl(functionName: string): string {
+  if (API_BACKEND === 'aws') {
+    if (!AWS_API_URL) throw new Error('VITE_AWS_API_URL is not configured');
+    return `${AWS_API_URL}/${functionName}`;
+  }
   if (!SUPABASE_URL) {
     throw new Error('VITE_SUPABASE_URL is not configured');
   }
@@ -212,6 +226,7 @@ export function getSupabaseRestUrl(path: string): string {
  * Required for authenticated requests or when using custom fetch
  */
 export function getAuthHeaders(): Record<string, string> {
+  if (API_BACKEND === 'aws') return { 'Content-Type': 'application/json' };
   return {
     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     'apikey': SUPABASE_ANON_KEY,
@@ -220,12 +235,17 @@ export function getAuthHeaders(): Record<string, string> {
 }
 
 export function getRestHeaders(schema: string = 'optimat'): Record<string, string> {
+  if (API_BACKEND === 'aws') return { 'Accept': 'application/json' };
   return {
     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     'apikey': SUPABASE_ANON_KEY,
     'Accept': 'application/json',
     'Accept-Profile': schema,
   };
+}
+
+export function getApiBackend(): 'aws' | 'supabase' {
+  return API_BACKEND;
 }
 
 /**

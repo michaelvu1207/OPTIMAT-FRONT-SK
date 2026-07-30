@@ -19,6 +19,7 @@ import {
   handleCorsPreflightRequest,
   jsonResponse,
 } from "../_shared/cors.ts";
+import { requireMigrationAdmin } from "../_shared/admin.ts";
 import {
   createOptimatClient,
   normalizeProvider,
@@ -95,7 +96,8 @@ type ProviderUpdateField = typeof PROVIDER_UPDATE_FIELDS[number];
 
 // Google Places API configuration
 const PLACES_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
-const PLACES_FIELD_MASK = "places.location,places.displayName,places.formattedAddress";
+const PLACES_FIELD_MASK =
+  "places.location,places.displayName,places.formattedAddress";
 
 // Provider select query fields
 const PROVIDER_SELECT_FIELDS = `
@@ -176,7 +178,7 @@ async function listProviders(origin?: string | null): Promise<Response> {
  */
 async function getProviderById(
   providerId: string,
-  origin?: string | null
+  origin?: string | null,
 ): Promise<Response> {
   try {
     const supabase = createOptimatClient();
@@ -189,14 +191,22 @@ async function getProviderById(
 
     if (error) {
       if (error.code === "PGRST116") {
-        return errorResponse(`Provider with id ${providerId} not found`, 404, origin);
+        return errorResponse(
+          `Provider with id ${providerId} not found`,
+          404,
+          origin,
+        );
       }
       console.error("Error fetching provider:", error);
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
     if (!data) {
-      return errorResponse(`Provider with id ${providerId} not found`, 404, origin);
+      return errorResponse(
+        `Provider with id ${providerId} not found`,
+        404,
+        origin,
+      );
     }
 
     const normalizedData = normalizeProvider(data as Record<string, unknown>);
@@ -267,7 +277,9 @@ function normalizeCitiesUpdate(value: unknown): string[] | null {
   return null;
 }
 
-function buildProviderUpdate(body: Record<string, unknown>): Record<ProviderUpdateField, unknown> {
+function buildProviderUpdate(
+  body: Record<string, unknown>,
+): Record<ProviderUpdateField, unknown> {
   const update: Partial<Record<ProviderUpdateField, unknown>> = {};
 
   for (const field of PROVIDER_UPDATE_FIELDS) {
@@ -308,7 +320,7 @@ function buildProviderUpdate(body: Record<string, unknown>): Record<ProviderUpda
 async function updateProviderById(
   providerId: string,
   body: Record<string, unknown>,
-  origin?: string | null
+  origin?: string | null,
 ): Promise<Response> {
   try {
     const parsedProviderId = parseInt(providerId, 10);
@@ -318,7 +330,11 @@ async function updateProviderById(
 
     const update = buildProviderUpdate(body);
     if (Object.keys(update).length === 0) {
-      return errorResponse("No editable provider fields were supplied", 400, origin);
+      return errorResponse(
+        "No editable provider fields were supplied",
+        400,
+        origin,
+      );
     }
 
     if ("provider_name" in update && !update.provider_name) {
@@ -335,13 +351,21 @@ async function updateProviderById(
 
     if (error) {
       if (error.code === "PGRST116") {
-        return errorResponse(`Provider with id ${providerId} not found`, 404, origin);
+        return errorResponse(
+          `Provider with id ${providerId} not found`,
+          404,
+          origin,
+        );
       }
       console.error("Error updating provider:", error);
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
-    return jsonResponse(normalizeProvider(data as Record<string, unknown>), 200, origin);
+    return jsonResponse(
+      normalizeProvider(data as Record<string, unknown>),
+      200,
+      origin,
+    );
   } catch (err) {
     console.error("Unexpected error in updateProviderById:", err);
     return errorResponse("Internal server error", 500, origin);
@@ -353,12 +377,13 @@ async function updateProviderById(
  */
 async function createProvider(
   body: Record<string, unknown>,
-  origin?: string | null
+  origin?: string | null,
 ): Promise<Response> {
   try {
     const rawProviderId = body.provider_id;
-    const parsedProviderId =
-      typeof rawProviderId === "number" ? rawProviderId : parseInt(String(rawProviderId ?? ""), 10);
+    const parsedProviderId = typeof rawProviderId === "number"
+      ? rawProviderId
+      : parseInt(String(rawProviderId ?? ""), 10);
 
     if (!Number.isFinite(parsedProviderId)) {
       return errorResponse("provider_id must be numeric", 400, origin);
@@ -387,7 +412,11 @@ async function createProvider(
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
-    return jsonResponse(normalizeProvider(data as Record<string, unknown>), 200, origin);
+    return jsonResponse(
+      normalizeProvider(data as Record<string, unknown>),
+      200,
+      origin,
+    );
   } catch (err) {
     console.error("Unexpected error in createProvider:", err);
     return errorResponse("Internal server error", 500, origin);
@@ -399,11 +428,15 @@ async function createProvider(
  */
 async function searchProviders(
   query: string,
-  origin?: string | null
+  origin?: string | null,
 ): Promise<Response> {
   try {
     if (!query || query.length < 2) {
-      return errorResponse("Search query must be at least 2 characters", 400, origin);
+      return errorResponse(
+        "Search query must be at least 2 characters",
+        400,
+        origin,
+      );
     }
 
     const supabase = createOptimatClient();
@@ -422,14 +455,18 @@ async function searchProviders(
           .from(TABLES.PROVIDERS)
           .select(PROVIDER_SELECT_FIELDS)
           .or(
-            `provider_name.ilike.${searchPattern},provider_org.ilike.${searchPattern},provider_type.ilike.${searchPattern}`
+            `provider_name.ilike.${searchPattern},provider_org.ilike.${searchPattern},provider_type.ilike.${searchPattern}`,
           )
           .order("provider_name")
           .limit(25);
 
         if (fallbackError) {
           console.error("Error searching providers:", fallbackError);
-          return errorResponse(`Database error: ${fallbackError.message}`, 500, origin);
+          return errorResponse(
+            `Database error: ${fallbackError.message}`,
+            500,
+            origin,
+          );
         }
 
         const normalizedData = (fallbackData || []).map((provider) =>
@@ -442,9 +479,9 @@ async function searchProviders(
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
-    const normalizedData = (data || []).map((provider: Record<string, unknown>) =>
-      normalizeProvider(provider)
-    );
+    const normalizedData = (data || []).map((
+      provider: Record<string, unknown>,
+    ) => normalizeProvider(provider));
     return jsonResponse(normalizedData, 200, origin);
   } catch (err) {
     console.error("Unexpected error in searchProviders:", err);
@@ -467,12 +504,18 @@ async function getProvidersMap(origin?: string | null): Promise<Response> {
       if (error.code === "42883") {
         const { data: providers, error: fetchError } = await supabase
           .from(TABLES.PROVIDERS)
-          .select("provider_id, provider_name, provider_type, provider_org, service_zone")
+          .select(
+            "provider_id, provider_name, provider_type, provider_org, service_zone",
+          )
           .not("service_zone", "is", null);
 
         if (fetchError) {
           console.error("Error fetching providers for map:", fetchError);
-          return errorResponse(`Database error: ${fetchError.message}`, 500, origin);
+          return errorResponse(
+            `Database error: ${fetchError.message}`,
+            500,
+            origin,
+          );
         }
 
         // Build GeoJSON FeatureCollection from provider centroids
@@ -521,7 +564,7 @@ async function getProvidersMap(origin?: string | null): Promise<Response> {
         return jsonResponse(
           { type: "FeatureCollection", features },
           200,
-          origin
+          origin,
         );
       }
 
@@ -529,7 +572,11 @@ async function getProvidersMap(origin?: string | null): Promise<Response> {
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
-    return jsonResponse(data || { type: "FeatureCollection", features: [] }, 200, origin);
+    return jsonResponse(
+      data || { type: "FeatureCollection", features: [] },
+      200,
+      origin,
+    );
   } catch (err) {
     console.error("Unexpected error in getProvidersMap:", err);
     return errorResponse("Internal server error", 500, origin);
@@ -582,7 +629,10 @@ async function geocodeAddress(address: string): Promise<GeocodeResult> {
           const place = places[0];
           const location = place.location;
 
-          if (location?.latitude !== undefined && location?.longitude !== undefined) {
+          if (
+            location?.latitude !== undefined &&
+            location?.longitude !== undefined
+          ) {
             return {
               success: true,
               coordinates: {
@@ -636,7 +686,7 @@ async function geocodeAddress(address: string): Promise<GeocodeResult> {
  */
 async function getProviderServiceZone(
   providerId: string,
-  origin?: string | null
+  origin?: string | null,
 ): Promise<Response> {
   try {
     const supabase = createOptimatClient();
@@ -656,7 +706,7 @@ async function getProviderServiceZone(
             raw_data: null,
           },
           200,
-          origin
+          origin,
         );
       }
       console.error("Error fetching provider service zone:", error);
@@ -671,7 +721,7 @@ async function getProviderServiceZone(
           raw_data: null,
         },
         200,
-        origin
+        origin,
       );
     }
 
@@ -681,7 +731,9 @@ async function getProviderServiceZone(
       try {
         serviceZone = JSON.parse(serviceZone);
       } catch {
-        console.warn(`Failed to parse service_zone JSON for provider ${providerId}`);
+        console.warn(
+          `Failed to parse service_zone JSON for provider ${providerId}`,
+        );
       }
     }
 
@@ -693,7 +745,7 @@ async function getProviderServiceZone(
         raw_data: serviceZone,
       },
       200,
-      origin
+      origin,
     );
   } catch (err) {
     console.error("Unexpected error in getProviderServiceZone:", err);
@@ -706,7 +758,7 @@ async function getProviderServiceZone(
  */
 async function handleGeocodeRequest(
   address: string,
-  origin?: string | null
+  origin?: string | null,
 ): Promise<Response> {
   if (!address || address.trim().length === 0) {
     return errorResponse("Address parameter is required", 400, origin);
@@ -721,7 +773,7 @@ async function handleGeocodeRequest(
         coordinates: result.coordinates,
       },
       200,
-      origin
+      origin,
     );
   }
 
@@ -731,7 +783,7 @@ async function handleGeocodeRequest(
       message: result.message,
     },
     200,
-    origin
+    origin,
   );
 }
 
@@ -750,38 +802,72 @@ function parseJsonIfString(value: unknown): unknown {
 
 function getObjectType(value: unknown): string | null {
   const parsed = parseJsonIfString(value);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
   const type = (parsed as Record<string, unknown>).type;
   return typeof type === "string" ? type : null;
 }
 
-function matchesEligibilityText(provider: ProviderRecord, needle?: string): boolean {
+function matchesEligibilityText(
+  provider: ProviderRecord,
+  needle?: string,
+): boolean {
   if (!needle) return true;
-  const haystack = JSON.stringify(parseJsonIfString(provider.eligibility_reqs) ?? "").toLowerCase();
+  const haystack = JSON.stringify(
+    parseJsonIfString(provider.eligibility_reqs) ?? "",
+  ).toLowerCase();
   return haystack.includes(needle.toLowerCase());
 }
 
-function matchesProviderFilters(provider: ProviderRecord, filter: ProviderFilter): boolean {
-  if (filter.provider_type && provider.provider_type !== filter.provider_type) return false;
-  if (filter.routing_type && provider.routing_type !== filter.routing_type) return false;
-  if (filter.planning_type && provider.planning_type !== filter.planning_type) return false;
-  if (filter.schedule_type && getObjectType(provider.schedule_type) !== filter.schedule_type) return false;
-  if (filter.booking_method && getObjectType(provider.booking) !== filter.booking_method) return false;
-  if (filter.fare_type && getObjectType(provider.fare) !== filter.fare_type) return false;
-  if (filter.provider_org && provider.provider_org !== filter.provider_org) return false;
+function matchesProviderFilters(
+  provider: ProviderRecord,
+  filter: ProviderFilter,
+): boolean {
+  if (filter.provider_type && provider.provider_type !== filter.provider_type) {
+    return false;
+  }
+  if (filter.routing_type && provider.routing_type !== filter.routing_type) {
+    return false;
+  }
+  if (filter.planning_type && provider.planning_type !== filter.planning_type) {
+    return false;
+  }
+  if (
+    filter.schedule_type &&
+    getObjectType(provider.schedule_type) !== filter.schedule_type
+  ) return false;
+  if (
+    filter.booking_method &&
+    getObjectType(provider.booking) !== filter.booking_method
+  ) return false;
+  if (filter.fare_type && getObjectType(provider.fare) !== filter.fare_type) {
+    return false;
+  }
+  if (filter.provider_org && provider.provider_org !== filter.provider_org) {
+    return false;
+  }
   if (
     filter.provider_name__contains &&
-    !String(provider.provider_name || "").toLowerCase().includes(filter.provider_name__contains.toLowerCase())
+    !String(provider.provider_name || "").toLowerCase().includes(
+      filter.provider_name__contains.toLowerCase(),
+    )
   ) {
     return false;
   }
   if (filter.has_service_zone === true && !provider.service_zone) return false;
   if (filter.has_service_zone === false && provider.service_zone) return false;
-  if (!matchesEligibilityText(provider, filter.eligibility_req_contains)) return false;
+  if (!matchesEligibilityText(provider, filter.eligibility_req_contains)) {
+    return false;
+  }
   return true;
 }
 
-function isPointInSinglePolygon(lat: number, lon: number, coordinates: number[][][]): boolean {
+function isPointInSinglePolygon(
+  lat: number,
+  lon: number,
+  coordinates: number[][][],
+): boolean {
   const ring = coordinates[0];
   if (!Array.isArray(ring)) return false;
   let inside = false;
@@ -792,7 +878,9 @@ function isPointInSinglePolygon(lat: number, lon: number, coordinates: number[][
     const xj = ring[j][0];
     const yj = ring[j][1];
 
-    if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+    if (
+      yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
+    ) {
       inside = !inside;
     }
   }
@@ -800,7 +888,11 @@ function isPointInSinglePolygon(lat: number, lon: number, coordinates: number[][
   return inside;
 }
 
-function isPointInGeometry(lat: number, lon: number, rawGeometry: unknown): boolean {
+function isPointInGeometry(
+  lat: number,
+  lon: number,
+  rawGeometry: unknown,
+): boolean {
   const geometry = parseJsonIfString(rawGeometry) as {
     type?: string;
     coordinates?: unknown;
@@ -810,8 +902,12 @@ function isPointInGeometry(lat: number, lon: number, rawGeometry: unknown): bool
 
   if (!geometry || typeof geometry !== "object") return false;
 
-  if (geometry.type === "FeatureCollection" && Array.isArray(geometry.features)) {
-    return geometry.features.some((feature) => isPointInGeometry(lat, lon, feature));
+  if (
+    geometry.type === "FeatureCollection" && Array.isArray(geometry.features)
+  ) {
+    return geometry.features.some((feature) =>
+      isPointInGeometry(lat, lon, feature)
+    );
   }
 
   if (geometry.type === "Feature" && geometry.geometry) {
@@ -819,7 +915,11 @@ function isPointInGeometry(lat: number, lon: number, rawGeometry: unknown): bool
   }
 
   if (geometry.type === "Polygon") {
-    return isPointInSinglePolygon(lat, lon, geometry.coordinates as number[][][]);
+    return isPointInSinglePolygon(
+      lat,
+      lon,
+      geometry.coordinates as number[][][],
+    );
   }
 
   if (geometry.type === "MultiPolygon" && Array.isArray(geometry.coordinates)) {
@@ -836,7 +936,7 @@ function isPointInGeometry(lat: number, lon: number, rawGeometry: unknown): bool
  */
 async function filterProviders(
   filter: ProviderFilter,
-  origin?: string | null
+  origin?: string | null,
 ): Promise<Response> {
   try {
     // Validate required fields
@@ -844,7 +944,7 @@ async function filterProviders(
       return errorResponse(
         "source_address and destination_address are required",
         400,
-        origin
+        origin,
       );
     }
 
@@ -870,7 +970,7 @@ async function filterProviders(
           },
         },
         502,
-        origin
+        origin,
       );
     }
 
@@ -895,8 +995,16 @@ async function filterProviders(
     const normalizedProviders = (providers || [])
       .filter((provider) =>
         matchesProviderFilters(provider as ProviderRecord, filter) &&
-        isPointInGeometry(originCoord.lat, originCoord.lon, (provider as ProviderRecord).service_zone) &&
-        isPointInGeometry(destCoord.lat, destCoord.lon, (provider as ProviderRecord).service_zone)
+        isPointInGeometry(
+          originCoord.lat,
+          originCoord.lon,
+          (provider as ProviderRecord).service_zone,
+        ) &&
+        isPointInGeometry(
+          destCoord.lat,
+          destCoord.lon,
+          (provider as ProviderRecord).service_zone,
+        )
       )
       .map((provider) => ({
         ...normalizeProvider(provider as Record<string, unknown>),
@@ -913,16 +1021,27 @@ async function filterProviders(
               detail: filter.destination_address,
             },
             ...(filter.provider_type
-              ? [{ label: "Provider type matched", detail: filter.provider_type }]
+              ? [{
+                label: "Provider type matched",
+                detail: filter.provider_type,
+              }]
               : []),
             ...(filter.schedule_type
-              ? [{ label: "Schedule type matched", detail: filter.schedule_type }]
+              ? [{
+                label: "Schedule type matched",
+                detail: filter.schedule_type,
+              }]
               : []),
             ...(filter.eligibility_req_contains
-              ? [{ label: "Eligibility text matched", detail: filter.eligibility_req_contains }]
+              ? [{
+                label: "Eligibility text matched",
+                detail: filter.eligibility_req_contains,
+              }]
               : []),
           ],
-          not_hard_filtered: filter.eligibility_req_contains ? [] : ["eligibility"],
+          not_hard_filtered: filter.eligibility_req_contains
+            ? []
+            : ["eligibility"],
         },
       }));
 
@@ -936,7 +1055,7 @@ async function filterProviders(
         public_transit: null,
       },
       200,
-      origin
+      origin,
     );
   } catch (err) {
     console.error("Unexpected error in filterProviders:", err);
@@ -963,7 +1082,12 @@ serve(async (req: Request): Promise<Response> => {
     // Parse route
     const { segments, id } = parseRoute(pathname);
 
-    console.log(`[Providers] ${method} ${pathname} - segments:`, segments, "id:", id);
+    console.log(
+      `[Providers] ${method} ${pathname} - segments:`,
+      segments,
+      "id:",
+      id,
+    );
 
     // Route handling
     // GET /providers - List all providers
@@ -973,6 +1097,8 @@ serve(async (req: Request): Promise<Response> => {
 
     // POST /providers - Create or upsert provider
     if (method === "POST" && segments.length === 0 && !id) {
+      const unauthorized = requireMigrationAdmin(req, origin);
+      if (unauthorized) return unauthorized;
       try {
         const body = await req.json();
         return await createProvider(body as Record<string, unknown>, origin);
@@ -999,7 +1125,11 @@ serve(async (req: Request): Promise<Response> => {
     if (method === "GET" && segments[0] === "geocode") {
       const address = url.searchParams.get("address");
       if (!address) {
-        return errorResponse("Query parameter 'address' is required", 400, origin);
+        return errorResponse(
+          "Query parameter 'address' is required",
+          400,
+          origin,
+        );
       }
       return await handleGeocodeRequest(address, origin);
     }
@@ -1031,9 +1161,15 @@ serve(async (req: Request): Promise<Response> => {
 
     // PUT /providers/:id - Update known provider profile fields
     if (method === "PUT" && id && segments.length === 0) {
+      const unauthorized = requireMigrationAdmin(req, origin);
+      if (unauthorized) return unauthorized;
       try {
         const body = await req.json();
-        return await updateProviderById(id, body as Record<string, unknown>, origin);
+        return await updateProviderById(
+          id,
+          body as Record<string, unknown>,
+          origin,
+        );
       } catch {
         return errorResponse("Invalid JSON body", 400, origin);
       }

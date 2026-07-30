@@ -17,7 +17,7 @@ const ALLOWED_ORIGINS = [
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*", // In production, restrict this to specific origins
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-requested-with",
+    "authorization, x-client-info, apikey, content-type, x-requested-with, x-optimat-admin-token",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
   "Access-Control-Max-Age": "86400", // Cache preflight for 24 hours
 };
@@ -63,7 +63,7 @@ export function handleCorsPreflightRequest(origin?: string | null): Response {
 export function jsonResponse(
   data: unknown,
   status = 200,
-  origin?: string | null
+  origin?: string | null,
 ): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -84,7 +84,7 @@ export function jsonResponse(
 export function errorResponse(
   message: string,
   status = 500,
-  origin?: string | null
+  origin?: string | null,
 ): Response {
   return jsonResponse(
     {
@@ -93,6 +93,6 @@ export function errorResponse(
       timestamp: new Date().toISOString(),
     },
     status,
-    origin
+    origin,
   );
 }
