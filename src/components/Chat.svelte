@@ -235,7 +235,8 @@ How can I assist you today?`,
       }
     ];
     
-    let userInput = "I'm at Hanover Walnut Creek apartments, and trying to go to the Target in Walnut Creek? Can you help me find providers?";
+    const messageSuggestion = "I'm at Hanover Walnut Creek apartments and trying to go to the Target in Walnut Creek. Can you help me find providers?";
+    let userInput = '';
     let loading = false; // For message sending
     let initializing = true; // For initial conversation setup
     let error = null;
@@ -259,18 +260,8 @@ How can I assist you today?`,
     let saveExampleSuccess = false;
     let exampleForm = {
       title: '',
-      description: '',
-      category: 'general',
-      tags: ''
+      description: ''
     };
-
-    // Category options for examples
-    const exampleCategories = [
-      { value: 'booking', label: 'Booking' },
-      { value: 'eligibility', label: 'Eligibility' },
-      { value: 'transit', label: 'Transit' },
-      { value: 'general', label: 'General' }
-    ];
     
     // Example viewing functionality
     let isViewingExample = false;
@@ -1872,9 +1863,7 @@ How can I assist you today?`,
       saveExampleSuccess = false;
       exampleForm = {
         title: '',
-        description: '',
-        category: 'general',
-        tags: ''
+        description: ''
       };
     }
 
@@ -1883,9 +1872,7 @@ How can I assist you today?`,
       saveExampleSuccess = false;
       exampleForm = {
         title: '',
-        description: '',
-        category: 'general',
-        tags: ''
+        description: ''
       };
     }
 
@@ -1898,17 +1885,11 @@ How can I assist you today?`,
       error = null;
 
       try {
-        const tags = exampleForm.tags
-          ? exampleForm.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
-          : [];
-
         const { data: exampleData, error: apiError } = await saveConversationAsExample(
           conversationId,
           {
             title: exampleForm.title || undefined,
-            description: exampleForm.description || undefined,
-            category: exampleForm.category,
-            tags: tags
+            description: exampleForm.description || undefined
           }
         );
 
@@ -1953,14 +1934,14 @@ How can I assist you today?`,
 
         <!-- Right side: action buttons -->
         <div class="flex items-center gap-2">
-          {#if isViewingExample}
-            <button
-	              onclick={startNewConversation}
-              class="text-xs text-primary hover:text-primary/80 transition"
-            >
-              New Chat
-            </button>
-          {:else if conversationId && !isViewingExample}
+          <button
+	            type="button"
+	            onclick={startNewConversation}
+            class="rounded-lg bg-primary px-3 py-1.5 text-base font-semibold text-primary-foreground transition hover:bg-primary/90"
+          >
+            New Chat
+          </button>
+          {#if conversationId && !isViewingExample}
             <!-- Save as Example button -->
             <button
 	              onclick={openExampleForm}
@@ -2176,7 +2157,7 @@ How can I assist you today?`,
                     {:else if currentTool.name === 'find_providers'}
                       🚌 Finding transportation providers...
                     {:else if currentTool.name === 'assess_eligibility'}
-                      📋 Checking who you qualify for...
+                      📋 Checking provider eligibility...
                     {:else}
                       ⚙️ {currentTool.name}...
                     {/if}
@@ -2261,8 +2242,8 @@ How can I assist you today?`,
           <textarea
             bind:this={messageInputElement}
             bind:value={userInput}
-            placeholder={serverOnline ? "Type your message..." : "Chat unavailable"}
-            class="flex-1 resize-none rounded-lg border border-border/60 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
+            placeholder={serverOnline ? messageSuggestion : "Chat unavailable"}
+            class="flex-1 resize-none rounded-lg border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
 	            onkeydown={(e) => {
@@ -2522,21 +2503,6 @@ How can I assist you today?`,
               </div>
 
               <div>
-                <label for="example-category" class="block text-sm font-medium text-foreground mb-1.5">
-                  Category
-                </label>
-                <select
-                  id="example-category"
-                  bind:value={exampleForm.category}
-                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground cursor-pointer"
-                >
-                  {#each exampleCategories as cat}
-                    <option value={cat.value}>{cat.label}</option>
-                  {/each}
-                </select>
-              </div>
-
-              <div>
                 <label for="example-description" class="block text-sm font-medium text-foreground mb-1.5">
                   Description <span class="text-muted-foreground font-normal">(optional)</span>
                 </label>
@@ -2547,20 +2513,6 @@ How can I assist you today?`,
                   rows="3"
                   class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-muted-foreground resize-none"
                 ></textarea>
-              </div>
-
-              <div>
-                <label for="example-tags" class="block text-sm font-medium text-foreground mb-1.5">
-                  Tags <span class="text-muted-foreground font-normal">(optional)</span>
-                </label>
-                <input
-                  id="example-tags"
-                  type="text"
-                  bind:value={exampleForm.tags}
-                  placeholder="e.g., booking, accessibility, bart"
-                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-muted-foreground"
-                />
-                <p class="text-xs text-muted-foreground mt-1.5">Separate multiple tags with commas</p>
               </div>
 
               <div class="flex justify-end gap-3 pt-2">

@@ -96,6 +96,24 @@ Deno.test("a booking claim is rejected even with no search on record", () => {
   assertEquals(codes(verifyResponse("Call (925) 284-6161 to book at least 7 days ahead.", state(null))), []);
 });
 
+Deno.test("definitive eligibility claims are rejected while cautious wording passes", () => {
+  for (const claim of [
+    "You qualify for Go San Ramon!",
+    "You are eligible for Go San Ramon!",
+    "The rider is eligible for this service.",
+  ]) {
+    assert(codes(verifyResponse(claim, state(null))).includes("definitive_eligibility_claim"), `should reject: ${claim}`);
+  }
+
+  for (const cautious of [
+    "You may qualify for Go San Ramon!",
+    "You could be eligible for Go San Ramon!",
+    "Call the provider to confirm whether you qualify.",
+  ]) {
+    assertEquals(codes(verifyResponse(cautious, state(null))), [], `should accept: ${cautious}`);
+  }
+});
+
 Deno.test("dropping providers that need eligibility verification is rejected", () => {
   const search = digest({
     eligible: [{ name: "Go San Ramon!" }],

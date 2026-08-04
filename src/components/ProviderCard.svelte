@@ -86,8 +86,8 @@
 
   function missingFactsSentence(entry) {
     const facts = Array.isArray(entry?.missing_facts) ? entry.missing_facts : [];
-    if (facts.length === 0) return 'whether you qualify for this service.';
-    return `whether you qualify — it turns on ${facts.map((fact) => RIDER_FACT_LABELS[fact] || fact).join(' and ')}.`;
+    if (facts.length === 0) return 'whether you may qualify for this service.';
+    return `whether you may qualify — it turns on ${facts.map((fact) => RIDER_FACT_LABELS[fact] || fact).join(' and ')}.`;
   }
 
   function typeIcon(type) {
@@ -145,7 +145,7 @@
       </div>
     </div>
     {#if qualified}
-      <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">You qualify</span>
+      <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">You may qualify</span>
     {:else}
       <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">Confirm eligibility</span>
     {/if}
