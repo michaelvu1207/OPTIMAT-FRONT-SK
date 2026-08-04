@@ -1184,17 +1184,6 @@
                       class="w-full h-full rounded-xl border border-border/70 bg-gradient-to-br from-card to-muted/30 p-4 pt-8 text-left shadow-sm transition-all hover:shadow-md hover:border-primary/60 hover:scale-[1.02]"
                       on:click={() => viewChatExample(example)}
                     >
-                      <!-- Category badge -->
-                      {#if example.category}
-                        <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary mb-2">
-                          {example.category}
-                        </div>
-                      {:else}
-                        <div class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground mb-2">
-                          Example {index + 1}
-                        </div>
-                      {/if}
-
                       <!-- Title -->
                       <div class="text-sm font-semibold text-foreground mb-1.5 line-clamp-2 leading-tight">
                         {example.title || 'Untitled Example'}

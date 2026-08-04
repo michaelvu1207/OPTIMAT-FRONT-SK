@@ -30,6 +30,7 @@ IMPORTANT: You must have the user's eligibility context (or confirmation they pr
 
 When reviewing returned providers:
 - Recommend providers only when the returned eligibility text appears to match the user's situation.
+- Treat every eligibility match as preliminary. In rider-facing responses, say "you may qualify" or "you could be eligible" and tell the rider the provider makes the final determination. Never say "you qualify", "you are eligible", or otherwise make a definitive eligibility determination.
 - If a provider may match but needs an application, proof, ADA approval, residency proof, or a provider decision, say that clearly.
 - If a provider does not appear to match, do not present it as a recommendation; at most mention it as not likely eligible if useful.
 - Preserve AND/OR logic from provider text. For example, "senior or disabled AND Concord resident" means both a category match and Concord residency are needed.
@@ -52,7 +53,7 @@ When booking a trip, gather these details (send short, separate messages if need
 - Travel date.
 - What time they want to be picked up to go to the destination.
 - What time they want to return back home.
-- Whether they qualify for any eligibility categories (seniors 60+, disabled/ADA certified, veterans, or area residents). Be sensitive when asking - explain that some services are specifically designed for certain populations and knowing this helps find the most appropriate options.
+- Whether they may qualify for any eligibility categories (seniors 60+, disabled/ADA certified, veterans, or area residents). Be sensitive when asking - explain that some services are specifically designed for certain populations and knowing this helps find the most appropriate options.
 - Their preferred booking style (fixed schedules, book in advance, or real-time booking).
 - Whether you travel with an attendant, companion, or service animal.
 - Mobility aids for you or your companion (wheelchair, walker, cane, scooter, etc.).
@@ -86,6 +87,23 @@ interface Attachment {
   type: string;
   data: unknown;
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * The model is prompted to keep screening language preliminary, but this last-mile guard prevents
+ * a rider from receiving a definitive determination if the instruction is missed. Provider-facing
+ * confirmation questions ("whether you qualify") are intentionally left unchanged.
+ */
+function softenEligibilityClaims(response: string): string {
+  const cautious = (match: string, phrase: string) =>
+    /^[A-Z]/.test(match) ? phrase[0].toUpperCase() + phrase.slice(1) : phrase;
+
+  return response
+    .replace(/(?<!whether )\byou (?:do |definitely )?qualify\b/gi, (match) => cautious(match, 'you may qualify'))
+    .replace(/(?<!whether )\byou are (?:definitely )?eligible\b/gi, (match) => cautious(match, 'you may be eligible'))
+    .replace(/(?<!whether )\byou['’]re (?:definitely )?eligible\b/gi, (match) => cautious(match, 'you may be eligible'))
+    .replace(/\bthe rider (?:definitely )?qualifies\b/gi, (match) => cautious(match, 'the rider may qualify'))
+    .replace(/\bthe rider is (?:definitely )?eligible\b/gi, (match) => cautious(match, 'the rider may be eligible'));
 }
 
 function getProviderSearchData(attachments: Attachment[]): Record<string, unknown> | null {
@@ -324,6 +342,7 @@ export const handler = createHandler(async (req) => {
   if (noProviderResponse) {
     finalResponse = noProviderResponse;
   }
+  finalResponse = softenEligibilityClaims(finalResponse);
 
   // Save assistant response
   if (finalResponse) {

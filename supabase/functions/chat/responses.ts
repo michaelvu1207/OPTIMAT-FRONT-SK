@@ -27,6 +27,11 @@ const NUMBER_WORDS: Record<string, number> = {
 const BOOKING_CLAIM =
   /\b(i'?ll book|i will book|i'?ve booked|i have booked|i'?ve scheduled|i have scheduled|i'?ve arranged|i have arranged|your ride is (booked|scheduled|confirmed)|booking is (complete|confirmed)|i'?ll (send|forward) (your|this) (information|details) to)\b/i;
 
+// Provider requirements let OPTIMAT screen likely matches, but the provider owns the final
+// determination. Questions such as "confirm whether you qualify" remain valid.
+const DEFINITIVE_ELIGIBILITY_CLAIM =
+  /(?<!whether )\b(?:you (?:qualify|are eligible)|you['’]re eligible|the rider (?:qualifies|is eligible))\b/i;
+
 /**
  * Provider totals the message asserts. Counts qualified by "more", "additional" or "other" are
  * deliberately excluded: "2 providers can take you, 1 more needs verification" is correct, and
@@ -67,6 +72,14 @@ export function verifyResponse(response: string, state: TripState): ResponseProb
     problems.push({
       code: "booking_claim",
       detail: `The message claims to book or forward a ride ("${bookingClaim[0]}"). OPTIMAT never books; the rider contacts the provider themselves.`,
+    });
+  }
+
+  const eligibilityClaim = text.match(DEFINITIVE_ELIGIBILITY_CLAIM);
+  if (eligibilityClaim) {
+    problems.push({
+      code: "definitive_eligibility_claim",
+      detail: `The message makes a final eligibility determination ("${eligibilityClaim[0]}"). Say the rider may qualify or could be eligible, because only the provider can make that determination.`,
     });
   }
 
@@ -156,7 +169,7 @@ export function buildFallbackResponse(state: TripState): string {
 
   const total = search.eligible.length;
   if (total > 0) {
-    lines.push(`${total} provider${total === 1 ? "" : "s"} can serve this trip:`);
+    lines.push(`Based on the information provided, you may qualify for ${total} provider${total === 1 ? "" : "s"} that can serve this trip:`);
     for (const note of search.eligible) lines.push(`- ${note.name}`);
   } else if (search.binding_constraint === "geography") {
     lines.push("No provider's service area covers both ends of this trip, so changing the date or time would not help.");

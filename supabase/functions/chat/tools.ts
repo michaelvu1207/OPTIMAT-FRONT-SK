@@ -271,7 +271,7 @@ The result also carries:
 Call this immediately after find_providers, before writing your answer. The rider's provider cards are built from what you record here, so a candidate you leave out is a ride the rider never hears about — the server rejects the call if any candidate is missing.
 
 For each candidate, read its eligibility_requirement against the rider facts you actually have:
-- "eligible" — the rider plainly meets it. Do not hedge a clear match.
+- "eligible" — the available facts match the listed requirements. This is an internal screening verdict; rider-facing answers must still say they may qualify or could be eligible because only the provider makes the final determination.
 - "ineligible" — the rider plainly fails it. Requires a fact you actually have; never infer one.
 - "verification_required" — you cannot tell yet. Name the single rider fact that would settle it in missing_fact, or leave missing_fact null when no answer from the rider would help and only the provider can confirm.
 
