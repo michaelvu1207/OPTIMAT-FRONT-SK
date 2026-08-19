@@ -9,7 +9,9 @@ import {
   executeCheckTripCoverage,
   executeFindProviders,
   executeResolveTripDate,
+  loadProviderRoster,
   parseTimeToMinutes,
+  scheduleText,
   type Provider,
   type TurnContext,
 } from "./tools.ts";
@@ -157,6 +159,14 @@ Deno.test("time parsing accepts common rider wording and rejects invalid values"
   assertEquals(parseTimeToMinutes("25:00"), null);
 });
 
+Deno.test("WestCAT booking text preserves the regional 14-day exception", () => {
+  assertEquals(scheduleText({
+    type: "in-advance-book",
+    advance_notice: "1-3 days",
+    regional_advance_notice: "up to 14 days",
+  }), "1-3 days for ordinary trips; up to 14 days for regional trips");
+});
+
 Deno.test("standalone date resolution uses the California clock before search", () => {
   const clock = new Date("2026-07-13T19:00:00Z");
   const typo = executeResolveTripDate({ travel_date_raw: "July 21ar" }, clock).data as Record<string, unknown>;
@@ -195,7 +205,43 @@ Deno.test("coverage check reports cross-service-area failure immediately", async
     const data = result.data as Record<string, unknown>;
     assertEquals(data.status, "not_covered");
     assertEquals(data.geography_match_count, 0);
+    assertEquals((data.connection_diagnostic as Record<string, unknown>).reason_code, "no_participating_connection");
     assertStringIncludes(String(data.message), "Changing the time will not fix");
+  });
+});
+
+Deno.test("coverage distinguishes one-agency trips from cross-agency coordination", async () => {
+  const westZone = {
+    type: "Polygon",
+    coordinates: [[[-122.1, 37.9], [-121.9, 37.9], [-121.9, 38.1], [-122.1, 38.1], [-122.1, 37.9]]],
+  };
+  const eastZone = {
+    type: "Polygon",
+    coordinates: [[[-121.9, 37.9], [-121.7, 37.9], [-121.7, 38.1], [-121.9, 38.1], [-121.9, 37.9]]],
+  };
+
+  await withGoogleFetch(async () => {
+    const cross = await executeCheckTripCoverage(
+      { source_address: "Bay Point", destination_address: "Antioch" },
+      fakeDatabase([
+        provider({ id: 1, provider_name: "Origin Agency", service_zone: westZone }),
+        provider({ id: 2, provider_name: "Destination Agency", service_zone: eastZone }),
+      ]),
+      "test-key",
+    );
+    const crossDiagnostic = (cross.data as Record<string, unknown>).connection_diagnostic as Record<string, unknown>;
+    assertEquals(crossDiagnostic.reason_code, "cross_agency_connection");
+    assertEquals(crossDiagnostic.origin_agencies, ["Origin Agency"]);
+    assertEquals(crossDiagnostic.destination_agencies, ["Destination Agency"]);
+
+    const same = await executeCheckTripCoverage(
+      { source_address: "Bay Point", destination_address: "Antioch" },
+      fakeDatabase([provider({ id: 3, provider_name: "County Connection", service_zone: EAST_BAY_ZONE })]),
+      "test-key",
+    );
+    const sameDiagnostic = (same.data as Record<string, unknown>).connection_diagnostic as Record<string, unknown>;
+    assertEquals(sameDiagnostic.reason_code, "single_provider_covers_trip");
+    assertEquals(sameDiagnostic.provider_names, ["County Connection"]);
   });
 });
 
@@ -211,6 +257,33 @@ Deno.test("fixed-route agencies remain a public-transit fallback, not a direct r
     assertEquals(data.geography_match_count, 0);
     assertEquals(data.fixed_route_fallback_count, 1);
   });
+});
+
+Deno.test("fixed-route roster entries carry no eligibility language", async () => {
+  const roster = await loadProviderRoster({
+    from() {
+      return {
+        select() {
+          return {
+            order() {
+              return Promise.resolve({
+                data: [
+                  provider({ provider_name: "Tri Delta Transit", provider_type: "Fixed Route", eligibility_reqs: "Open to all" }),
+                  provider({ id: 2, provider_name: "Mobility Matters", provider_type: "Volunteer Driver", eligibility_reqs: "Senior 60+" }),
+                ],
+                error: null,
+              });
+            },
+          };
+        },
+      };
+    },
+  });
+
+  const fixedRouteEntry = roster.split("\n- Mobility Matters")[0];
+  assertStringIncludes(fixedRouteEntry, "Tri Delta Transit (Fixed Route)");
+  assert(!fixedRouteEntry.includes("eligibility:"));
+  assertStringIncludes(roster, "eligibility: Senior 60+");
 });
 
 Deno.test("the search returns candidates and passes no eligibility verdict of its own", async () => {
@@ -240,7 +313,7 @@ Deno.test("the search returns candidates and passes no eligibility verdict of it
         }),
         provider({
           id: 1,
-          provider_name: "One Seat Ride",
+          provider_name: "Regional Mobility",
           eligibility_reqs: "Contra Costa County residents who are seniors 60+ or veterans or disabled",
         }),
         provider({
@@ -269,13 +342,37 @@ Deno.test("the search returns candidates and passes no eligibility verdict of it
     );
 
     // The requirement text travels with each candidate, because that is what gets reasoned over.
-    const oneSeat = candidates.find((candidate) => candidate.provider_name === "One Seat Ride");
-    assertStringIncludes(String(oneSeat?.eligibility_requirement), "Contra Costa County");
+    const regional = candidates.find((candidate) => candidate.provider_name === "Regional Mobility");
+    assertStringIncludes(String(regional?.eligibility_requirement), "Contra Costa County");
 
     assertEquals(data.public_transit_available, true);
     assertEquals((data.diagnostics as Record<string, unknown>).fixed_route_fallback_count, 1);
     assertEquals(directionUrls.length, 1);
     assertStringIncludes(directionUrls[0], "arrival_time=");
+  });
+});
+
+Deno.test("One-Seat Regional Ride is retired from provider search", async () => {
+  await withGoogleFetch(async () => {
+    const result = await executeFindProviders(
+      {
+        source_address: "Bay Point",
+        destination_address: "Antioch",
+        departure_time: "noon",
+        trip_type: "one_way",
+        travel_date_raw: "July 21, 2099",
+        outbound_time_intent: "depart_at",
+        rider_eligibility: {},
+      },
+      fakeDatabase([
+        provider({ id: 1, provider_name: "One-Seat Regional Ride", fare: { type: "fixed", cost: "$3.00" } }),
+        provider({ id: 2, provider_name: "Mobility Matters" }),
+      ]),
+      "test-key",
+    );
+
+    const candidates = (result.data as Record<string, unknown>).candidates as Array<Record<string, unknown>>;
+    assertEquals(candidates.map((candidate) => candidate.provider_name), ["Mobility Matters"]);
   });
 });
 

@@ -69,17 +69,17 @@
 
 <div class="h-screen w-screen bg-background text-foreground flex flex-col">
   <!-- Compact header bar - desktop app style -->
-  <header class="relative z-[1200] flex-shrink-0 h-10 border-b border-border/60 bg-card flex items-center px-2 gap-1">
+  <header class="app-header relative z-[1200] flex-shrink-0 h-10 border-b border-border/60 bg-card flex items-center px-2 gap-1">
     <!-- Logo/brand -->
     <div class="relative" bind:this={brandMenuRef}>
       <button
-        class="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted transition text-sm font-semibold"
+        class="brand-button flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted transition text-sm font-semibold"
         aria-haspopup="menu"
         aria-expanded={brandOpen}
         on:click|stopPropagation={toggleBrandMenu}
       >
         <span class="text-primary">◆</span>
-        <span>OPTIMAT</span>
+        <span class="brand-label">OPTIMAT</span>
         <svg class="h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -123,7 +123,7 @@
     <Separator orientation="vertical" class="h-5 mx-1" />
 
     <!-- Navigation tabs -->
-    <nav class="flex items-center gap-0.5">
+    <nav class="app-nav flex min-w-0 items-center gap-0.5">
 	      {#if showFindTrip}
 	        <button
 	          class={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition
@@ -158,7 +158,7 @@
 
     <!-- Page title in header (compact) -->
     {#if title && appMode}
-      <div class="flex items-center gap-2 text-xs text-muted-foreground">
+      <div class="page-title flex items-center gap-2 text-xs text-muted-foreground">
         <span class="font-medium text-foreground">{title}</span>
         {#if description}
           <span class="hidden lg:inline">—</span>
@@ -217,3 +217,40 @@
     </main>
   {/if}
 </div>
+
+<style>
+  @media (max-width: 767px) {
+    .app-header {
+      min-height: 3rem;
+      height: 3rem;
+      padding-inline: 0.25rem;
+      overflow: hidden;
+    }
+
+    .app-nav {
+      flex: 1;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .app-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .app-nav :global(button),
+    .brand-button {
+      min-height: 2.75rem;
+      white-space: nowrap;
+    }
+
+    .page-title {
+      display: none;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .brand-label {
+      display: none;
+    }
+  }
+</style>

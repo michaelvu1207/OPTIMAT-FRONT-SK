@@ -125,7 +125,7 @@ try {
     const { page, textarea, chatResponses } = await openChat();
 
     await send(page, textarea,
-      'I need a one-way ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026, departing at noon. I am 68, I live in Richmond, not disabled, not ADA-certified, not a veteran.');
+      'I need a one-way ride from Richmond City Hall to Kaiser Permanente Richmond Medical Center on August 12, 2026, departing at noon. I am 68, I live in Richmond, not disabled, without ADA paratransit eligibility, not a veteran.');
     const first = await waitForTurn(chatResponses, 1);
 
     const search = resultsAttachment(first.attachments);
@@ -172,7 +172,7 @@ try {
   {
     const { page, textarea, chatResponses } = await openChat();
     await send(page, textarea,
-      'I need a ride from Diablo Valley College to San Francisco City Hall on August 12, 2026 at 9:00 AM, one way. I am 70, live in Pleasant Hill, not disabled, not ADA-certified, not a veteran.');
+      'I need a ride from Diablo Valley College to San Francisco City Hall on August 12, 2026 at 9:00 AM, one way. I am 70, live in Pleasant Hill, not disabled, without ADA paratransit eligibility, not a veteran.');
     const turn = await waitForTurn(chatResponses, 1);
 
     const explains = /service area|covers? both|coverage|does not reach|only covers/i.test(turn.message);

@@ -23,7 +23,7 @@ const results = {};
 try {
   {
     const { page, textarea } = await openReadyPage();
-    await textarea.fill("I'm ADA-certified and need a ride from Walnut Creek to San Francisco.");
+    await textarea.fill("I have ADA paratransit eligibility and need a ride from Walnut Creek to San Francisco.");
     await page.getByRole('button', { name: 'Send message' }).click();
     const stopButton = page.getByRole('button', { name: 'Stop generating response' });
     await stopButton.waitFor({ state: 'visible', timeout: 5_000 });
@@ -79,7 +79,7 @@ try {
 
   {
     const { page, textarea } = await openReadyPage();
-    await textarea.fill("I'm ADA-certified and need a ride from Walnut Creek to San Francisco.");
+    await textarea.fill("I have ADA paratransit eligibility and need a ride from Walnut Creek to San Francisco.");
     await page.getByRole('button', { name: 'Send message' }).click();
     await page.getByRole('button', { name: 'Stop generating response' }).waitFor({ timeout: 5_000 });
     await page.getByText('Active conversation', { exact: true }).click();
@@ -94,7 +94,7 @@ try {
 
   {
     const { page, textarea } = await openReadyPage();
-    await textarea.fill("I'm ADA-certified and need a ride from Walnut Creek to San Francisco.");
+    await textarea.fill("I have ADA paratransit eligibility and need a ride from Walnut Creek to San Francisco.");
     await page.getByRole('button', { name: 'Send message' }).click();
     const response = page.locator('.chat-markdown').filter({ hasText: 'coverage constraint' }).last();
     await response.waitFor({ state: 'visible', timeout: 60_000 });
@@ -111,7 +111,7 @@ try {
 
   {
     const { page, textarea } = await openReadyPage();
-    await textarea.fill("I'm 68 and live in Richmond. I need a one-way ride from Richmond City Hall to Kaiser Richmond on July 21, 2026, departing at noon. I'm not disabled, not ADA-certified, and not a veteran.");
+    await textarea.fill("I'm 68 and live in Richmond. I need a one-way ride from Richmond City Hall to Kaiser Richmond on July 21, 2026, departing at noon. I'm not disabled, without ADA paratransit eligibility, and not a veteran.");
     await page.getByRole('button', { name: 'Send message' }).click();
     const response = page.locator('.chat-markdown').filter({ hasText: 'R-Transit' }).last();
     await response.waitFor({ state: 'visible', timeout: 60_000 });
@@ -130,6 +130,7 @@ try {
     await publicTransitCard.waitFor({ state: 'visible', timeout: 10_000 });
     assert.match(await publicTransitCard.innerText(), /Public Transit/);
     assert.match(await publicTransitCard.innerText(), /Fixed-route itinerary/i);
+    await publicTransitCard.getByRole('link', { name: 'Open in Google Maps' }).waitFor({ state: 'visible', timeout: 5_000 });
     assert.match(await page.locator('[aria-label="Provider results count"]').innerText(), /Includes public transit/);
 
     await publicTransitCard.getByRole('button', { name: 'Show route' }).click();
@@ -149,6 +150,7 @@ try {
       completed_search_uses_results_widget: true,
       public_transit_is_provider_result: true,
       public_transit_route_drawn_on_map: true,
+      public_transit_google_maps_handoff: true,
     };
     await page.close();
   }

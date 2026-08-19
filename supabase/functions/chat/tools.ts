@@ -95,6 +95,7 @@ export interface Provider {
   website?: string;
   phone?: string;
   description?: string;
+  is_operating?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -218,7 +219,7 @@ The result also carries:
             ada_certified: {
               type: "boolean",
               description:
-                "Only when the rider says they hold ADA paratransit certification. Having a disability is not certification — it requires a separate application. Omit when unstated.",
+                "Only when the rider says they have ADA paratransit eligibility. Having a disability does not itself establish ADA paratransit eligibility; it requires a separate application. Omit when unstated.",
             },
             veteran: { type: "boolean", description: "Only from the rider's explicit answer; omit when unstated" },
             residence_city: { type: "string", description: "Omit when unknown" },
@@ -716,6 +717,8 @@ async function getTransitDirections(
     }));
 
     return {
+      routing_status: "itinerary",
+      google_maps_url: googleMapsTransitUrl(leg.start_address || origin, leg.end_address || destination),
       summary: route.summary || null,
       overview_polyline: route.overview_polyline?.points || null,
       bounds: route.bounds || null,
@@ -734,6 +737,16 @@ async function getTransitDirections(
     console.warn("Error getting transit directions:", error);
     return null;
   }
+}
+
+function googleMapsTransitUrl(origin: string, destination: string): string {
+  const params = new URLSearchParams({
+    api: "1",
+    origin,
+    destination,
+    travelmode: "transit",
+  });
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
 function serviceDateTimeToUnix(
@@ -796,7 +809,18 @@ const PROVIDER_SEARCH_COLUMNS = [
   "investigated",
   "contacts",
   "service_area_cities",
+  "is_operating",
 ].join(",");
+
+/** Retired services remain stored for auditability but never reach a rider-facing answer. */
+export function isPubliclyAvailableProvider(provider: Provider): boolean {
+  const normalizedName = String(provider.provider_name || provider.name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  return provider.is_operating !== false &&
+    normalizedName !== "oneseatregionalride" &&
+    normalizedName !== "oneseatride";
+}
 
 /**
  * Geocode both ends, and stop if either landed in a different city than the rider named.
@@ -869,22 +893,25 @@ export async function loadProviderRoster(supabase: DatabaseClient): Promise<stri
     .order("provider_name");
   if (error) throw new Error(`Database error: ${error.message}`);
 
-  const rows = (data || []) as unknown as Provider[];
+  const rows = ((data || []) as unknown as Provider[]).filter(isPubliclyAvailableProvider);
   const lines = rows.map((provider) => {
     const requirement = requirementText(provider.eligibility_reqs) || "none stated";
+    const fixedRoute = !isDirectRideProvider(provider);
     const cities = Array.isArray(provider.service_area_cities) && provider.service_area_cities.length > 0
       ? (provider.service_area_cities as string[]).join(", ")
       : "not listed";
     const booking = provider.booking && typeof provider.booking === "object"
       ? Object.values(provider.booking as Record<string, unknown>).filter(Boolean).join(" ")
       : "";
+    const schedule = scheduleText(provider.schedule_type);
     const fare = provider.fare && typeof provider.fare === "object"
       ? String((provider.fare as Record<string, unknown>).cost ?? "")
       : "";
     return [
       `- ${provider.provider_name} (${provider.provider_type || "type unknown"})`,
-      `  eligibility: ${requirement}`,
+      fixedRoute ? "" : `  eligibility: ${requirement}`,
       `  serves: ${cities}`,
+      schedule ? `  advance notice: ${schedule}` : "",
       booking ? `  booking: ${booking}` : "",
       fare ? `  fare: ${fare}` : "",
     ].filter(Boolean).join("\n");
@@ -899,7 +926,7 @@ export async function loadProviderRoster(supabase: DatabaseClient): Promise<stri
 async function loadProviderSearchRows(supabase: DatabaseClient): Promise<Provider[]> {
   const { data, error } = await supabase.from(TABLES.PROVIDERS).select(PROVIDER_SEARCH_COLUMNS);
   if (error) throw new Error(`Database error: ${error.message}`);
-  return (data || []) as unknown as Provider[];
+  return ((data || []) as unknown as Provider[]).filter(isPubliclyAvailableProvider);
 }
 
 function parsedServiceZone(provider: Provider): {
@@ -1017,6 +1044,28 @@ export function requirementText(requirements: unknown): string {
   return String(requirements);
 }
 
+/** Booking lead time rendered for the model without losing regional exceptions. */
+export function scheduleText(schedule: unknown): string {
+  if (!schedule) return "";
+  let value = schedule;
+  if (typeof value === "string") {
+    const raw = value.trim();
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  const record = value as Record<string, unknown>;
+  const local = typeof record.advance_notice === "string" ? record.advance_notice.trim() : "";
+  const regional = typeof record.regional_advance_notice === "string"
+    ? record.regional_advance_notice.trim()
+    : "";
+  if (local && regional) return `${local} for ordinary trips; ${regional} for regional trips`;
+  return local || regional;
+}
+
 function compactProvider(provider: Provider): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries({
@@ -1073,7 +1122,21 @@ export async function executeCheckTripCoverage(
 
     const providers = await loadProviderSearchRows(supabase);
     const directProviders = providers.filter(isDirectRideProvider);
-    const matches = geographyMatches(directProviders, locations.source, locations.destination);
+    const geography = partitionByGeography(directProviders, locations.source, locations.destination);
+    const matches = geography.both;
+    const connectionDiagnostic = matches.length > 0
+      ? {
+        reason_code: "single_provider_covers_trip",
+        provider_names: matches.slice(0, 10).map((provider) => provider.provider_name),
+      }
+      : geography.originOnly.length > 0 && geography.destinationOnly.length > 0
+        ? {
+          reason_code: "cross_agency_connection",
+          origin_agencies: geography.originOnly.slice(0, 10).map((provider) => provider.provider_name),
+          destination_agencies: geography.destinationOnly.slice(0, 10).map((provider) => provider.provider_name),
+          message: "Call the paratransit agency serving the pickup to coordinate the connection with the destination agency.",
+        }
+        : { reason_code: "no_participating_connection" };
     return {
       success: true,
       data: {
@@ -1083,6 +1146,7 @@ export async function executeCheckTripCoverage(
         geography_match_count: matches.length,
         fixed_route_fallback_count: providers.length - directProviders.length,
         provider_names: matches.slice(0, 10).map((provider) => provider.provider_name),
+        connection_diagnostic: connectionDiagnostic,
         message:
           matches.length > 0
             ? `${matches.length} provider service area${matches.length === 1 ? "" : "s"} cover both locations. Continue gathering the trip date, applicable times, and eligibility.`
@@ -1392,7 +1456,7 @@ export function relaxSearch(
   }
 
   // The "which eligibility category would unlock providers" variant used to live here. It worked
-  // by re-running the parser against five invented riders (age 60, age 65, disabled, ADA-certified,
+  // by re-running the parser against five invented riders (age 60, age 65, disabled, ADA paratransit eligible,
   // veteran) — thresholds that came from the code rather than from any provider's rule, so it
   // could suggest "a rider aged 60 or older would qualify" for a service whose actual floor is 55.
   // The assistant reads each candidate's real requirement text and can say this accurately.
@@ -1525,6 +1589,19 @@ export async function executeFindProviders(
       : [];
 
     const providersWithoutHours = candidates.filter((provider) => !hasServiceHours(provider)).length;
+    const connectionDiagnostic = geographyProviders.length > 0
+      ? {
+        reason_code: "single_provider_covers_trip",
+        provider_names: geographyProviders.slice(0, 10).map((provider) => provider.provider_name),
+      }
+      : staged.geography.originOnly.length > 0 && staged.geography.destinationOnly.length > 0
+        ? {
+          reason_code: "cross_agency_connection",
+          origin_agencies: staged.geography.originOnly.slice(0, 10).map((provider) => provider.provider_name),
+          destination_agencies: staged.geography.destinationOnly.slice(0, 10).map((provider) => provider.provider_name),
+          message: "Call the paratransit agency serving the pickup to coordinate the connection with the destination agency.",
+        }
+        : { reason_code: "no_participating_connection" };
 
     let transitData: Record<string, unknown> | null = null;
     try {
@@ -1540,7 +1617,20 @@ export async function executeFindProviders(
       console.warn("Failed to get transit directions:", error);
     }
 
-    const publicTransitAvailable = Boolean(transitData);
+    if (!transitData) {
+      transitData = {
+        routing_status: "handoff_only",
+        google_maps_url: googleMapsTransitUrl(
+          locations.source.formatted_address,
+          locations.destination.formatted_address,
+        ),
+        start_address: locations.source.formatted_address,
+        end_address: locations.destination.formatted_address,
+        steps: [],
+      };
+    }
+
+    const publicTransitAvailable = transitData.routing_status === "itinerary";
     const result = {
       status: "complete",
       trip_type: params.trip_type,
@@ -1564,6 +1654,7 @@ export async function executeFindProviders(
       source_coordinates: { lat: locations.source.lat, lng: locations.source.lng },
       destination_coordinates: { lat: locations.destination.lat, lng: locations.destination.lng },
       public_transit_available: publicTransitAvailable,
+      connection_diagnostic: connectionDiagnostic,
       binding_constraint: candidates.length > 0
         ? null
         : geographyProviders.length === 0

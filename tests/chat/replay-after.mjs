@@ -72,37 +72,37 @@ const scenarios = [
   {
     key: 'relative_date_and_one_way',
     prompts: [
-      "I need a one-way ride from Walnut Creek City Hall to Kaiser Walnut Creek tomorrow. I need to depart at noon. I'm 42, ADA-certified, not a veteran, and I live in Walnut Creek.",
+      "I need a one-way ride from Walnut Creek City Hall to Kaiser Walnut Creek tomorrow. I need to depart at noon. I'm 42, have ADA paratransit eligibility, am not a veteran, and live in Walnut Creek.",
     ],
   },
   {
     key: 'cross_service_area',
     prompts: [
-      "I'm ADA-certified and need a ride from Walnut Creek to San Francisco.",
+      "I have ADA paratransit eligibility and need a ride from Walnut Creek to San Francisco.",
     ],
   },
   {
     key: 'missing_date',
     prompts: [
-      "I am 35, not disabled, not ADA-certified, not a veteran, and I live in Bay Point. I need a one-way ride from Bay Point to Antioch at noon.",
+      "I am 35, not disabled, without ADA paratransit eligibility, not a veteran, and I live in Bay Point. I need a one-way ride from Bay Point to Antioch at noon.",
     ],
   },
   {
     key: 'dvc_city_mismatch',
     prompts: [
-      "I'm a general resident of Bay Point, age 35, not disabled, not ADA-certified, and not a veteran. I need a one-way ride from Bay Point to DVC in Antioch.",
+      "I'm a general resident of Bay Point, age 35, not disabled, without ADA paratransit eligibility, and not a veteran. I need a one-way ride from Bay Point to DVC in Antioch.",
     ],
   },
   {
     key: 'general_resident_eligibility',
     prompts: [
-      "I'm a general resident of Bay Point, age 35, not disabled, not ADA-certified, and not a veteran. I need a one-way ride from Bay Point to Antioch on July 21, 2026, departing at noon.",
+      "I'm a general resident of Bay Point, age 35, not disabled, without ADA paratransit eligibility, and not a veteran. I need a one-way ride from Bay Point to Antioch on July 21, 2026, departing at noon.",
     ],
   },
   {
     key: 'richmond_and_handoff',
     prompts: [
-      "I'm 68 and live in Richmond. I need a one-way ride from Richmond City Hall to Kaiser Richmond on July 21, 2026, departing at noon. I'm not disabled, not ADA-certified, and not a veteran.",
+      "I'm 68 and live in Richmond. I need a one-way ride from Richmond City Hall to Kaiser Richmond on July 21, 2026, departing at noon. I'm not disabled, without ADA paratransit eligibility, and not a veteran.",
       "I want R-Transit. How do I book it?",
     ],
   },

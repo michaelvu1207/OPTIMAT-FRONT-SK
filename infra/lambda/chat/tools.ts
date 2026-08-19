@@ -5,7 +5,7 @@
 
 import { queryRows, TABLES } from '../_shared/db.js';
 import { getApiKeys } from '../_shared/secrets.js';
-import { calculateRoute, geocodePlace, searchPlaces } from '../_shared/location.js';
+import { geocodePlace, searchPlaces } from '../_shared/location.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +47,7 @@ interface Provider {
   eligibility_requirements?: unknown;
   service_hours?: unknown;
   service_zone?: unknown;
+  is_operating?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -65,7 +66,7 @@ export const toolDefinitions = [
 Filters providers to only those operating during both the departure and return times.
 
 Before calling this tool, ensure you have asked the user for:
-1. Their eligibility context (age/senior status, disability or ADA certification, veteran status, and relevant residency)
+1. Their eligibility context (age/senior status, disability or ADA paratransit eligibility, veteran status, and relevant residency)
 2. What time they want to be picked up (departure_time)
 3. What time they want to return (return_time)`,
     input_schema: {
@@ -257,12 +258,24 @@ function isPointInSinglePolygon(lat: number, lng: number, coordinates: number[][
   return inside;
 }
 
-async function getTransitDirections(origin: string, destination: string, apiKey: string) {
-  try {
-    return await calculateRoute(origin, destination, 'transit');
-  } catch {
-    return null;
-  }
+async function getTransitDirections(origin: string, destination: string, _apiKey: string) {
+  const params = new URLSearchParams({ api: '1', origin, destination, travelmode: 'transit' });
+  return {
+    routing_status: 'handoff_only',
+    google_maps_url: `https://www.google.com/maps/dir/?${params.toString()}`,
+    start_address: origin,
+    end_address: destination,
+    steps: [],
+  };
+}
+
+function isPubliclyAvailableProvider(provider: Provider): boolean {
+  const name = String(provider.provider_name || provider.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return provider.is_operating !== false && name !== 'oneseatregionalride' && name !== 'oneseatride';
+}
+
+function isDirectRideProvider(provider: Provider): boolean {
+  return String(provider.provider_type || '').toLowerCase().replace(/[^a-z0-9]/g, '') !== 'fixedroute';
 }
 
 // ─── Tool Executors ─────────────────────────────────────────────────────────
@@ -276,7 +289,9 @@ async function executeFindProviders(params: FindProvidersParams, apiKey: string)
     if (!sourceLocation) return { success: false, error: `Could not geocode source: ${params.source_address}` };
     if (!destLocation) return { success: false, error: `Could not geocode destination: ${params.destination_address}` };
 
-    const providers = await queryRows(`SELECT * FROM ${TABLES.PROVIDERS}`);
+    const providers = (await queryRows(`SELECT * FROM ${TABLES.PROVIDERS}`))
+      .filter((provider) => isPubliclyAvailableProvider(provider as Provider))
+      .filter((provider) => isDirectRideProvider(provider as Provider));
 
     const matching: Provider[] = [];
     for (const p of providers) {
@@ -357,10 +372,10 @@ async function executeSearchAddresses(params: SearchAddressesParams, apiKey: str
 
 async function executeGetProviderInfo(params: GetProviderInfoParams): Promise<ToolResult> {
   try {
-    const providers = await queryRows(
+    const providers = (await queryRows(
       `SELECT * FROM ${TABLES.PROVIDERS} WHERE provider_name ILIKE $1 LIMIT 5`,
       [`%${params.provider_name}%`]
-    );
+    )).filter((provider) => isPubliclyAvailableProvider(provider as Provider));
     if (!providers.length) {
       return {
         success: false,

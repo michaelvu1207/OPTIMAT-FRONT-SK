@@ -4,11 +4,13 @@ import fs from 'node:fs';
 import { parse } from 'csv-parse/sync';
 import {
   MANUAL_NAME_MAP,
+  applyManualProviderDefaults,
   PROVIDER_ID_NAME_ALIASES,
   parseCityNames,
   parseEligibility,
   parseFare,
   resolveCanonicalProviderName,
+  shouldSkipProvider,
 } from './provider-cleaning.mjs';
 
 const CSV_PATHS = [
@@ -83,5 +85,26 @@ assert.equal(
   'WestCAT Dial-A-Ride',
 );
 assert.equal(MANUAL_NAME_MAP['Walnut Creek Lyft Self Access Pass'], null);
+assert.equal(shouldSkipProvider('One-Seat Regional Ride'), true);
+assert.equal(shouldSkipProvider('One Seat Ride'), true);
+
+assert.deepEqual(
+  applyManualProviderDefaults({ provider_name: 'WestCAT Paratransit' }).schedule_type,
+  {
+    type: 'in-advance-book',
+    advance_notice: '1-3 days',
+    regional_advance_notice: 'up to 14 days',
+    regional_advance_notice_note: 'Regional trips outside the WestCAT area may be booked up to two weeks before the appointment.',
+    source_url: 'https://www.westcat.org/Content/pdf/REVADA-Paratransit-Guide.pdf',
+  },
+);
+assert.deepEqual(
+  applyManualProviderDefaults({ provider_name: 'WestCAT Senior Dial-A-Ride' }).schedule_type,
+  {
+    type: 'in-advance-book',
+    advance_notice: '1-3 days',
+    source_url: 'https://www.westcat.org/Content/pdf/REVSenior-Dial-A-Ride-Guide.pdf',
+  },
+);
 
 console.log('provider-cleaning tests passed');

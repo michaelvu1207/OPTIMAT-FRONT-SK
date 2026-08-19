@@ -97,7 +97,7 @@ try {
   console.log('\nState 2 — trip fully specified');
   {
     const { page, ta, replies } = await open();
-    const reply = await send(page, ta, 'One way from San Ramon City Hall to San Ramon Regional Medical Center on August 12th 2026, pickup at 10:00 AM. I am 72, live in San Ramon, not disabled, not ADA certified, not a veteran.', replies, 1);
+    const reply = await send(page, ta, 'One way from San Ramon City Hall to San Ramon Regional Medical Center on August 12th 2026, pickup at 10:00 AM. I am 72, live in San Ramon, not disabled, without ADA paratransit eligibility, not a veteran.', replies, 1);
     const search = resultsAttachment(reply.attachments);
     const expected = (search?.data?.data || []).length + (search?.data?.verification_required || []).length;
 

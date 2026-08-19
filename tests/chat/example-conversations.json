@@ -9,7 +9,7 @@
     "lamorinda": "Lafayette — Lamorinda Spirit, Seniors Around Town",
     "san ramon valley": "San Ramon — Senior Express Van, Go San Ramon!",
     "tri-valley": "Dublin to Pleasanton — Wheels Dial-a-Ride, Wheels Go Tri-Valley",
-    "regional and county-wide": "Mobility Matters, One-Seat Regional Ride and East Bay Paratransit appear across several of these trips",
+    "regional and county-wide": "Mobility Matters and East Bay Paratransit appear across several of these trips",
     "out of area": "Pleasant Hill to San Francisco — deliberately outside every service area"
   },
   "examples": [
@@ -109,7 +109,7 @@
       "description": "A 6:30am pickup falls outside most local service hours now that they are on file. Tests whether the assistant says which services do run that early, states the hours of the ones that do not, and flags any provider whose hours are unknown rather than implying the time is fine. Exercises the Tri-Valley, served by Wheels Dial-a-Ride.",
       "turns": [
         "They want me at the hospital at half past six in the morning for a procedure on the 12th of August. It's ValleyCare in Pleasanton, and I'm over in Dublin. I'm 79 years old. Who on earth runs that early?",
-        "I've been in Dublin twenty years. And no, I'm not ADA certified or whatever that is — I've never applied for anything."
+        "I've been in Dublin twenty years. I do not have ADA paratransit eligibility — I've never applied for it."
       ]
     },
     {

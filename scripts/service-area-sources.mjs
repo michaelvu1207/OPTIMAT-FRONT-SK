@@ -23,10 +23,6 @@ export const SERVICE_AREA_SOURCES = {
     type: 'local_geojson',
     path: 'Copy of link-paratransit.geojson',
   },
-  'One-Seat Regional Ride': {
-    type: 'local_geojson',
-    path: 'Copy of one-seat-regional-ride.geojson',
-  },
   'San Ramon Go San Ramon': {
     type: 'local_geojson',
     path: 'Copy of go-san-ramon.geojson',

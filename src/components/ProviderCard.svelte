@@ -1,4 +1,6 @@
 <script>
+  import { isFixedRouteProvider } from '$lib/providers/providerFields';
+
   /**
    * A provider, as a rider needs it at the moment of booking: who to call, by when, what it costs,
    * and whether their eligibility is settled.
@@ -19,7 +21,7 @@
   const RIDER_FACT_LABELS = {
     age: 'your age',
     disabled: 'whether you have a disability',
-    ada_certified: 'ADA certification',
+    ada_certified: 'your ADA paratransit eligibility',
     veteran: 'veteran status',
     residence_city: 'where you live'
   };
@@ -48,6 +50,12 @@
   function advanceNotice(entry) {
     const schedule = parseMaybeJson(entry?.schedule_type);
     const notice = schedule?.advance_notice;
+    return typeof notice === 'string' && notice.trim() ? notice.trim() : null;
+  }
+
+  function regionalAdvanceNotice(entry) {
+    const schedule = parseMaybeJson(entry?.schedule_type);
+    const notice = schedule?.regional_advance_notice;
     return typeof notice === 'string' && notice.trim() ? notice.trim() : null;
   }
 
@@ -118,11 +126,13 @@
 
   $: phone = providerPhone(provider);
   $: notice = advanceNotice(provider);
+  $: regionalNotice = regionalAdvanceNotice(provider);
   $: deadline = bookByDate(provider, trip?.date);
   $: fare = fareText(provider);
   $: website = normalizeWebsite(provider?.website);
   $: requirements = eligibilityLines(provider);
   $: hoursKnown = serviceHoursKnown(provider);
+  $: fixedRoute = isFixedRouteProvider(provider);
 </script>
 
 <article
@@ -144,9 +154,9 @@
         {/if}
       </div>
     </div>
-    {#if qualified}
+    {#if !fixedRoute && qualified}
       <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">You may qualify</span>
-    {:else}
+    {:else if !fixedRoute}
       <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">Confirm eligibility</span>
     {/if}
   </div>
@@ -177,8 +187,13 @@
   {:else if notice}
     <div class="mt-1.5 text-[11px] text-muted-foreground">Needs {notice} advance notice</div>
   {/if}
+  {#if regionalNotice}
+    <div class="mt-1 text-[11px] text-muted-foreground">
+      Regional trips may be booked {regionalNotice} in advance.
+    </div>
+  {/if}
 
-  {#if !qualified}
+  {#if !fixedRoute && !qualified}
     <div class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
       <span class="font-semibold">Ask when you call:</span> {missingFactsSentence(provider)}
       {#if requirements.length > 0}

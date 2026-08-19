@@ -10,6 +10,7 @@
     formatBooking,
     formatEligibilityReqs,
     formatFare,
+    isFixedRouteProvider,
     formatRoutingType,
     formatScheduleType,
     formatServiceAreaSummary,
@@ -358,12 +359,14 @@
                 </div>
               </div>
 
-              <div>
-                <div class="text-xs font-medium text-muted-foreground mb-1">Eligibility</div>
-                <div class="text-sm text-foreground whitespace-pre-wrap bg-muted/50 rounded p-2 max-h-28 overflow-y-auto">
-                  {formatEligibilityReqs(selectedProvider.eligibility_reqs) || '-'}
+              {#if !isFixedRouteProvider(selectedProvider)}
+                <div>
+                  <div class="text-xs font-medium text-muted-foreground mb-1">Eligibility</div>
+                  <div class="text-sm text-foreground whitespace-pre-wrap bg-muted/50 rounded p-2 max-h-28 overflow-y-auto">
+                    {formatEligibilityReqs(selectedProvider.eligibility_reqs) || '-'}
+                  </div>
                 </div>
-              </div>
+              {/if}
 
               <div>
                 <div class="text-xs font-medium text-muted-foreground mb-1">Booking</div>

@@ -275,7 +275,9 @@ function describeRider(rider: RiderEligibility | null | undefined): string {
   const parts: string[] = [];
   if (Number.isFinite(rider.age)) parts.push(`age ${rider.age}`);
   if (typeof rider.disabled === "boolean") parts.push(rider.disabled ? "disabled" : "not disabled");
-  if (typeof rider.ada_certified === "boolean") parts.push(rider.ada_certified ? "ADA-certified" : "not ADA-certified");
+  if (typeof rider.ada_certified === "boolean") {
+    parts.push(rider.ada_certified ? "has ADA paratransit eligibility" : "does not have ADA paratransit eligibility");
+  }
   if (typeof rider.veteran === "boolean") parts.push(rider.veteran ? "veteran" : "not a veteran");
   if (rider.residence_city) parts.push(`lives in ${rider.residence_city}`);
   if (rider.declined) parts.push("declined to answer further eligibility questions");
@@ -285,7 +287,7 @@ function describeRider(rider: RiderEligibility | null | undefined): string {
 const UNKNOWN_FIELD_LABELS: Record<string, string> = {
   age: "exact age",
   disabled: "whether the rider has a disability",
-  ada_certified: "ADA certification",
+  ada_certified: "ADA paratransit eligibility",
   veteran: "veteran status",
   residence_city: "city of residence",
 };

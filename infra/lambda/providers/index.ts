@@ -49,6 +49,7 @@ interface ProviderUpdate {
   round_trip_booking?: boolean;
   investigated?: boolean;
   service_zone?: unknown;
+  is_operating?: boolean;
 }
 
 interface GeoCoordinate {
@@ -76,6 +77,27 @@ interface ProviderRecord {
   service_zone?: unknown;
   provider_org?: string | null;
   provider_name?: string | null;
+  is_operating?: boolean | null;
+}
+
+function isPubliclyAvailableProvider(provider: Record<string, unknown>): boolean {
+  const properties = provider.properties && typeof provider.properties === 'object'
+    ? provider.properties as Record<string, unknown>
+    : provider;
+  const name = String(properties.provider_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return properties.is_operating !== false && name !== 'oneseatregionalride' && name !== 'oneseatride';
+}
+
+function isFixedRouteType(type: unknown): boolean {
+  return String(type || '').toLowerCase().replace(/[^a-z0-9]/g, '') === 'fixedroute';
+}
+
+function hasVerifiedPublicServiceArea(provider: Record<string, unknown>): boolean {
+  const properties = provider.properties && typeof provider.properties === 'object'
+    ? provider.properties as Record<string, unknown>
+    : provider;
+  const name = String(properties.provider_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return !(name === 'trideltatransit' && isFixedRouteType(properties.provider_type));
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -101,6 +123,7 @@ const PROVIDER_SELECT_FIELDS = `
   provider_org,
   round_trip_booking,
   investigated,
+  is_operating,
   created_at
 `;
 
@@ -139,7 +162,7 @@ async function listProviders(origin: string | null) {
     const rows = await queryRows(
       `SELECT ${PROVIDER_SELECT_FIELDS} FROM ${TABLES.PROVIDERS} ORDER BY provider_name`
     );
-    const data = rows.map((r) => normalizeProvider(r));
+    const data = rows.filter(isPubliclyAvailableProvider).map((r) => normalizeProvider(r));
     return jsonResponse({ data }, 200, origin);
   } catch (err) {
     console.error('Error fetching providers:', err);
@@ -157,7 +180,7 @@ async function getProviderById(providerId: string, origin: string | null) {
       [parseInt(providerId, 10)]
     );
 
-    if (!row) {
+    if (!row || !isPubliclyAvailableProvider(row)) {
       return errorResponse(`Provider with id ${providerId} not found`, 404, origin);
     }
 
@@ -183,7 +206,7 @@ async function searchProviders(searchQuery: string, origin: string | null) {
         'SELECT * FROM optimat.search_providers($1)',
         [searchQuery]
       );
-      const data = rows.map((r) => normalizeProvider(r));
+      const data = rows.filter(isPubliclyAvailableProvider).map((r) => normalizeProvider(r));
       return jsonResponse(data, 200, origin);
     } catch (rpcErr: any) {
       // If the function does not exist (42883), fall back to direct query
@@ -203,7 +226,7 @@ async function searchProviders(searchQuery: string, origin: string | null) {
       [pattern]
     );
 
-    const data = rows.map((r) => normalizeProvider(r));
+    const data = rows.filter(isPubliclyAvailableProvider).map((r) => normalizeProvider(r));
     return jsonResponse(data, 200, origin);
   } catch (err) {
     console.error('Error searching providers:', err);
@@ -220,7 +243,14 @@ async function getProvidersMap(origin: string | null) {
     try {
       const row = await queryOne('SELECT optimat.get_providers_geojson() AS geojson');
       if (row?.geojson) {
-        return jsonResponse(row.geojson, 200, origin);
+        const geojson = row.geojson as Record<string, unknown>;
+        const features = Array.isArray(geojson.features)
+          ? geojson.features.filter((feature) =>
+            isPubliclyAvailableProvider(feature as Record<string, unknown>) &&
+            hasVerifiedPublicServiceArea(feature as Record<string, unknown>)
+          )
+          : [];
+        return jsonResponse({ ...geojson, features }, 200, origin);
       }
     } catch (rpcErr: any) {
       if (rpcErr?.code !== '42883') throw rpcErr;
@@ -228,12 +258,13 @@ async function getProvidersMap(origin: string | null) {
 
     // Fallback: build GeoJSON manually from provider centroids
     const rows = await queryRows(
-      `SELECT provider_id, provider_name, provider_type, provider_org, service_zone
+      `SELECT provider_id, provider_name, provider_type, provider_org, is_operating, service_zone
        FROM ${TABLES.PROVIDERS}
        WHERE service_zone IS NOT NULL`
     );
 
     const features = rows
+      .filter((provider) => isPubliclyAvailableProvider(provider) && hasVerifiedPublicServiceArea(provider))
       .map((provider) => {
         const serviceZone = typeof provider.service_zone === 'string'
           ? (() => { try { return JSON.parse(provider.service_zone); } catch { return null; } })()
@@ -444,6 +475,7 @@ async function filterProviders(filter: ProviderFilter, origin: string | null) {
 
     const normalizedProviders = rows
       .filter((provider) =>
+        isPubliclyAvailableProvider(provider) &&
         matchesProviderFilters(provider as ProviderRecord, filter) &&
         isPointInGeometry(originCoord.lat, originCoord.lon, (provider as ProviderRecord).service_zone) &&
         isPointInGeometry(destCoord.lat, destCoord.lon, (provider as ProviderRecord).service_zone)
@@ -474,11 +506,11 @@ async function filterProviders(filter: ProviderFilter, origin: string | null) {
 async function getProviderServiceZone(providerId: string, origin: string | null) {
   try {
     const row = await queryOne(
-      `SELECT provider_id, service_zone FROM ${TABLES.PROVIDERS} WHERE provider_id = $1`,
+      `SELECT provider_id, provider_name, provider_type, is_operating, service_zone FROM ${TABLES.PROVIDERS} WHERE provider_id = $1`,
       [parseInt(providerId, 10)]
     );
 
-    if (!row) {
+    if (!row || !isPubliclyAvailableProvider(row) || !hasVerifiedPublicServiceArea(row)) {
       return jsonResponse(
         { provider_id: providerId, has_service_zone: false, raw_data: null },
         200,
@@ -523,11 +555,15 @@ async function updateProvider(providerId: string, updateData: ProviderUpdate, or
 
     // Check if provider exists
     const existing = await queryOne(
-      `SELECT provider_id FROM ${TABLES.PROVIDERS} WHERE provider_id = $1`,
+      `SELECT provider_id, provider_type FROM ${TABLES.PROVIDERS} WHERE provider_id = $1`,
       [id]
     );
     if (!existing) {
       return errorResponse(`Provider with id ${providerId} not found`, 404, origin);
+    }
+
+    if (isFixedRouteType(updateData.provider_type ?? existing.provider_type)) {
+      updateData.eligibility_reqs = null;
     }
 
     // Build update object, only including non-null fields
@@ -544,6 +580,7 @@ async function updateProvider(providerId: string, updateData: ProviderUpdate, or
       round_trip_booking: { column: 'round_trip_booking', isJsonb: false },
       investigated: { column: 'investigated', isJsonb: false },
       service_zone: { column: 'service_zone', isJsonb: true },
+      is_operating: { column: 'is_operating', isJsonb: false },
     };
 
     const setClauses: string[] = [];

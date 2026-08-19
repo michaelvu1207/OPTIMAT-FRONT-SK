@@ -48,7 +48,7 @@ export interface Provider {
   provider_software?: string | null;
   has_service_zone?: boolean;
   service_hours?: string | object;
-  eligibility_reqs?: string | string[] | object;
+  eligibility_reqs?: string | string[] | object | null;
   booking?: string | object;
   website?: string;
   latitude?: number;
@@ -59,6 +59,7 @@ export interface Provider {
   fare?: string | object;
   round_trip_booking?: boolean;
   investigated?: boolean;
+  is_operating?: boolean;
   _zone_color?: string;
 }
 

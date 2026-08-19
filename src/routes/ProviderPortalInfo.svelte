@@ -23,6 +23,7 @@
     formatRoutingType,
     formatScheduleType,
     formatServiceAreaSummary,
+    isFixedRouteProvider,
     tryParseJson,
   } from '$lib/providers/providerFields';
 
@@ -199,6 +200,7 @@
     try {
       const payload: ProviderUpdate = {
         ...form,
+        eligibility_reqs: isFixedRouteProvider(form.provider_type) ? null : form.eligibility_reqs,
         service_area_cities: parseCities(serviceAreaCitiesText),
         service_hours: parseJsonish('Service hours', serviceHoursRaw),
       };
@@ -386,20 +388,22 @@
                     <ScheduleTypeEditor bind:value={form.schedule_type} />
                   </div>
 
-                  <div>
-                    <div class="mb-2 flex items-center justify-between gap-3">
-                      <div class="block text-sm font-medium text-slate-700">Eligibility requirements</div>
-                      <label class="text-xs text-slate-500">
-                        Import text
-                        <input class="ml-2 text-xs" type="file" accept=".txt,.md,.csv,text/plain,text/csv" onchange={(event) => importFile(event, 'eligibility_reqs', 'text')} />
-                      </label>
+                  {#if !isFixedRouteProvider(form.provider_type)}
+                    <div>
+                      <div class="mb-2 flex items-center justify-between gap-3">
+                        <div class="block text-sm font-medium text-slate-700">Eligibility requirements</div>
+                        <label class="text-xs text-slate-500">
+                          Import text
+                          <input class="ml-2 text-xs" type="file" accept=".txt,.md,.csv,text/plain,text/csv" onchange={(event) => importFile(event, 'eligibility_reqs', 'text')} />
+                        </label>
+                      </div>
+                      <Textarea
+                        bind:value={form.eligibility_reqs}
+                        rows={4}
+                        placeholder="Plain English eligibility and proof/application requirements from the provider row"
+                      />
                     </div>
-                    <Textarea
-                      bind:value={form.eligibility_reqs}
-                      rows={4}
-                      placeholder="Plain English eligibility and proof/application requirements from the provider row"
-                    />
-                  </div>
+                  {/if}
 
                   <div>
                     <div class="mb-2 flex items-center justify-between gap-3">
@@ -541,12 +545,14 @@
                   </div>
                 </div>
 
-                <div>
-                  <div class="block text-sm font-medium text-slate-700 mb-2">Eligibility</div>
-                  <div class="text-slate-900 bg-slate-50 rounded-md px-3 py-2 text-sm whitespace-pre-wrap max-h-32 overflow-y-auto">
-                    {formatEligibilityReqs(provider.eligibility_reqs) || '-'}
+                {#if !isFixedRouteProvider(provider)}
+                  <div>
+                    <div class="block text-sm font-medium text-slate-700 mb-2">Eligibility</div>
+                    <div class="text-slate-900 bg-slate-50 rounded-md px-3 py-2 text-sm whitespace-pre-wrap max-h-32 overflow-y-auto">
+                      {formatEligibilityReqs(provider.eligibility_reqs) || '-'}
+                    </div>
                   </div>
-                </div>
+                {/if}
 
                 <div>
                   <div class="block text-sm font-medium text-slate-700 mb-2">Booking</div>

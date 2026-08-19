@@ -97,7 +97,7 @@ export function verifyResponse(response: string, state: TripState): ResponseProb
 
   // The ceiling is every provider the search touched, not only the usable ones. Counting just the
   // available ones rejected accurate sentences like "all three providers require ADA
-  // certification" whenever those three had been ruled out — the rider then lost the model's
+  // paratransit eligibility" whenever those three had been ruled out — the rider then lost the model's
   // explanation and got generated prose instead. Inventing providers is still caught, because a
   // count above everything the search saw cannot come from the data.
   const maximumDiscussed = search.eligible.length + search.verification.length +
@@ -126,7 +126,7 @@ export function verifyResponse(response: string, state: TripState): ResponseProb
   // paragraph against a list of affirmative words and a list of negation words, and every
   // rejection cost the rider the model's own answer in favour of generated prose. Its own
   // comments recorded it rejecting correct sentences — "None of the three can take you — they
-  // all require ADA certification" read as a recommendation until "none" and "require" were
+  // all require ADA paratransit eligibility" read as a recommendation until "none" and "require" were
   // added to the list, and the next correct phrasing failed the same way.
   //
   // The exclusions it guarded are now the assistant's own verdicts, recorded through

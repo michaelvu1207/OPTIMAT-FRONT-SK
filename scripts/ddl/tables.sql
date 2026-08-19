@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS optimat.providers (
     contacts        JSONB,
     round_trip_booking BOOLEAN,
     investigated    BOOLEAN,
+    is_operating    BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ DEFAULT now(),
     updated_at      TIMESTAMPTZ DEFAULT now()
 );

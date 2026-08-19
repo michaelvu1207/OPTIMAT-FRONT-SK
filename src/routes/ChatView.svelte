@@ -25,6 +25,7 @@
   } from '$lib/api';
 
   let mounted = false;
+  let isPhone = false;
   let showChat = false;
   let showProviderResults = false;
   let providerData = null;
@@ -93,6 +94,7 @@
   }
 
   onMount(async () => {
+    isPhone = window.matchMedia('(max-width: 767px)').matches;
     mounted = true;
     await checkServerHealth();
     if (serverOnline) {
@@ -106,6 +108,20 @@
     setTimeout(() => {
       showChat = true;
     }, 300);
+  });
+
+  onMount(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const updatePhoneLayout = () => {
+      isPhone = media.matches;
+      if (isPhone) {
+        selectedProvider = null;
+        clearTransitRoute();
+      }
+    };
+    updatePhoneLayout();
+    media.addEventListener('change', updatePhoneLayout);
+    return () => media.removeEventListener('change', updatePhoneLayout);
   });
 
   async function checkServerHealth() {
@@ -236,6 +252,7 @@
       publicTransit.journey_description ||
       publicTransit.summary ||
       publicTransit.duration_text ||
+      publicTransit.google_maps_url ||
       (Array.isArray(publicTransit.steps) && publicTransit.steps.length > 0) ||
       (Array.isArray(publicTransit.routes) && publicTransit.routes.length > 0)
     );
@@ -952,8 +969,9 @@
     description="Converse with the assistant and review providers"
     appMode={true}
   >
-    <!-- Main horizontal layout: Left (Map + Results) | Right (Chat full height) -->
-    <Resizable.PaneGroup direction="horizontal" class="flex-1 h-full">
+    <!-- Desktop uses a map/chat split. Phones are deliberately chat-first and never mount the map. -->
+    <Resizable.PaneGroup direction="horizontal" class="flex-1 h-full min-w-0">
+      {#if !isPhone}
       <!-- Left: the map, full height. Provider details live in the chat, not beside it. -->
       <Resizable.Pane defaultSize={60} minSize={35} class="relative">
         <!-- Map style selector - floating overlay -->
@@ -1072,10 +1090,16 @@
                 {/each}
               {/if}
 
-              {#if $connectionLine.show && transitRouteCoordinates.length === 0}
+              {#if $connectionLine.show && transitRouteCoordinates.length === 0 && !hasPublicTransitResult(providerData?.public_transit)}
                 <Polyline
                   latLngs={$connectionLine.coordinates}
-                  options={{ color: '#6366f1', weight: 3, opacity: 0.8, dashArray: '10, 5' }}
+                  options={{
+                    color: '#6366f1',
+                    weight: 3,
+                    opacity: 0.8,
+                    dashArray: '10, 5',
+                    className: 'origin-destination-orientation-line'
+                  }}
                 />
               {/if}
 
@@ -1092,9 +1116,14 @@
       </Resizable.Pane>
 
       <Resizable.Handle withHandle />
+      {/if}
 
       <!-- Right: Chat Panel (full height) -->
-      <Resizable.Pane defaultSize={40} minSize={25} class="bg-card border-l border-border/40 flex flex-col overflow-hidden">
+      <Resizable.Pane
+        defaultSize={isPhone ? 100 : 40}
+        minSize={isPhone ? 100 : 25}
+        class="min-w-0 bg-card flex flex-col overflow-hidden {isPhone ? '' : 'border-l border-border/40'}"
+      >
         <!-- Chat Header -->
         <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
           <div class="flex items-center justify-between">
@@ -1109,8 +1138,8 @@
           <Chat
             bind:this={chatComponent}
             onProvidersFound={handleProvidersFound}
-            onProviderSelect={selectProvider}
-            mapSelectedProvider={selectedProvider}
+            onProviderSelect={isPhone ? null : selectProvider}
+            mapSelectedProvider={isPhone ? null : selectedProvider}
             on:addressFound={handleAddressFound}
             on:newConversationStarted={handleNewConversationStarted}
             on:exampleSaved={handleExampleSaved}

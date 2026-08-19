@@ -28,8 +28,28 @@
       .trim();
   }
 
+  function googleMapsUrl(publicTransit) {
+    if (typeof publicTransit?.google_maps_url === 'string' && publicTransit.google_maps_url.trim()) {
+      return publicTransit.google_maps_url.trim();
+    }
+    const origin = publicTransit?.start_address;
+    const destination = publicTransit?.end_address;
+    if (!origin || !destination) return null;
+    const params = new URLSearchParams({
+      api: '1',
+      origin,
+      destination,
+      travelmode: 'transit'
+    });
+    return `https://www.google.com/maps/dir/?${params.toString()}`;
+  }
+
   $: steps = Array.isArray(transit?.steps) ? transit.steps : [];
   $: transitLines = lines(transit);
+  $: mapsUrl = googleMapsUrl(transit);
+  $: hasRouteDetail = transit?.routing_status !== 'handoff_only' && (
+    Boolean(transit?.overview_polyline || transit?.polyline) || steps.length > 0
+  );
 </script>
 
 <article
@@ -44,7 +64,9 @@
       <span class="shrink-0 text-base">🚇</span>
       <div class="min-w-0">
         <div class="truncate text-sm font-semibold text-foreground">Public Transit</div>
-        <div class="text-[10px] uppercase tracking-wide text-blue-700">Fixed-route itinerary</div>
+        <div class="text-[10px] uppercase tracking-wide text-blue-700">
+          {hasRouteDetail ? 'Fixed-route itinerary' : 'Plan fixed-route trip'}
+        </div>
       </div>
     </div>
     <span class="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">No booking needed</span>
@@ -89,21 +111,33 @@
     </ol>
   {/if}
 
-  {#if onSelect}
-    <div class="mt-2 text-[11px]">
-      <button
-        type="button"
-        class="rounded-md bg-blue-600 px-2 py-1 font-medium text-white transition hover:bg-blue-700"
-        on:click|stopPropagation={() => onSelect({
-          provider_id: 'public-transit',
-          provider_name: 'Public Transit',
-          provider_type: 'fixed-route',
-          is_public_transit: true,
-          public_transit: transit
-        })}
-      >
-        {selected ? 'Hide route' : 'Show route'}
-      </button>
+  {#if onSelect || mapsUrl}
+    <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+      {#if onSelect && hasRouteDetail}
+        <button
+          type="button"
+          class="min-h-11 rounded-md bg-blue-600 px-3 py-2 font-medium text-white transition hover:bg-blue-700"
+          on:click|stopPropagation={() => onSelect({
+            provider_id: 'public-transit',
+            provider_name: 'Public Transit',
+            provider_type: 'fixed-route',
+            is_public_transit: true,
+            public_transit: transit
+          })}
+        >
+          {selected ? 'Hide route' : 'Show route'}
+        </button>
+      {/if}
+      {#if mapsUrl}
+        <a
+          href={mapsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex min-h-11 items-center rounded-md border border-blue-200 px-3 py-2 font-medium text-blue-700 transition hover:bg-blue-50"
+        >
+          Open in Google Maps
+        </a>
+      {/if}
     </div>
   {/if}
 </article>

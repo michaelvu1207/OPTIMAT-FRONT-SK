@@ -16,7 +16,7 @@ try {
     return input && !input.disabled;
   }, null, { timeout: 30_000 });
 
-  await textarea.fill("I'm 68 and live in Richmond. I need a one-way ride from Richmond City Hall to Kaiser Richmond on July 21, 2026, departing at noon. I'm not disabled, not ADA-certified, and not a veteran.");
+  await textarea.fill("I'm 68 and live in Richmond. I need a one-way ride from Richmond City Hall to Kaiser Richmond on July 21, 2026, departing at noon. I'm not disabled, without ADA paratransit eligibility, and not a veteran.");
   await page.getByRole('button', { name: 'Send message' }).click();
   await page.locator('.chat-markdown').filter({ hasText: 'R-Transit' }).last().waitFor({ timeout: 60_000 });
 
@@ -28,7 +28,7 @@ try {
 
   const cardText = await publicTransitCard.innerText();
   assert.match(cardText, /Hide route/);
-  assert.match(cardText, /Route steps/i);
+  assert.match(cardText, /Open in Google Maps/i);
   assert.match(await page.locator('[aria-label="Provider results count"]').innerText(), /Includes public transit/);
 
   await page.waitForTimeout(1_500);
@@ -42,6 +42,7 @@ try {
     route_polyline_visible: true,
     route_summary_visible: true,
     route_toggle_selected: true,
+    google_maps_handoff_visible: true,
   }, null, 2));
 } finally {
   await browser.close();

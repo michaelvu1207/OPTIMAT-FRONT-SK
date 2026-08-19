@@ -47,7 +47,6 @@ const FLAGS = {
 };
 
 const CSV_PATH = getArgValue(process.argv, '--csv') || DEFAULT_UPDATED_PROVIDERS_CSV;
-const ONE_SEAT_GEOJSON_PATH = '/Users/maikyon/Downloads/One Seat Regional Ride.geojson';
 const BACKUP_DIR = path.join(__dirname, 'backup');
 
 const AWS_PROFILE = 'path';
@@ -83,18 +82,6 @@ function invokeLambda(payload) {
 // ---------------------------------------------------------------------------
 
 async function resolveServiceZone(providerName, col4, col11, existingRow) {
-  if (providerName === 'One-Seat Regional Ride') {
-    try {
-      const raw = fs.readFileSync(ONE_SEAT_GEOJSON_PATH, 'utf-8');
-      const geojson = JSON.parse(raw);
-      if (geojson.type === 'FeatureCollection') return geojson;
-      if (geojson.type === 'Feature') return { type: 'FeatureCollection', features: [geojson] };
-    } catch (e) {
-      console.warn(`  [WARN] Could not load One Seat Regional Ride.geojson: ${e.message}`);
-    }
-    return existingRow?.service_zone ?? null;
-  }
-
   // Always fetch boundaries from scratch for any provider with city names
   if (!FLAGS.skipBoundaries) {
     const cities = parseCityNames(col4);
@@ -226,7 +213,7 @@ async function main() {
 
     const { skip, providerName, dbRow, isNew } = resolveProvider(csvName);
     if (skip) {
-      console.log(`  Skipping "${csvName}" (merged into County Connection weekday row)`);
+      console.log(`  Skipping retired or merged provider "${csvName}"`);
       continue;
     }
 

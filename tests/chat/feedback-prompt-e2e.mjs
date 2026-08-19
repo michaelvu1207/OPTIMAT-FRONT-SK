@@ -32,7 +32,7 @@ try {
   assert.equal(await prompt.count(), 0, 'no feedback bubble before any recommendations');
 
   await textarea.fill(
-    "I'm 72 and ADA-certified. I need a ride tomorrow at 10am from 1350 Treat Blvd, Walnut Creek to 2500 Alhambra Ave, Martinez, one way."
+    "I'm 72 and have ADA paratransit eligibility. I need a ride tomorrow at 10am from 1350 Treat Blvd, Walnut Creek to 2500 Alhambra Ave, Martinez, one way."
   );
   await page.getByRole('button', { name: 'Send message' }).click();
 

@@ -28,6 +28,22 @@ export const PROVIDER_ID_NAME_ALIASES = {
 };
 
 export const MANUAL_PROVIDER_DEFAULTS = {
+  'WestCAT Paratransit': {
+    schedule_type: {
+      type: 'in-advance-book',
+      advance_notice: '1-3 days',
+      regional_advance_notice: 'up to 14 days',
+      regional_advance_notice_note: 'Regional trips outside the WestCAT area may be booked up to two weeks before the appointment.',
+      source_url: 'https://www.westcat.org/Content/pdf/REVADA-Paratransit-Guide.pdf',
+    },
+  },
+  'WestCAT Senior Dial-A-Ride': {
+    schedule_type: {
+      type: 'in-advance-book',
+      advance_notice: '1-3 days',
+      source_url: 'https://www.westcat.org/Content/pdf/REVSenior-Dial-A-Ride-Guide.pdf',
+    },
+  },
   'Concord Senior Center Shuttle': {
     provider_type: 'Non-ADA Paratransit',
     routing_type: 'door-to-door',
@@ -130,7 +146,10 @@ export function parseCityNames(text) {
 }
 
 export function shouldSkipProvider(csvName) {
-  return MANUAL_NAME_MAP[csvName] === '__MERGE_WITH_WEEKDAY__';
+  const normalized = String(csvName ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return MANUAL_NAME_MAP[csvName] === '__MERGE_WITH_WEEKDAY__' ||
+    normalized === 'oneseatregionalride' ||
+    normalized === 'oneseatride';
 }
 
 export function getDbLookupName(csvName, providerName) {
@@ -138,10 +157,14 @@ export function getDbLookupName(csvName, providerName) {
 }
 
 export function applyManualProviderDefaults(provider) {
+  const normalizedType = String(provider.provider_type ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const publicProvider = normalizedType === 'fixedroute'
+    ? { ...provider, eligibility_reqs: null }
+    : provider;
   const defaults = MANUAL_PROVIDER_DEFAULTS[provider.provider_name];
-  if (!defaults) return provider;
+  if (!defaults) return publicProvider;
   return {
-    ...provider,
+    ...publicProvider,
     ...Object.fromEntries(
       Object.entries(defaults).filter(([, value]) => value !== undefined)
     ),

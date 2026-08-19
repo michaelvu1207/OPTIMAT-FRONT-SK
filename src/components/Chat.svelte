@@ -602,6 +602,7 @@ How can I assist you today?`,
             publicTransit.journey_description ||
             publicTransit.summary ||
             publicTransit.duration_text ||
+            publicTransit.google_maps_url ||
             (Array.isArray(publicTransit.steps) && publicTransit.steps.length > 0) ||
             (Array.isArray(publicTransit.routes) && publicTransit.routes.length > 0)
         );
@@ -641,7 +642,7 @@ How can I assist you today?`,
      * outstanding — it goes null once the rider answers or declines — so the cards wait for it.
      *
      * But waiting on that signal alone withheld the cards forever: there is nearly always one more
-     * provider whose rule turns on a fact the rider has not volunteered (ADA certification, most
+     * provider whose rule turns on a fact the rider has not volunteered (ADA paratransit eligibility, most
      * often), so a rider who had already been told "Mobility Matters is the one you qualify for"
      * still got no card for it. A provider the assistant has actually cleared is an answer, whatever
      * remains unresolved elsewhere — so either an eligible provider or an exhausted question is
@@ -1911,6 +1912,13 @@ How can I assist you today?`,
       }
     }
 
+    function hasCompletedExchange() {
+      const lastHumanIndex = messages.map((message) => message.role).lastIndexOf('human');
+      return lastHumanIndex >= 0 && messages.slice(lastHumanIndex + 1).some((message) =>
+        message.role === 'ai' && typeof message.content === 'string' && message.content.trim().length > 0
+      );
+    }
+
 </script>
   <div class="flex flex-col h-full bg-background">
     <!-- Top status bar -->
@@ -1937,33 +1945,10 @@ How can I assist you today?`,
           <button
 	            type="button"
 	            onclick={startNewConversation}
-            class="rounded-lg bg-primary px-3 py-1.5 text-base font-semibold text-primary-foreground transition hover:bg-primary/90"
+            class="min-h-11 rounded-lg bg-primary px-3 py-1.5 text-base font-semibold text-primary-foreground transition hover:bg-primary/90"
           >
             New Chat
           </button>
-          {#if conversationId && !isViewingExample}
-            <!-- Save as Example button -->
-            <button
-	              onclick={openExampleForm}
-              class="save-example-btn group flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-all duration-200"
-              title="Save as Example"
-            >
-              <svg
-                class="w-3.5 h-3.5 transition-transform group-hover:scale-110"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                />
-              </svg>
-              <span class="hidden sm:inline">Save as Example</span>
-            </button>
-          {/if}
         </div>
       </div>
     </div>
@@ -2226,6 +2211,32 @@ How can I assist you today?`,
           {statusMessage}
         </div>
       {/if}
+
+      {#if conversationId && !isViewingExample && !loading && !isStreaming && hasCompletedExchange()}
+        <div class="flex justify-end border-t border-border/50 pt-3" data-testid="save-example-at-end">
+          <button
+            type="button"
+            onclick={openExampleForm}
+            class="save-example-btn group inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+            title="Save as Example"
+          >
+            <svg
+              class="h-4 w-4 transition-transform group-hover:scale-110"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+              />
+            </svg>
+            <span>Save as Example</span>
+          </button>
+        </div>
+      {/if}
     </div>
 
     <!-- Input form (hidden during example viewing) -->
@@ -2236,14 +2247,14 @@ How can I assist you today?`,
 	          e.preventDefault();
 	          handleSubmit();
 	        }}
-	        class="flex-shrink-0 border-t border-border/40 bg-card px-3 py-3"
+	        class="chat-composer flex-shrink-0 border-t border-border/40 bg-card px-3 py-3"
 	      >
         <div class="flex gap-2">
           <textarea
             bind:this={messageInputElement}
             bind:value={userInput}
             placeholder={serverOnline ? messageSuggestion : "Chat unavailable"}
-            class="flex-1 resize-none rounded-lg border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
+            class="flex-1 resize-none rounded-lg border border-border/60 bg-background px-3 py-2 text-base sm:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
 	            onkeydown={(e) => {
@@ -2259,7 +2270,7 @@ How can I assist you today?`,
             disabled={loading || !serverOnline || initializing || isTranscribing}
             aria-label={isRecording ? 'Stop voice recording' : 'Start voice input'}
             title={isRecording ? 'Stop voice recording' : 'Start voice input'}
-            class={`self-end h-10 w-10 shrink-0 rounded-lg border transition flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
+            class={`self-end h-11 w-11 shrink-0 rounded-lg border transition flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
               isRecording
                 ? 'border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/15'
                 : 'border-border/60 bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -2279,7 +2290,7 @@ How can I assist you today?`,
             onclick={loading ? cancelActiveRequest : handleSubmit}
             disabled={!loading && (!serverOnline || !userInput.trim())}
             aria-label={loading ? 'Stop generating response' : 'Send message'}
-            class="self-end px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium h-fit"
+            class="self-end min-h-11 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
           >
             {#if loading}
               <div class="flex items-center gap-2">
@@ -2798,5 +2809,21 @@ How can I assist you today?`,
 
     input[type="range"]:disabled::-moz-range-thumb {
       background: hsl(var(--muted-foreground));
+    }
+
+    @media (max-width: 767px) {
+      .chat-messages {
+        padding-inline: 1rem;
+        font-size: 1rem;
+      }
+
+      .chat-composer {
+        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+      }
+
+      .chat-markdown {
+        font-size: 0.95rem;
+        line-height: 1.55;
+      }
     }
   </style>

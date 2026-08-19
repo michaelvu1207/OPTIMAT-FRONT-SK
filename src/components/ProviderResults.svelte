@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import { serviceZoneManager } from '../lib/serviceZoneManager.js';
+  import { isFixedRouteProvider } from '$lib/providers/providerFields';
   
   /**
    * @typedef {Object} PublicTransitData
@@ -366,7 +367,7 @@
                           <dd class="flex-1">{formatServiceHours(provider.service_hours)}</dd>
                         </div>
                       {/if}
-                      {#if formatEligibility(provider.eligibility_reqs)}
+                      {#if !isFixedRouteProvider(provider) && formatEligibility(provider.eligibility_reqs)}
                         <div class="flex">
                           <dt class="font-medium w-20">Eligibility:</dt>
                           <dd class="flex-1 whitespace-pre-line">{formatEligibility(provider.eligibility_reqs)}</dd>

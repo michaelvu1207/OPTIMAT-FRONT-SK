@@ -19,6 +19,9 @@ export type RoutingType = '' | 'fixed-routes' | 'curb-to-curb' | 'door-to-door';
 export interface ScheduleType {
   type: ScheduleTypeKind;
   advance_notice?: string;
+  regional_advance_notice?: string;
+  regional_advance_notice_note?: string;
+  source_url?: string;
 }
 
 export interface Booking {
@@ -65,7 +68,7 @@ const FARE_LABELS: Record<string, string> = {
 
 const ELIGIBILITY_PROOF_LABELS: Record<string, string> = {
   'id-certified': 'ID or residency proof required',
-  'ada-approved': 'ADA eligibility required',
+  'ada-approved': 'ADA paratransit eligibility required',
 };
 
 const SERVICE_AREA_SOURCE_LABELS: Record<string, string> = {
@@ -152,11 +155,15 @@ export function formatScheduleType(value: unknown): string | null {
   const advance = typeof (parsed as Record<string, unknown>).advance_notice === 'string'
     ? ((parsed as Record<string, unknown>).advance_notice as string)
     : null;
+  const regionalAdvance = typeof (parsed as Record<string, unknown>).regional_advance_notice === 'string'
+    ? ((parsed as Record<string, unknown>).regional_advance_notice as string)
+    : null;
 
   if (!type) return null;
 
   if (type === 'in-advance-book') {
-    return advance ? `${SCHEDULE_LABELS[type]} (${advance})` : SCHEDULE_LABELS[type];
+    const local = advance ? `${SCHEDULE_LABELS[type]} (${advance})` : SCHEDULE_LABELS[type];
+    return regionalAdvance ? `${local}; regional trips: ${regionalAdvance}` : local;
   }
   if (SCHEDULE_LABELS[type]) return SCHEDULE_LABELS[type];
   return type;
@@ -274,6 +281,14 @@ export function formatEligibilityReqs(value: unknown): string | null {
     .filter(Boolean) as string[];
 
   return lines.length ? lines.join('\n') : null;
+}
+
+/** Fixed-route transit is open to the public and must not be presented as eligibility-based. */
+export function isFixedRouteProvider(providerOrType: unknown): boolean {
+  const type = typeof providerOrType === 'object' && providerOrType !== null
+    ? (providerOrType as Record<string, unknown>).provider_type
+    : providerOrType;
+  return String(type ?? '').toLowerCase().replace(/[^a-z0-9]/g, '') === 'fixedroute';
 }
 
 export function formatServiceZone(value: unknown): string | null {

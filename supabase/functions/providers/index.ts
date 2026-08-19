@@ -69,6 +69,30 @@ interface ProviderRecord {
   service_zone?: unknown;
   provider_org?: string | null;
   provider_name?: string | null;
+  is_operating?: boolean | null;
+}
+
+function isPubliclyAvailableProvider(provider: Record<string, unknown>): boolean {
+  const properties = provider.properties && typeof provider.properties === "object"
+    ? provider.properties as Record<string, unknown>
+    : provider;
+  const normalizedName = String(properties.provider_name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return properties.is_operating !== false &&
+    normalizedName !== "oneseatregionalride" &&
+    normalizedName !== "oneseatride";
+}
+
+function isFixedRouteType(type: unknown): boolean {
+  return String(type || "").toLowerCase().replace(/[^a-z0-9]/g, "") === "fixedroute";
+}
+
+/** The current Tri Delta polygon is not an approved representation of its route network. */
+function hasVerifiedPublicServiceArea(provider: Record<string, unknown>): boolean {
+  const properties = provider.properties && typeof provider.properties === "object"
+    ? provider.properties as Record<string, unknown>
+    : provider;
+  const name = String(properties.provider_name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return !(name === "trideltatransit" && isFixedRouteType(properties.provider_type));
 }
 
 const PROVIDER_UPDATE_FIELDS = [
@@ -90,6 +114,7 @@ const PROVIDER_UPDATE_FIELDS = [
   "provider_org",
   "round_trip_booking",
   "investigated",
+  "is_operating",
 ] as const;
 
 type ProviderUpdateField = typeof PROVIDER_UPDATE_FIELDS[number];
@@ -121,6 +146,7 @@ const PROVIDER_SELECT_FIELDS = `
   provider_org,
   round_trip_booking,
   investigated,
+  is_operating,
   created_at,
   updated_at
 `;
@@ -162,9 +188,9 @@ async function listProviders(origin?: string | null): Promise<Response> {
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
-    const normalizedData = (data || []).map((provider) =>
-      normalizeProvider(provider as Record<string, unknown>)
-    );
+    const normalizedData = (data || [])
+      .filter((provider) => isPubliclyAvailableProvider(provider as Record<string, unknown>))
+      .map((provider) => normalizeProvider(provider as Record<string, unknown>));
 
     return jsonResponse({ data: normalizedData }, 200, origin);
   } catch (err) {
@@ -201,7 +227,7 @@ async function getProviderById(
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
-    if (!data) {
+    if (!data || !isPubliclyAvailableProvider(data as Record<string, unknown>)) {
       return errorResponse(
         `Provider with id ${providerId} not found`,
         404,
@@ -341,6 +367,8 @@ async function updateProviderById(
       return errorResponse("Provider name is required", 400, origin);
     }
 
+    if (isFixedRouteType(update.provider_type)) update.eligibility_reqs = null;
+
     const supabase = createOptimatClient();
     const { data, error } = await supabase
       .from(TABLES.PROVIDERS)
@@ -393,6 +421,8 @@ async function createProvider(
     if (!update.provider_name) {
       return errorResponse("Provider name is required", 400, origin);
     }
+
+    if (isFixedRouteType(update.provider_type)) update.eligibility_reqs = null;
 
     const supabase = createOptimatClient();
     const { data, error } = await supabase
@@ -469,9 +499,9 @@ async function searchProviders(
           );
         }
 
-        const normalizedData = (fallbackData || []).map((provider) =>
-          normalizeProvider(provider as Record<string, unknown>)
-        );
+        const normalizedData = (fallbackData || [])
+          .filter((provider) => isPubliclyAvailableProvider(provider as Record<string, unknown>))
+          .map((provider) => normalizeProvider(provider as Record<string, unknown>));
         return jsonResponse(normalizedData, 200, origin);
       }
 
@@ -479,9 +509,9 @@ async function searchProviders(
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
-    const normalizedData = (data || []).map((
-      provider: Record<string, unknown>,
-    ) => normalizeProvider(provider));
+    const normalizedData = (data || [])
+      .filter((provider: Record<string, unknown>) => isPubliclyAvailableProvider(provider))
+      .map((provider: Record<string, unknown>) => normalizeProvider(provider));
     return jsonResponse(normalizedData, 200, origin);
   } catch (err) {
     console.error("Unexpected error in searchProviders:", err);
@@ -505,7 +535,7 @@ async function getProvidersMap(origin?: string | null): Promise<Response> {
         const { data: providers, error: fetchError } = await supabase
           .from(TABLES.PROVIDERS)
           .select(
-            "provider_id, provider_name, provider_type, provider_org, service_zone",
+            "provider_id, provider_name, provider_type, provider_org, is_operating, service_zone",
           )
           .not("service_zone", "is", null);
 
@@ -520,6 +550,10 @@ async function getProvidersMap(origin?: string | null): Promise<Response> {
 
         // Build GeoJSON FeatureCollection from provider centroids
         const features = (providers || [])
+          .filter((provider) =>
+            isPubliclyAvailableProvider(provider as Record<string, unknown>) &&
+            hasVerifiedPublicServiceArea(provider as Record<string, unknown>)
+          )
           .map((provider) => {
             // Try to extract centroid from service_zone
             const serviceZone = provider.service_zone;
@@ -572,8 +606,16 @@ async function getProvidersMap(origin?: string | null): Promise<Response> {
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
+    const mapData = data && typeof data === "object" && Array.isArray(data.features)
+      ? {
+        ...data,
+        features: data.features.filter((feature: Record<string, unknown>) =>
+          isPubliclyAvailableProvider(feature) && hasVerifiedPublicServiceArea(feature)
+        ),
+      }
+      : { type: "FeatureCollection", features: [] };
     return jsonResponse(
-      data || { type: "FeatureCollection", features: [] },
+      mapData,
       200,
       origin,
     );
@@ -693,7 +735,7 @@ async function getProviderServiceZone(
 
     const { data, error } = await supabase
       .from(TABLES.PROVIDERS)
-      .select("provider_id, service_zone")
+      .select("provider_id, provider_name, provider_type, is_operating, service_zone")
       .eq("provider_id", parseInt(providerId, 10))
       .single();
 
@@ -713,7 +755,11 @@ async function getProviderServiceZone(
       return errorResponse(`Database error: ${error.message}`, 500, origin);
     }
 
-    if (!data) {
+    if (
+      !data ||
+      !isPubliclyAvailableProvider(data as Record<string, unknown>) ||
+      !hasVerifiedPublicServiceArea(data as Record<string, unknown>)
+    ) {
       return jsonResponse(
         {
           provider_id: providerId,
@@ -813,6 +859,7 @@ function matchesEligibilityText(
   provider: ProviderRecord,
   needle?: string,
 ): boolean {
+  if (isFixedRouteType(provider.provider_type)) return true;
   if (!needle) return true;
   const haystack = JSON.stringify(
     parseJsonIfString(provider.eligibility_reqs) ?? "",
@@ -994,6 +1041,7 @@ async function filterProviders(
 
     const normalizedProviders = (providers || [])
       .filter((provider) =>
+        isPubliclyAvailableProvider(provider as Record<string, unknown>) &&
         matchesProviderFilters(provider as ProviderRecord, filter) &&
         isPointInGeometry(
           originCoord.lat,
@@ -1010,7 +1058,7 @@ async function filterProviders(
         ...normalizeProvider(provider as Record<string, unknown>),
         match_criteria: {
           algorithm:
-            "Geocode origin and destination, apply explicit structured filters, then keep providers whose service zone contains both points. Eligibility text is displayed for reasoning and is not hard-filtered unless an explicit eligibility text search is requested.",
+            "Geocode origin and destination, apply explicit structured filters, then keep providers whose service zone contains both points.",
           passed: [
             {
               label: "Origin inside service area",
@@ -1032,14 +1080,14 @@ async function filterProviders(
                 detail: filter.schedule_type,
               }]
               : []),
-            ...(filter.eligibility_req_contains
+            ...(filter.eligibility_req_contains && !isFixedRouteType((provider as ProviderRecord).provider_type)
               ? [{
                 label: "Eligibility text matched",
                 detail: filter.eligibility_req_contains,
               }]
               : []),
           ],
-          not_hard_filtered: filter.eligibility_req_contains
+          not_hard_filtered: isFixedRouteType((provider as ProviderRecord).provider_type) || filter.eligibility_req_contains
             ? []
             : ["eligibility"],
         },

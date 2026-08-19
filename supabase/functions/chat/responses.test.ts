@@ -59,22 +59,22 @@ Deno.test("claiming more providers than the search found is rejected", () => {
 });
 
 Deno.test("counting providers in order to rule them out is not overstating", () => {
-  // The live failure this covers: every provider was ruled out for want of ADA certification, and
-  // the model's accurate "all three providers require ADA certification" was rejected twice
+  // The live failure this covers: every provider was ruled out for want of ADA paratransit eligibility, and
+  // the model's accurate "all three providers require ADA paratransit eligibility" was rejected twice
   // because the ceiling counted only usable providers. The rider lost the explanation.
   const search = digest({
     eligible: [],
     excluded: [
-      { name: "Wheels Dial-a-Ride", reason: "Requires ADA certification." },
-      { name: "LINK Paratransit", reason: "Requires ADA certification." },
-      { name: "One-Seat Regional Ride", reason: "Requires ADA certification." },
+      { name: "Wheels Dial-a-Ride", reason: "Requires ADA paratransit eligibility." },
+      { name: "LINK Paratransit", reason: "Requires ADA paratransit eligibility." },
+      { name: "East Bay Paratransit", reason: "Requires ADA paratransit eligibility." },
     ],
     public_transit: { available: true, duration_text: "47 mins" },
   });
 
   for (const response of [
-    "With no ADA certification all three providers are out — Wheels Dial-a-Ride, LINK Paratransit and One-Seat Regional Ride each require it.",
-    "Unfortunately none of the 3 providers that run that early will take you without ADA certification.",
+    "With no ADA paratransit eligibility all three providers are out — Wheels Dial-a-Ride, LINK Paratransit and East Bay Paratransit each require it.",
+    "Unfortunately none of the 3 providers that run that early will take you without ADA paratransit eligibility.",
   ]) {
     assertEquals(codes(verifyResponse(response, state(search))), [], `should accept: ${response.slice(0, 50)}`);
   }
@@ -152,21 +152,21 @@ Deno.test("discussing a ruled-out provider is left to the assistant's own judgem
 });
 
 Deno.test("explaining that every provider is ruled out is not itself a violation", () => {
-  // The live failure this covers: a rider who was not ADA-certified got a correct answer naming
+  // The live failure this covers: a rider who was not ADA paratransit eligible got a correct answer naming
   // all three ruled-out providers, which was rejected twice and replaced with generated prose,
   // because the negation list held "requires" but neither "none" nor "require".
   const search = digest({
     excluded: [
-      { name: "Wheels Dial-a-Ride", reason: "Requires ADA certification." },
-      { name: "LINK Paratransit", reason: "Requires ADA certification." },
-      { name: "One-Seat Regional Ride", reason: "Requires ADA certification." },
+      { name: "Wheels Dial-a-Ride", reason: "Requires ADA paratransit eligibility." },
+      { name: "LINK Paratransit", reason: "Requires ADA paratransit eligibility." },
+      { name: "East Bay Paratransit", reason: "Requires ADA paratransit eligibility." },
     ],
   });
 
   for (const response of [
-    "None of the three can take you — Wheels Dial-a-Ride, LINK Paratransit and One-Seat Regional Ride all require ADA certification.",
-    "Unfortunately Wheels Dial-a-Ride, LINK Paratransit and One-Seat Regional Ride each need ADA certification, which you said you don't have.",
-    "Wheels Dial-a-Ride, LINK Paratransit and One-Seat Regional Ride are off the table without ADA certification.\n\nPublic transit makes the trip in about 47 minutes.",
+    "None of the three can take you — Wheels Dial-a-Ride, LINK Paratransit and East Bay Paratransit all require ADA paratransit eligibility.",
+    "Unfortunately Wheels Dial-a-Ride, LINK Paratransit and East Bay Paratransit each need ADA paratransit eligibility, which you said you don't have.",
+    "Wheels Dial-a-Ride, LINK Paratransit and East Bay Paratransit are off the table without ADA paratransit eligibility.\n\nPublic transit makes the trip in about 47 minutes.",
   ]) {
     assertEquals(codes(verifyResponse(response, state(search))), [], `should accept: ${response.slice(0, 60)}`);
   }
