@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildRiderFactsBlock } from './state.js';
+import { buildCurrentTimeBlock, buildRiderFactsBlock } from './state.js';
 
 test('rider facts block preserves residence and false eligibility answers', () => {
   const block = buildRiderFactsBlock({
@@ -20,4 +20,11 @@ test('rider facts block preserves residence and false eligibility answers', () =
 
 test('empty state explicitly prevents residence inference from pickup', () => {
   assert.match(buildRiderFactsBlock({}), /Do not infer residence/);
+});
+
+test('current time block resolves the Pacific date instead of relying on model knowledge', () => {
+  const block = buildCurrentTimeBlock(new Date('2026-09-01T06:30:00.000Z'));
+  assert.match(block, /2026-08-31/);
+  assert.match(block, /11:30 PM PDT/);
+  assert.match(block, /tomorrow/);
 });

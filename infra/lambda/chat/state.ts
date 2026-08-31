@@ -44,6 +44,28 @@ export function buildRiderFactsBlock(rider: RiderEligibility): string {
     : 'No rider eligibility facts are stored yet. Do not infer residence from a pickup address.';
 }
 
+export function buildCurrentTimeBlock(now = new Date()): string {
+  const timeZone = 'America/Los_Angeles';
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZoneName: 'short',
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || '';
+  const localDate = `${value('year')}-${value('month')}-${value('day')}`;
+  const localTime = `${value('hour')}:${value('minute')} ${value('dayPeriod')} ${value('timeZoneName')}`;
+
+  return [
+    `Current local date and time: ${localDate} ${localTime} (${timeZone}).`,
+    'Resolve relative dates such as today, tomorrow, and next Monday from this date. Never use a model training date or an example date.',
+  ].join('\n');
+}
+
 export async function saveTurnContext(conversationId: string, turn: TurnContext): Promise<void> {
   try {
     await query(

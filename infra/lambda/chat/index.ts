@@ -12,7 +12,7 @@ import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-r
 import { createHandler, jsonResponse, errorResponse } from '../_shared/adapter.js';
 import { query, queryRows, queryOne, TABLES } from '../_shared/db.js';
 import { toolDefinitions, executeTool, storeToolCall, type ToolResult } from './tools.js';
-import { buildRiderFactsBlock, loadTurnContext, saveTurnContext } from './state.js';
+import { buildCurrentTimeBlock, buildRiderFactsBlock, loadTurnContext, saveTurnContext } from './state.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -251,7 +251,7 @@ export const handler = createHandler(async (req) => {
   }
 
   const turn = await loadTurnContext(body.conversation_id);
-  const systemPrompt = `${SYSTEM_PROMPT}\n\n${buildRiderFactsBlock(turn.riderEligibility)}`;
+  const systemPrompt = `${SYSTEM_PROMPT}\n\n${buildCurrentTimeBlock()}\n\n${buildRiderFactsBlock(turn.riderEligibility)}`;
 
   // Load conversation history
   const existingMessages = await queryRows(
