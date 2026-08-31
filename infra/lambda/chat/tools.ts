@@ -13,11 +13,41 @@ export interface FindProvidersParams {
   source_address: string;
   destination_address: string;
   departure_time: string;
-  return_time: string;
-  travel_date?: string;
-  eligibility_type?: string;
-  schedule_type?: string;
-  provider_type?: string;
+  return_time?: string | null;
+  travel_date: string;
+  trip_type?: 'one_way' | 'round_trip';
+  rider_eligibility?: RiderEligibility;
+}
+
+export type RiderFact = 'age' | 'disabled' | 'ada_paratransit_eligible' | 'veteran' | 'residence_city';
+
+export interface RiderEligibility {
+  age?: number | null;
+  disabled?: boolean | null;
+  ada_paratransit_eligible?: boolean | null;
+  veteran?: boolean | null;
+  residence_city?: string | null;
+  declined?: boolean;
+}
+
+export interface EligibilityAssessment {
+  provider_name: string;
+  verdict: 'eligible' | 'ineligible' | 'verification_required';
+  reason: string;
+  missing_fact?: RiderFact | null;
+}
+
+export interface AssessEligibilityParams {
+  assessments: EligibilityAssessment[];
+}
+
+export interface TurnContext {
+  riderEligibility: RiderEligibility;
+  lastSearch: null | {
+    candidates: Record<string, unknown>[];
+    result: Record<string, unknown>;
+  };
+  latestAssessment: Record<string, unknown> | null;
 }
 
 export interface SearchAddressesParams {
@@ -63,28 +93,75 @@ export const toolDefinitions = [
   {
     name: 'find_providers',
     description: `Find paratransit providers that can serve a round trip between origin and destination.
-Filters providers to only those operating during both the departure and return times.
-
-Before calling this tool, ensure you have asked the user for:
-1. Their eligibility context (age/senior status, disability or ADA paratransit eligibility, veteran status, and relevant residency)
-2. What time they want to be picked up (departure_time)
-3. What time they want to return (return_time)`,
+The server filters by source/destination GeoJSON and known operating hours. It does not decide eligibility.
+Call this once the locations, date, outbound time, and trip type are known. Pass only rider facts the rider
+explicitly stated. Unknown facts must be omitted rather than guessed. After this returns candidates, immediately
+call assess_eligibility with a verdict for every candidate. A candidate with service_hours_known=false has not
+had its requested time confirmed; describe the schedule as needing provider verification, never as available.`,
     input_schema: {
       type: 'object' as const,
       properties: {
         source_address: { type: 'string', description: 'The pickup/origin address' },
         destination_address: { type: 'string', description: 'The drop-off/destination address' },
         departure_time: { type: 'string', description: 'Pickup time (e.g., "9:00 AM")' },
-        return_time: { type: 'string', description: 'Return time (e.g., "5:00 PM")' },
-        travel_date: { type: 'string', description: 'Optional travel date (e.g., "2024-12-05")' },
-        eligibility_type: {
+        return_time: { type: 'string', description: 'Return time for a round trip (e.g., "5:00 PM")' },
+        travel_date: { type: 'string', description: 'Travel date in YYYY-MM-DD format.' },
+        trip_type: {
           type: 'string',
-          description: 'Optional user eligibility context for the assistant to reason from after providers are returned. This tool does not filter providers by eligibility.',
+          enum: ['one_way', 'round_trip'],
+          description: 'Whether the rider needs an outbound trip only or a return trip too.',
         },
-        schedule_type: { type: 'string', description: 'Optional schedule type' },
-        provider_type: { type: 'string', description: 'Optional provider type' },
+        rider_eligibility: {
+          type: 'object',
+          description: 'Only facts explicitly supplied by the rider. Omit unknown facts.',
+          properties: {
+            age: { type: 'number' },
+            disabled: { type: 'boolean' },
+            ada_paratransit_eligible: {
+              type: 'boolean',
+              description: 'Whether the rider explicitly says a transit agency has approved their ADA paratransit eligibility.',
+            },
+            veteran: { type: 'boolean' },
+            residence_city: { type: 'string' },
+            declined: { type: 'boolean', description: 'True if the rider declines further eligibility questions.' },
+          },
+          required: [],
+        },
       },
-      required: ['source_address', 'destination_address', 'departure_time', 'return_time'],
+      required: ['source_address', 'destination_address', 'departure_time', 'travel_date', 'trip_type', 'rider_eligibility'],
+    },
+  },
+  {
+    name: 'assess_eligibility',
+    description: `Assess every candidate returned by the most recent find_providers call before answering.
+Read the candidate's complete eligibility requirement and compare every AND/OR clause with the structured rider facts.
+Geographic coverage is already established; do not infer residence from the pickup address.
+- eligible: the known facts match the requirement. This is preliminary screening, so tell the rider they may qualify.
+- ineligible: a known rider fact fails the requirement.
+- verification_required: an unknown rider fact or provider decision prevents a verdict. Set missing_fact to the
+  single rider fact that would most directly resolve it, or omit it when only the provider can decide.
+The server rejects incomplete assessments, invented provider names, and omitted candidates.`,
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        assessments: {
+          type: 'array',
+          items: {
+            type: 'object' as const,
+            properties: {
+              provider_name: { type: 'string' },
+              verdict: { type: 'string', enum: ['eligible', 'ineligible', 'verification_required'] },
+              reason: { type: 'string' },
+              missing_fact: {
+                type: 'string',
+                enum: ['age', 'disabled', 'ada_paratransit_eligible', 'veteran', 'residence_city'],
+              },
+            },
+            required: ['provider_name', 'verdict', 'reason'],
+          },
+        },
+      },
+      required: ['assessments'],
     },
   },
   {
@@ -164,10 +241,34 @@ function getDayIndexFromDate(dateStr: string): number | null {
   return null;
 }
 
-function isTimeWithinServiceHours(
+function isTimeCoveredByAnyInterval(
+  hoursList: any[],
+  dayIndex: number | null,
+  requestedMinutes: number | null,
+): boolean {
+  if (requestedMinutes === null) return true;
+
+  for (const entry of hoursList) {
+    const dayPattern = entry.day || '1111111';
+    if (dayIndex !== null && dayPattern.length > dayIndex && dayPattern[dayIndex] !== '1') continue;
+
+    const startMinutes = parseTimeToMinutes(entry.start || '0000');
+    let endMinutes = parseTimeToMinutes(entry.end || '2400');
+    if (startMinutes === null || endMinutes === null) continue;
+    if (endMinutes < startMinutes) endMinutes += 24 * 60;
+
+    let requested = requestedMinutes;
+    if (requested < startMinutes && endMinutes > 24 * 60) requested += 24 * 60;
+    if (startMinutes <= requested && requested <= endMinutes) return true;
+  }
+
+  return false;
+}
+
+export function isTimeWithinServiceHours(
   provider: Provider,
   departureTime?: string,
-  returnTime?: string,
+  returnTime?: string | null,
   travelDate?: string
 ): boolean {
   if (!departureTime && !returnTime) return true;
@@ -184,29 +285,19 @@ function isTimeWithinServiceHours(
   const retMinutes = returnTime ? parseTimeToMinutes(returnTime) : null;
   if (depMinutes === null && retMinutes === null) return true;
 
-  for (const entry of hoursList) {
-    const dayPattern = entry.day || '1111111';
-    if (dayIndex !== null && dayPattern.length > dayIndex && dayPattern[dayIndex] !== '1') continue;
+  // Outbound and return legs may legitimately fall in different service windows. The old
+  // implementation required one interval to contain both, which rejected split-shift providers.
+  return isTimeCoveredByAnyInterval(hoursList, dayIndex, depMinutes) &&
+    isTimeCoveredByAnyInterval(hoursList, dayIndex, retMinutes);
+}
 
-    const startMinutes = parseTimeToMinutes(entry.start || '0000');
-    let endMinutes = parseTimeToMinutes(entry.end || '2400');
-    if (startMinutes === null || endMinutes === null) continue;
-    if (endMinutes < startMinutes) endMinutes += 24 * 60;
-
-    let depOk = true, retOk = true;
-    if (depMinutes !== null) {
-      let d = depMinutes;
-      if (d < startMinutes && endMinutes > 24 * 60) d += 24 * 60;
-      depOk = startMinutes <= d && d <= endMinutes;
-    }
-    if (retMinutes !== null) {
-      let r = retMinutes;
-      if (r < startMinutes && endMinutes > 24 * 60) r += 24 * 60;
-      retOk = startMinutes <= r && r <= endMinutes;
-    }
-    if (depOk && retOk) return true;
+function hasKnownServiceHours(provider: Provider): boolean {
+  let serviceHours = provider.service_hours;
+  if (!serviceHours) return false;
+  if (typeof serviceHours === 'string') {
+    try { serviceHours = JSON.parse(serviceHours); } catch { return false; }
   }
-  return false;
+  return Array.isArray((serviceHours as any)?.hours) && (serviceHours as any).hours.length > 0;
 }
 
 async function geocodeAddress(address: string, apiKey: string): Promise<GeocodedLocation | null> {
@@ -280,7 +371,11 @@ function isDirectRideProvider(provider: Provider): boolean {
 
 // ─── Tool Executors ─────────────────────────────────────────────────────────
 
-async function executeFindProviders(params: FindProvidersParams, apiKey: string): Promise<ToolResult> {
+export async function executeFindProviders(
+  params: FindProvidersParams,
+  apiKey: string,
+  turn: TurnContext,
+): Promise<ToolResult> {
   try {
     const [sourceLocation, destLocation] = await Promise.all([
       geocodeAddress(params.source_address, apiKey),
@@ -332,25 +427,50 @@ async function executeFindProviders(params: FindProvidersParams, apiKey: string)
         },
       }));
 
-    const sanitized = filtered.map(({ service_zone, ...rest }) => rest);
+    const riderEligibility = {
+      ...turn.riderEligibility,
+      ...(params.rider_eligibility || {}),
+    };
+    turn.riderEligibility = riderEligibility;
+
+    const candidates = filtered.map(({ service_zone, ...rest }) => ({
+      ...rest,
+      eligibility_requirement: rest.eligibility_reqs || rest.eligibility_requirements || 'None stated',
+      service_hours_known: hasKnownServiceHours(rest as Provider),
+    }));
 
     let transitData = null;
     try {
       transitData = await getTransitDirections(sourceLocation.formatted_address, destLocation.formatted_address, apiKey);
     } catch {}
 
+    const result = {
+      status: 'awaiting_eligibility_assessment',
+      trip_type: params.trip_type || (params.return_time ? 'round_trip' : 'one_way'),
+      travel_date: params.travel_date || null,
+      departure_time: params.departure_time,
+      return_time: params.return_time || null,
+      candidates,
+      candidate_count: candidates.length,
+      rider_eligibility: riderEligibility,
+      source_address: sourceLocation.formatted_address,
+      destination_address: destLocation.formatted_address,
+      source_coordinates: { lat: sourceLocation.lat, lng: sourceLocation.lng },
+      destination_coordinates: { lat: destLocation.lat, lng: destLocation.lng },
+      filtered_out_count: matching.length - filtered.length,
+      diagnostics: {
+        geography_match_count: matching.length,
+        schedule_match_count: filtered.length,
+        providers_without_service_hours: candidates.filter((provider) => !provider.service_hours_known).length,
+      },
+      public_transit: transitData,
+    };
+
+    turn.lastSearch = { candidates, result };
+
     return {
       success: true,
-      data: {
-        data: sanitized,
-        source_address: sourceLocation.formatted_address,
-        destination_address: destLocation.formatted_address,
-        source_coordinates: { lat: sourceLocation.lat, lng: sourceLocation.lng },
-        destination_coordinates: { lat: destLocation.lat, lng: destLocation.lng },
-        total_found: sanitized.length,
-        filtered_out_count: matching.length - filtered.length,
-        public_transit: transitData,
-      },
+      data: result,
     };
   } catch (error) {
     return { success: false, error: `Error finding providers: ${error}` };
@@ -431,16 +551,151 @@ async function executeGeneralProviderQuestion(params: GeneralProviderQuestionPar
   }
 }
 
+function providerName(provider: Record<string, unknown>): string {
+  return String(provider.provider_name || provider.name || '');
+}
+
+function providerNameKey(value: unknown): string {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+const RIDER_FACT_ORDER: RiderFact[] = [
+  'residence_city',
+  'age',
+  'disabled',
+  'ada_paratransit_eligible',
+  'veteran',
+];
+
+function nextEligibilityQuestion(
+  assessments: EligibilityAssessment[],
+  rider: RiderEligibility,
+): { field: RiderFact; candidates_if_known: number; provider_names: string[]; why: string } | null {
+  if (rider.declined) return null;
+  const known: Record<RiderFact, boolean> = {
+    age: Number.isFinite(rider.age),
+    disabled: typeof rider.disabled === 'boolean',
+    ada_paratransit_eligible: typeof rider.ada_paratransit_eligible === 'boolean',
+    veteran: typeof rider.veteran === 'boolean',
+    residence_city: Boolean(rider.residence_city?.trim()),
+  };
+  const byFact = new Map<RiderFact, string[]>();
+
+  for (const assessment of assessments) {
+    if (assessment.verdict !== 'verification_required' || !assessment.missing_fact) continue;
+    if (known[assessment.missing_fact]) continue;
+    const names = byFact.get(assessment.missing_fact) || [];
+    if (!names.includes(assessment.provider_name)) names.push(assessment.provider_name);
+    byFact.set(assessment.missing_fact, names);
+  }
+
+  const ranked = [...byFact.entries()].sort((a, b) =>
+    b[1].length - a[1].length || RIDER_FACT_ORDER.indexOf(a[0]) - RIDER_FACT_ORDER.indexOf(b[0])
+  );
+  if (ranked.length === 0) return null;
+  const [field, names] = ranked[0];
+  return {
+    field,
+    candidates_if_known: names.length,
+    provider_names: names,
+    why: `${names.length} provider${names.length === 1 ? '' : 's'} can be resolved once this is known`,
+  };
+}
+
+export function executeAssessEligibility(
+  params: AssessEligibilityParams,
+  turn: TurnContext,
+): ToolResult {
+  if (!turn.lastSearch) {
+    return { success: false, error: 'Call find_providers before assess_eligibility.' };
+  }
+
+  const candidates = turn.lastSearch.candidates;
+  const candidateByName = new Map(candidates.map((provider) => [providerNameKey(providerName(provider)), provider]));
+  const assessments = Array.isArray(params.assessments) ? params.assessments : [];
+  const unknownProviders = assessments
+    .filter((assessment) => !candidateByName.has(providerNameKey(assessment.provider_name)))
+    .map((assessment) => assessment.provider_name);
+  if (unknownProviders.length > 0) {
+    return {
+      success: false,
+      error: `These providers were not candidates: ${unknownProviders.join(', ')}.`,
+      data: { candidates: candidates.map(providerName) },
+    };
+  }
+
+  const assessedNames = new Set(assessments.map((assessment) => providerNameKey(assessment.provider_name)));
+  const missingProviders = candidates
+    .map(providerName)
+    .filter((name) => !assessedNames.has(providerNameKey(name)));
+  if (missingProviders.length > 0) {
+    return {
+      success: false,
+      error: `Every candidate needs a verdict. Missing: ${missingProviders.join(', ')}.`,
+      data: { candidates: candidates.map(providerName) },
+    };
+  }
+
+  const eligible: Record<string, unknown>[] = [];
+  const verificationRequired: Record<string, unknown>[] = [];
+  const excluded: Record<string, unknown>[] = [];
+
+  for (const assessment of assessments) {
+    const provider = candidateByName.get(providerNameKey(assessment.provider_name))!;
+    const decorated = {
+      ...provider,
+      eligibility_status: assessment.verdict,
+      eligibility_reason: assessment.reason,
+      ...(assessment.missing_fact ? { missing_facts: [assessment.missing_fact] } : {}),
+    };
+    if (assessment.verdict === 'eligible') eligible.push(decorated);
+    else if (assessment.verdict === 'verification_required') verificationRequired.push(decorated);
+    else {
+      excluded.push({
+        provider_name: providerName(provider),
+        stage: 'eligibility',
+        reason: assessment.reason,
+        requirement: provider.eligibility_requirement || provider.eligibility_reqs,
+      });
+    }
+  }
+
+  const nextQuestion = nextEligibilityQuestion(assessments, turn.riderEligibility);
+  const result = {
+    ...turn.lastSearch.result,
+    status: 'complete',
+    candidates: undefined,
+    candidate_count: candidates.length,
+    data: eligible,
+    verification_required: verificationRequired,
+    excluded_providers: excluded,
+    next_question: nextQuestion,
+    total_found: eligible.length,
+    direct_provider_count: eligible.length,
+    diagnostics: {
+      ...((turn.lastSearch.result.diagnostics as Record<string, unknown>) || {}),
+      eligible_match_count: eligible.length,
+      verification_required_count: verificationRequired.length,
+      ineligible_count: excluded.length,
+    },
+  };
+  turn.latestAssessment = result;
+  return { success: true, data: result };
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export async function executeTool(
   toolName: string,
   toolInput: unknown,
-  googleMapsApiKey: string
+  googleMapsApiKey: string,
+  turn: TurnContext,
 ): Promise<ToolResult> {
   switch (toolName) {
     case 'find_providers':
-      return executeFindProviders(toolInput as FindProvidersParams, googleMapsApiKey);
+      return executeFindProviders(toolInput as FindProvidersParams, googleMapsApiKey, turn);
+    case 'assess_eligibility':
+      return executeAssessEligibility(toolInput as AssessEligibilityParams, turn);
     case 'search_addresses_from_user_query':
       return executeSearchAddresses(toolInput as SearchAddressesParams, googleMapsApiKey);
     case 'get_provider_info':

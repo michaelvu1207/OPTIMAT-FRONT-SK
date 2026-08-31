@@ -10,6 +10,7 @@
   import { pingManager, PingTypes, pings, mapFocus } from '../lib/pingManager.js';
   import { serviceZoneManager, visibleServiceZones } from '../lib/serviceZoneManager.js';
   import { decodePolyline } from '../lib/utils/decodePolyline';
+  import { NO_KEY_MAP_STYLES } from '$lib/mapStyles';
   import PageShell from '$lib/components/PageShell.svelte';
   import { Button } from '$lib/components/ui/button';
   import * as Resizable from '$lib/components/ui/resizable/index.js';
@@ -63,14 +64,7 @@
   let lastFocusSignature = '';
   $: mapKey = `${currentMapStyleId}-${mapRenderNonce}`;
 
-  const mapStyles = [
-    { id: 'voyager', name: 'Voyager', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap & CARTO' },
-    { id: 'standard', name: 'Standard', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap' },
-    { id: 'light', name: 'Light', url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap & CARTO' },
-    { id: 'dark', name: 'Dark', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap & CARTO' },
-    { id: 'satellite', name: 'Satellite', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attribution: 'Tiles &copy; Esri' },
-    { id: 'terrain', name: 'Terrain', url: 'https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png', attribution: 'Stamen / OpenStreetMap' }
-  ];
+  const mapStyles = NO_KEY_MAP_STYLES;
   let currentMapStyleId = mapStyles[0].id;
   $: currentMapStyle = mapStyles.find((s) => s.id === currentMapStyleId) || mapStyles[0];
 

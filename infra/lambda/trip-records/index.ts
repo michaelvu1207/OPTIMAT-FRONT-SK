@@ -15,7 +15,12 @@
 import { createHandler, jsonResponse, errorResponse } from '../_shared/adapter.js';
 import { query, queryRows, TABLES } from '../_shared/db.js';
 import type { ParsedRequest } from '../_shared/adapter.js';
-import { requireMigrationAdmin } from '../_shared/admin.js';
+import { randomUUID } from 'node:crypto';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+
+const region = process.env.AWS_REGION || 'us-west-1';
+const s3 = new S3Client({ region });
+const MAX_TRIP_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -444,8 +449,6 @@ export const handler = createHandler(async (req) => {
 
   // POST /trip-records/upload
   if (req.method === 'POST' && subSegments[0] === 'upload' && subSegments.length === 1) {
-    const unauthorized = await requireMigrationAdmin(req);
-    if (unauthorized) return unauthorized;
     return await uploadTripRecords(req, req.origin);
   }
 
@@ -694,7 +697,11 @@ async function listManifestTripRecordPairSummaries(
 }
 
 /**
- * Upload trip records into trip_record_pairs_raw.
+ * Store a provider CSV in the private intake bucket for asynchronous processing.
+ *
+ * This endpoint intentionally does not write provider-supplied rows directly into
+ * application tables. A later, controlled importer can validate and process the
+ * immutable source file.
  */
 async function uploadTripRecords(req: ParsedRequest, origin: string | null) {
   const payload = req.body as Record<string, unknown> | null;
@@ -707,90 +714,76 @@ async function uploadTripRecords(req: ParsedRequest, origin: string | null) {
     return errorResponse('Trip records payload is required', 400, origin);
   }
 
+  const sizeBytes = Buffer.byteLength(recordsText, 'utf8');
+  if (sizeBytes > MAX_TRIP_UPLOAD_BYTES) {
+    return errorResponse('Trip data file must be 8 MB or smaller', 413, origin);
+  }
+
+  const filenameRaw = typeof payload.filename === 'string' ? payload.filename.trim() : '';
+  if (!filenameRaw.toLowerCase().endsWith('.csv')) {
+    return errorResponse('Trip data file must use the .csv extension', 400, origin);
+  }
+
   const providerIdRaw = payload.provider_id;
-  let providerId: number | null = null;
-  if (providerIdRaw !== undefined && providerIdRaw !== null && String(providerIdRaw).trim() !== '') {
-    const parsed = Number(providerIdRaw);
-    if (Number.isNaN(parsed)) {
-      return errorResponse('Invalid provider_id', 400, origin);
-    }
-    providerId = parsed;
+  if (providerIdRaw === undefined || providerIdRaw === null || String(providerIdRaw).trim() === '') {
+    return errorResponse('Provider is required', 400, origin);
+  }
+  const providerId = Number(providerIdRaw);
+  if (!Number.isInteger(providerId) || providerId <= 0) {
+    return errorResponse('Invalid provider_id', 400, origin);
+  }
+
+  const providerRows = await queryRows<{ provider_id: number }>(
+    `SELECT provider_id FROM ${TABLES.PROVIDERS} WHERE provider_id = $1 LIMIT 1`,
+    [providerId],
+  );
+  if (providerRows.length === 0) {
+    return errorResponse('Provider was not found', 404, origin);
   }
 
   const { headers, rows } = parseUploadRows(recordsText);
   if (headers.length === 0) {
     return errorResponse('Upload must include a header row', 400, origin);
   }
-
-  const columnMap = headers.map((header) => {
-    const normalized = normalizeUploadHeader(header);
-    const mapped = UPLOAD_COLUMN_ALIASES[normalized] || normalized;
-    return UPLOAD_ALLOWED_COLUMNS.has(mapped) ? mapped : null;
-  });
-
-  const records: Record<string, unknown>[] = [];
-  for (const row of rows) {
-    const record: Record<string, unknown> = {};
-    const maxColumns = Math.min(row.length, columnMap.length);
-    for (let i = 0; i < maxColumns; i++) {
-      const column = columnMap[i];
-      if (!column) continue;
-      const rawValue = row[i]?.trim() ?? '';
-      record[column] = coerceUploadValue(column, rawValue);
-    }
-
-    if (providerId !== null && record.provider_id === undefined) {
-      record.provider_id = providerId;
-    }
-
-    if (Object.keys(record).length > 0) {
-      records.push(record);
-    }
+  if (rows.length === 0) {
+    return errorResponse('Upload must include at least one data row', 400, origin);
   }
 
-  const skippedCount = rows.length - records.length;
-  if (records.length === 0) {
-    return jsonResponse({ inserted_count: 0, skipped_count: skippedCount }, 200, origin);
+  const bucket = process.env.TRIP_UPLOAD_BUCKET;
+  if (!bucket) {
+    return errorResponse('Trip upload storage is not configured', 500, origin);
   }
 
-  // Insert in batches using parameterized SQL
-  const batchSize = 500;
+  const uploadId = randomUUID();
+  const now = new Date();
+  const safeFilename = filenameRaw
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(-120) || 'trip-records.csv';
+  const datePath = now.toISOString().slice(0, 10).replaceAll('-', '/');
+  const objectKey = `incoming/provider-${providerId}/${datePath}/${uploadId}-${safeFilename}`;
 
-  for (let i = 0; i < records.length; i += batchSize) {
-    const batch = records.slice(i, i + batchSize);
-
-    // Collect all columns used across the batch
-    const allColumns = new Set<string>();
-    for (const rec of batch) {
-      for (const col of Object.keys(rec)) {
-        allColumns.add(col);
-      }
-    }
-    const columns = Array.from(allColumns);
-
-    const values: unknown[] = [];
-    const placeholders: string[] = [];
-    let paramIdx = 1;
-
-    for (const rec of batch) {
-      const rowPlaceholders: string[] = [];
-      for (const col of columns) {
-        rowPlaceholders.push(`$${paramIdx++}`);
-        values.push(rec[col] ?? null);
-      }
-      placeholders.push(`(${rowPlaceholders.join(', ')})`);
-    }
-
-    await query(
-      `INSERT INTO ${TABLES.TRIP_RECORD_PAIRS_RAW} (${columns.join(', ')})
-       VALUES ${placeholders.join(', ')}`,
-      values,
-    );
-  }
+  await s3.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+    Body: Buffer.from(recordsText, 'utf8'),
+    ContentType: 'text/csv; charset=utf-8',
+    Metadata: {
+      provider_id: String(providerId),
+      upload_id: uploadId,
+      row_count: String(rows.length),
+    },
+  }));
 
   return jsonResponse(
-    { inserted_count: records.length, skipped_count: skippedCount },
-    200,
+    {
+      upload_id: uploadId,
+      filename: filenameRaw,
+      row_count: rows.length,
+      size_bytes: sizeBytes,
+      status: 'received',
+    },
+    201,
     origin,
   );
 }

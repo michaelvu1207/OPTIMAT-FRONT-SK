@@ -108,6 +108,13 @@ Resources:
                   - s3:GetObject
                   - s3:DeleteObject
                 Resource: !Sub ${TranscribeBucket.Arn}/*
+        - PolicyName: StoreProviderTripUploads
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub ${TripUploadBucket.Arn}/incoming/*
 
   TranscribeBucket:
     Type: AWS::S3::Bucket
@@ -150,6 +157,49 @@ Resources:
             Condition:
               StringEquals:
                 aws:SourceAccount: !Ref AWS::AccountId
+
+  TripUploadBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Application
+          Value: OPTIMAT
+        - Key: Purpose
+          Value: ProviderTripUploadIntake
+
+  TripUploadBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TripUploadBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt TripUploadBucket.Arn
+              - !Sub ${TripUploadBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
 
   HttpApiAccessLogGroup:
     Type: AWS::Logs::LogGroup
@@ -429,6 +479,9 @@ Resources:
       Role: !GetAtt ApplicationFunctionRole.Arn
       MemorySize: 512
       Timeout: 60
+      Environment:
+        Variables:
+          TRIP_UPLOAD_BUCKET: !Ref TripUploadBucket
       Events:
         Proxy:
           Type: HttpApi

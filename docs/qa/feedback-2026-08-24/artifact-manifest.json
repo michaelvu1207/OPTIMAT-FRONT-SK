@@ -1,0 +1,361 @@
+{
+  "generated_at": "2026-08-30T22:21:58.867Z",
+  "fixture": "tests/chat/feedback-2026-08-24.json",
+  "artifacts": [
+    {
+      "path": "after/RICHMOND-55-DISABLED-ADA.png",
+      "bytes": 34066,
+      "sha256": "009a05c97949ede4de12adc53f3ead7e2ef36e4b59957bba4138c43e3642391a"
+    },
+    {
+      "path": "after/RICHMOND-55-DISABLED-ADA.webm",
+      "bytes": 32590,
+      "sha256": "098010bda7bca55c4bc7b95a54a34dbd684f1e66882b63950b9b543be5f4ef92"
+    },
+    {
+      "path": "after/RICHMOND-65-NOT-ADA.png",
+      "bytes": 68940,
+      "sha256": "b3869c1f5ae3c4f24219ea9f3f83b762a4a33feddba0c03d210c6daf290c07cb"
+    },
+    {
+      "path": "after/RICHMOND-65-NOT-ADA.webm",
+      "bytes": 58712,
+      "sha256": "665c5ad1ea105e005b33ea09e8a0ae828d6779d365ab69134339f931a25da72c"
+    },
+    {
+      "path": "after/RICHMOND-WC-55-ADA.png",
+      "bytes": 36538,
+      "sha256": "31c06359adc9730ee5596de00e57ddd4f68b10f3a3912000b266c34f0c94c49c"
+    },
+    {
+      "path": "after/RICHMOND-WC-55-ADA.webm",
+      "bytes": 31929,
+      "sha256": "d09dc8147f03c1e64715c04331bb8247d6fa8d7913b52f2aedffed0fc5690f7a"
+    },
+    {
+      "path": "after/RICHMOND-WC-65-ADA.png",
+      "bytes": 70105,
+      "sha256": "ebb1eb0da80d1a24f4e7d6f6f2f3ce429032aa81ea7c21840b817cb51a242aca"
+    },
+    {
+      "path": "after/RICHMOND-WC-65-ADA.webm",
+      "bytes": 56485,
+      "sha256": "5106e4b671bca9a0d99fca9af46e3f3ca386ae9abc06eda5dc60e76bb4a93fae"
+    },
+    {
+      "path": "after/RICHMOND-WC-65-NOT-DISABLED.png",
+      "bytes": 68972,
+      "sha256": "a0a0229c014f10f4e793423f0cd55166c2d6f985cafa2cc86f02037b9cd0bccb"
+    },
+    {
+      "path": "after/RICHMOND-WC-65-NOT-DISABLED.webm",
+      "bytes": 56690,
+      "sha256": "2965e8bcc1bb52608d4baf80103d5c693a7ae42b88519b12b34c1bfba12701f4"
+    },
+    {
+      "path": "after/SR-55-DISABLED-ADA.png",
+      "bytes": 79610,
+      "sha256": "47cfca8e3fb2f239f0c247ed315762be841b5dd6210caad68d5a3a925f20f454"
+    },
+    {
+      "path": "after/SR-55-DISABLED-ADA.webm",
+      "bytes": 68187,
+      "sha256": "4a29b7464b509a21b2abe1671724fa3c219e73857edbe0c76f60760d5a6daa5f"
+    },
+    {
+      "path": "after/SR-55-NOT-DISABLED.png",
+      "bytes": 92448,
+      "sha256": "d59dcfa9b6118bd5bcd527b78e026a36274fbf67da4115472524d8cd10d52827"
+    },
+    {
+      "path": "after/SR-55-NOT-DISABLED.webm",
+      "bytes": 86426,
+      "sha256": "c6245fc9711253efeb5214ff803297614ccb1b850e18d5137cbcf9ee5b943002"
+    },
+    {
+      "path": "after/SR-65-DISABLED-ADA.png",
+      "bytes": 94208,
+      "sha256": "bc65898611bef8120fa46afe09176c7cfe0fa4793660f50d93222c99a97393ee"
+    },
+    {
+      "path": "after/SR-65-DISABLED-ADA.webm",
+      "bytes": 77176,
+      "sha256": "eb2189d840ee8500e1c248fe23a3ac5d96381735f1ae5cdb4e08a63291e1d451"
+    },
+    {
+      "path": "after/SR-65-NOT-DISABLED.png",
+      "bytes": 82830,
+      "sha256": "0e7e4db40edbc495de16a8375bc65b5f4aee835a4e247a0e26dcd1b6dcc446bf"
+    },
+    {
+      "path": "after/SR-65-NOT-DISABLED.webm",
+      "bytes": 68336,
+      "sha256": "db5bc844662f5f16374415594f2485c73782f7e77408781d9b6bcb1d8f86ac45"
+    },
+    {
+      "path": "after/WC-55-DISABLED-ADA.png",
+      "bytes": 76728,
+      "sha256": "d5cd0a07a82e78e222698bface96df6a8ab1b5eae348f970c480294438b3360c"
+    },
+    {
+      "path": "after/WC-55-DISABLED-ADA.webm",
+      "bytes": 75956,
+      "sha256": "861ff70ed3a4beabd5d9ad77d33323d01ba17f1d3eef6d579e7aa90c54a48ea7"
+    },
+    {
+      "path": "after/WC-55-NOT-DISABLED.png",
+      "bytes": 37273,
+      "sha256": "02e4f0b2ad6bfb32f54e02d422863b466e1dd7e4f4b001c90162292907fda643"
+    },
+    {
+      "path": "after/WC-55-NOT-DISABLED.webm",
+      "bytes": 31492,
+      "sha256": "27c6acd9d38f0f32adf5e044dd05a6637b302195e1f98c2497e5ab7b193a54f5"
+    },
+    {
+      "path": "after/WC-65-DISABLED-ADA.png",
+      "bytes": 77129,
+      "sha256": "462d400617a813a6cf92cd222a0c4b73407cabab3df6c592fc6f07b934144c84"
+    },
+    {
+      "path": "after/WC-65-DISABLED-ADA.webm",
+      "bytes": 67618,
+      "sha256": "c1a96426e179375ffa4ce1c2deaea50a4795996bb8630579b717b4a2d07bc27e"
+    },
+    {
+      "path": "after/WC-65-NOT-DISABLED.png",
+      "bytes": 82985,
+      "sha256": "12c65521742842902e6c8cc8d0479861d1ea4d96b928ef6570d1c8575b7422b8"
+    },
+    {
+      "path": "after/WC-65-NOT-DISABLED.webm",
+      "bytes": 71054,
+      "sha256": "ceb8114de21e3f0d42216f366ed182e92b599bd0345ed1f2e3cc0152fe698a0e"
+    },
+    {
+      "path": "after/WC-RESIDENCE.png",
+      "bytes": 58307,
+      "sha256": "a6de4e89ba33caae003fa1ec855d527dacf8387898501277dd08646ef82e96ef"
+    },
+    {
+      "path": "after/WC-RESIDENCE.webm",
+      "bytes": 48553,
+      "sha256": "f0de8bf099c8548b916c1ee0ce9e3a1ab44ac2215558edb8d5df461eafa69389"
+    },
+    {
+      "path": "before/RICHMOND-55-DISABLED-ADA.png",
+      "bytes": 61023,
+      "sha256": "7750120f774d3d8bab8fea0b28e078cff4cafb8c181ff40607be2473e12b4b89"
+    },
+    {
+      "path": "before/RICHMOND-55-DISABLED-ADA.webm",
+      "bytes": 47016,
+      "sha256": "dee43901b05ac26f2db8431e65a01b07d69f18bbadf779003c16b3f656ba24aa"
+    },
+    {
+      "path": "before/RICHMOND-65-NOT-ADA.png",
+      "bytes": 60199,
+      "sha256": "d7cedec852e0ce44113a89c5cbe5c2f5cca144c896519580446738ca5f2ee2f3"
+    },
+    {
+      "path": "before/RICHMOND-65-NOT-ADA.webm",
+      "bytes": 55291,
+      "sha256": "e49406207a760a8d9b2db23333bd373ed3b99d8e6508170944896b4bda47e808"
+    },
+    {
+      "path": "before/RICHMOND-WC-55-ADA.png",
+      "bytes": 62982,
+      "sha256": "b4c99b13aaeb33fc8bb54d740598a9eb59cdd0b9953e1bcf7441286fb38dc4fc"
+    },
+    {
+      "path": "before/RICHMOND-WC-55-ADA.webm",
+      "bytes": 49309,
+      "sha256": "147c77beb1f7732bc10cc42726de64f2d73488f4da9740c672af7eae8b040daf"
+    },
+    {
+      "path": "before/RICHMOND-WC-65-ADA.png",
+      "bytes": 63001,
+      "sha256": "f646bc4e127d83ffbe66f06ee1680841517984826c098c651aa2058bd3b4f149"
+    },
+    {
+      "path": "before/RICHMOND-WC-65-ADA.webm",
+      "bytes": 59650,
+      "sha256": "8ff63acee1ed9aac3cffea65034ebb03139c5fb79427268905be54bd55e00411"
+    },
+    {
+      "path": "before/RICHMOND-WC-65-NOT-DISABLED.png",
+      "bytes": 62752,
+      "sha256": "ea335dc7fc6643a36c15de4c4b6dacb0a3b198ce011eb1146bc626702c17c272"
+    },
+    {
+      "path": "before/RICHMOND-WC-65-NOT-DISABLED.webm",
+      "bytes": 50560,
+      "sha256": "08d6b7a4a4e09a65b133006a1ea39dcf6724953e64c92eea5f036bb27786e4ff"
+    },
+    {
+      "path": "before/SR-55-DISABLED-ADA.png",
+      "bytes": 71639,
+      "sha256": "4bf6f204fb197676281f13f2cce7f366ba3a3530d2dac8b6b6d983fe6fb48fb9"
+    },
+    {
+      "path": "before/SR-55-DISABLED-ADA.webm",
+      "bytes": 63857,
+      "sha256": "0a5d4716f94d5390483ba33a38392cb6c9e79268e5108fd0480d75e0cec945e6"
+    },
+    {
+      "path": "before/SR-55-NOT-DISABLED.png",
+      "bytes": 85783,
+      "sha256": "2a629c619f82514916ad113e19555ba0e9491e3f8d78abd6284b959421432c3e"
+    },
+    {
+      "path": "before/SR-55-NOT-DISABLED.webm",
+      "bytes": 79369,
+      "sha256": "72f1e465d35505d9e16279dbc1805d18b6272b3cc51e1d55c59d5d7c9cf7d20b"
+    },
+    {
+      "path": "before/SR-65-DISABLED-ADA.png",
+      "bytes": 85915,
+      "sha256": "32c16554ca5abd4bc81059e796e82fe3e0edaf06d7b10495a99842a501d9c8cb"
+    },
+    {
+      "path": "before/SR-65-DISABLED-ADA.webm",
+      "bytes": 69941,
+      "sha256": "858da7b8ac89602a65917f8e67e0e2403a361d63b56aedc6f5aa2a6f0a0ea693"
+    },
+    {
+      "path": "before/SR-65-NOT-DISABLED.png",
+      "bytes": 85773,
+      "sha256": "1e887141223241e89d40645e453221d3841f75ff17c85dffb0c40eb1752685c6"
+    },
+    {
+      "path": "before/SR-65-NOT-DISABLED.webm",
+      "bytes": 73773,
+      "sha256": "550a9148429d3d57a55e7866dc9a478e9e92220729795d19d17c6675e700c147"
+    },
+    {
+      "path": "before/WC-55-DISABLED-ADA.png",
+      "bytes": 83095,
+      "sha256": "cbc3a3f4e045a319b9624a1384cf738c640b562ee555daade7189586b173ec99"
+    },
+    {
+      "path": "before/WC-55-DISABLED-ADA.webm",
+      "bytes": 77022,
+      "sha256": "c661f9b1e9fd668d5c9507816b107001b871429e75e7541d893b65bbfcee4f43"
+    },
+    {
+      "path": "before/WC-55-NOT-DISABLED.png",
+      "bytes": 87305,
+      "sha256": "2a27c3eadd390b0515f13f5398004cb23fa8196e525bf5ebbb2764ffb2ba9a9b"
+    },
+    {
+      "path": "before/WC-55-NOT-DISABLED.webm",
+      "bytes": 67914,
+      "sha256": "1f941279256d03478eecc12723c821d29dcf40d2812c591e99f2d1216a329067"
+    },
+    {
+      "path": "before/WC-65-DISABLED-ADA.png",
+      "bytes": 82743,
+      "sha256": "eb1dc0945e13a86d776ecd53f0d55f90e6d831349f5b1ce40c6c07fa570fa914"
+    },
+    {
+      "path": "before/WC-65-DISABLED-ADA.webm",
+      "bytes": 66232,
+      "sha256": "42f0dee332fb89ecccc440268a3dd3dac54ab9a328e601e97c83d3359728a056"
+    },
+    {
+      "path": "before/WC-65-NOT-DISABLED.png",
+      "bytes": 84128,
+      "sha256": "f41609f6b9b639c33671107eff874e509d63672291728b32f7b116460b47cf84"
+    },
+    {
+      "path": "before/WC-65-NOT-DISABLED.webm",
+      "bytes": 67588,
+      "sha256": "0214d0a4e435dedb8f82dc437258222c4fc63863c588b712cd0a5da8bd290aac"
+    },
+    {
+      "path": "before/WC-RESIDENCE.png",
+      "bytes": 52586,
+      "sha256": "e911d117d34433db5f4002b0a6c315cd24c8ac11b8fffe1f5233509375a96fb2"
+    },
+    {
+      "path": "before/WC-RESIDENCE.webm",
+      "bytes": 42604,
+      "sha256": "c21446259cd6bf1e73d821b4fd885bde400711167a474c26bed79b7feae42c34"
+    },
+    {
+      "path": "comparisons/RICHMOND-55-DISABLED-ADA.mp4",
+      "bytes": 61157,
+      "sha256": "bb7e974443e32995a9a49586f0eed75e90b70898a2304b90f39cfa56e2268e80"
+    },
+    {
+      "path": "comparisons/RICHMOND-65-NOT-ADA.mp4",
+      "bytes": 102116,
+      "sha256": "498d6805ad1e9bde9e9b3da4227766cee6aceb4b0439c913e45603ad9a391fa9"
+    },
+    {
+      "path": "comparisons/RICHMOND-WC-55-ADA.mp4",
+      "bytes": 79568,
+      "sha256": "36ee13cb4ec41c2f0609b96cd07e9a36b59293336896389f049345e722167349"
+    },
+    {
+      "path": "comparisons/RICHMOND-WC-65-ADA.mp4",
+      "bytes": 86493,
+      "sha256": "0fd9d3e10d7a0aa9f046188bf4ffbf1b81e972a5c2ba06c74028fbf2ec41bb2f"
+    },
+    {
+      "path": "comparisons/RICHMOND-WC-65-NOT-DISABLED.mp4",
+      "bytes": 82733,
+      "sha256": "5bb717e9114b24f9bdde950b2750c5df825f63786d25cf763ca14de3c19cfd28"
+    },
+    {
+      "path": "comparisons/SR-55-DISABLED-ADA.mp4",
+      "bytes": 92349,
+      "sha256": "279f2bcf24db620e96d11254e8d2f66d841af5593062fc893c169f1c091d6b9c"
+    },
+    {
+      "path": "comparisons/SR-55-NOT-DISABLED.mp4",
+      "bytes": 145959,
+      "sha256": "d40f63ae40f9f7a218dc16a36024fe3e96b65cdc279d7b0120eb4435c7b4378f"
+    },
+    {
+      "path": "comparisons/SR-65-DISABLED-ADA.mp4",
+      "bytes": 113177,
+      "sha256": "c8e2f0124ae3548331a685b7eedc670ac6cecd82085bd702c0d8e874f4ea066b"
+    },
+    {
+      "path": "comparisons/SR-65-NOT-DISABLED.mp4",
+      "bytes": 128124,
+      "sha256": "8711c5bd483ee68de14143547982160cfb9cfb743af2243deaac80a098753502"
+    },
+    {
+      "path": "comparisons/WC-55-DISABLED-ADA.mp4",
+      "bytes": 123359,
+      "sha256": "72ed77db2dd66fc48350fd71b9c8ea045199b1de7864cfa351d67402d7d7d97b"
+    },
+    {
+      "path": "comparisons/WC-55-NOT-DISABLED.mp4",
+      "bytes": 82545,
+      "sha256": "b2bddc283c81328bd04835f419d58d5dfdf2e715aea448fff62022212e06ea91"
+    },
+    {
+      "path": "comparisons/WC-65-DISABLED-ADA.mp4",
+      "bytes": 128186,
+      "sha256": "75cdd5f022ea1227773f40d056de79b15a4ee94bb88d78fe6420677dd3431441"
+    },
+    {
+      "path": "comparisons/WC-65-NOT-DISABLED.mp4",
+      "bytes": 104699,
+      "sha256": "4922ef291d5a525dc2a583603f096c82b2cd0c428042669f9ba970f69d7a9d27"
+    },
+    {
+      "path": "comparisons/WC-RESIDENCE.mp4",
+      "bytes": 84595,
+      "sha256": "45603a52423452d2e29f81d6bf166a910f22af1795cc69cc2ebba016e0b294b2"
+    },
+    {
+      "path": "feedback-2026-08-24-before-after-summary.mp4",
+      "bytes": 1404307,
+      "sha256": "7edd916a76953df87ea056137012fa6c92ad08f91ecf139b7b0be3b3bf813377"
+    }
+  ]
+}

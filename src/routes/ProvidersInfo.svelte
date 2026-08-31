@@ -6,6 +6,7 @@
   import PageShell from '$lib/components/PageShell.svelte';
   import * as Resizable from '$lib/components/ui/resizable/index.js';
   import { getAllProviders } from '$lib/api';
+  import { NO_KEY_MAP_STYLES } from '$lib/mapStyles';
   import {
     formatBooking,
     formatEligibilityReqs,
@@ -27,12 +28,7 @@
   let mapZoom = 10;
   let mapKey = 'initial';
 
-  const mapStyles = [
-    { id: 'voyager', name: 'Voyager', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap & CARTO' },
-    { id: 'standard', name: 'Standard', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap' },
-    { id: 'light', name: 'Light', url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap & CARTO' },
-    { id: 'dark', name: 'Dark', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap & CARTO' }
-  ];
+  const mapStyles = NO_KEY_MAP_STYLES;
   let currentMapStyleId = mapStyles[0].id;
   $: currentMapStyle = mapStyles.find((style) => style.id === currentMapStyleId) || mapStyles[0];
 

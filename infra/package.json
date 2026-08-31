@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build:baseline": "node ../scripts/migration/build-aurora-baseline.mjs",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "node --import tsx --test lambda/chat/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.700.0",
@@ -20,6 +21,7 @@
     "@types/aws-lambda": "^8.10.145",
     "@types/pg": "^8.11.0",
     "esbuild": "^0.24.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.7.0"
   }
 }

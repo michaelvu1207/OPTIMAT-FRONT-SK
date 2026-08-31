@@ -796,8 +796,11 @@ export async function getTripRecordStats(
 }
 
 export interface TripRecordUploadResponse {
-  inserted_count: number;
-  skipped_count?: number;
+  upload_id: string;
+  filename: string;
+  row_count: number;
+  size_bytes: number;
+  status: 'received';
 }
 
 export async function uploadTripRecords(payload: {

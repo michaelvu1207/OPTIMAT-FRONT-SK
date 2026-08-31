@@ -12,24 +12,30 @@ import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-r
 import { createHandler, jsonResponse, errorResponse } from '../_shared/adapter.js';
 import { query, queryRows, queryOne, TABLES } from '../_shared/db.js';
 import { toolDefinitions, executeTool, storeToolCall, type ToolResult } from './tools.js';
+import { buildRiderFactsBlock, loadTurnContext, saveTurnContext } from './state.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const BEDROCK_MODEL_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+const BEDROCK_MODEL_ID = process.env.CHAT_MODEL_ID || 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 const MAX_TOOL_ITERATIONS = 10;
 
 const SYSTEM_PROMPT = `You are a helpful assistant developed by OPTIMAT, a team that provides transportation services for people with disabilities and seniors.
 You can find paratransit providers that can serve a trip between an origin (pickup) and destination (drop-off) address. The find_providers tool requires departure_time and return_time parameters to filter providers by their service hours.
 
-Before calling find_providers, you MUST ask the user for:
-1. Their eligibility context - ask about age/senior status, disability or ADA paratransit eligibility, veteran status, and where they live. If they don't qualify for any category or prefer not to say, that's fine - just note "none" or "unknown" for eligibility. This is REQUIRED before searching.
-2. What time they want to be picked up to go to their destination (this is the departure_time)
-3. What time they want to return back to their origin/home (this is the return_time)
+The find_providers tool filters by source/destination GeoJSON and known service hours. It returns candidates,
+not recommendations. Once it returns candidates, you MUST call assess_eligibility and provide exactly one verdict
+for every candidate before answering. Provider cards are created only from that assessment.
 
-IMPORTANT: You must have the user's eligibility context (or confirmation they prefer not to share) before calling find_providers. The tool filters by trip geography and service hours, but it does not filter by eligibility. It returns each provider's eligibility requirements. You must compare those requirements to the user's situation and recommend providers in plain English.
+Pass eligibility as structured facts: exact age, disability, approved ADA paratransit eligibility, veteran status,
+and residence city. Use only facts the rider explicitly stated. A pickup address is not proof of residence unless
+the rider identifies it as home. Unknown facts stay unknown.
 
 When reviewing returned providers:
-- Recommend providers only when the returned eligibility text appears to match the user's situation.
+- Preserve every AND/OR clause in the returned eligibility text, including residence.
+- Use verification_required when an unknown fact could change the answer and name that missing fact.
+- Never omit a candidate from assess_eligibility; use ineligible when a known fact rules it out.
+- Recommend providers only after assess_eligibility returns them in its eligible results.
+- If service_hours_known is false, say the requested time still needs confirmation with the provider.
 - Treat every eligibility match as preliminary. In rider-facing responses, say "you may qualify" or "you could be eligible" and tell the rider the provider makes the final determination. Never say "you qualify", "you are eligible", or otherwise make a definitive eligibility determination.
 - If a provider may match but needs an application, proof, ADA approval, residency proof, or a provider decision, say that clearly.
 - If a provider does not appear to match, do not present it as a recommendation; at most mention it as not likely eligible if useful.
@@ -68,8 +74,8 @@ When you get the trip information, summarize the trip including:
 7. For each recommended provider, include the eligibility reason and any proof/application step shown in the provider data.
 Format it concisely.
 
-Please send multiple short messages to the user to ask for the information.
-If the user already provided the information, you can skip asking for it.
+Ask only for information that changes at least one candidate's eligibility. Reuse known rider facts from prior turns.
+If the rider already provided the information, do not ask again.
 
 If the user asks for information about a specific provider, you must ask for the provider name.
 
@@ -163,6 +169,12 @@ function sanitizeAttachmentForChat(attachment: Attachment): Attachment {
 }
 
 function buildNoProviderResponse(providerSearch: Record<string, unknown>): string | null {
+  if (providerSearch.status === 'awaiting_eligibility_assessment') {
+    const candidates = Array.isArray(providerSearch.candidates) ? providerSearch.candidates : [];
+    // If candidates exist, the model still owes the required assessment; do not misreport them as
+    // a geographic failure. The tool error in the next iteration tells it exactly what to finish.
+    if (candidates.length > 0) return null;
+  }
   const providers = Array.isArray(providerSearch.data) ? providerSearch.data : [];
   const totalFound =
     typeof providerSearch.total_found === 'number' ? providerSearch.total_found : providers.length;
@@ -238,6 +250,9 @@ export const handler = createHandler(async (req) => {
     return errorResponse('Conversation not found', 404, req.origin);
   }
 
+  const turn = await loadTurnContext(body.conversation_id);
+  const systemPrompt = `${SYSTEM_PROMPT}\n\n${buildRiderFactsBlock(turn.riderEligibility)}`;
+
   // Load conversation history
   const existingMessages = await queryRows(
     `SELECT role, content FROM ${TABLES.MESSAGES}
@@ -276,10 +291,10 @@ export const handler = createHandler(async (req) => {
 
     const command = new ConverseCommand({
       modelId: BEDROCK_MODEL_ID,
-      system: [{ text: SYSTEM_PROMPT }],
+      system: [{ text: systemPrompt }],
       messages: currentMessages,
       toolConfig: { tools: bedrockTools as any },
-      inferenceConfig: { maxTokens: 1500 },
+      inferenceConfig: { maxTokens: Number(process.env.CHAT_MAX_TOKENS || 4000) },
     });
 
     const response = await bedrockClient.send(command);
@@ -304,13 +319,14 @@ export const handler = createHandler(async (req) => {
       if (!toolUse?.name || !toolUse.toolUseId) continue;
       console.log(`Executing tool: ${toolUse.name}`, toolUse.input);
 
-      const result: ToolResult = await executeTool(toolUse.name, toolUse.input, googleMapsApiKey);
+      const result: ToolResult = await executeTool(toolUse.name, toolUse.input, googleMapsApiKey, turn);
       await storeToolCall(body.conversation_id, toolUse.name, toolUse.input, result);
 
       // Build attachment
       if (result.success && result.data) {
         const typeMap: Record<string, string> = {
           find_providers: 'provider_search',
+          assess_eligibility: 'provider_search',
           search_addresses_from_user_query: 'address_search',
           get_provider_info: 'provider_info',
           general_provider_question: 'web_search',
@@ -345,6 +361,7 @@ export const handler = createHandler(async (req) => {
     finalResponse = noProviderResponse;
   }
   finalResponse = softenEligibilityClaims(finalResponse);
+  await saveTurnContext(body.conversation_id, turn);
 
   // Save assistant response
   if (finalResponse) {

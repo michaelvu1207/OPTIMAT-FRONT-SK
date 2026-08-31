@@ -1,0 +1,22 @@
+{
+  "mode": "after",
+  "fixture": "Initial review spreadsheet, To be fixed notes 8/24/26",
+  "captured_at": "2026-08-30T22:20:37.981Z",
+  "viewport": "1280x720",
+  "scenarios": [
+    "WC-RESIDENCE",
+    "WC-65-DISABLED-ADA",
+    "WC-65-NOT-DISABLED",
+    "WC-55-NOT-DISABLED",
+    "WC-55-DISABLED-ADA",
+    "SR-65-DISABLED-ADA",
+    "SR-65-NOT-DISABLED",
+    "SR-55-NOT-DISABLED",
+    "SR-55-DISABLED-ADA",
+    "RICHMOND-65-NOT-ADA",
+    "RICHMOND-55-DISABLED-ADA",
+    "RICHMOND-WC-65-ADA",
+    "RICHMOND-WC-65-NOT-DISABLED",
+    "RICHMOND-WC-55-ADA"
+  ]
+}

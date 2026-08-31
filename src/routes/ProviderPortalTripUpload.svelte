@@ -67,8 +67,8 @@
 
       if (error) throw error;
 
-      const insertedCount = data?.inserted_count ?? 0;
-      uploadSuccess = `Upload complete. Inserted ${insertedCount} rows.`;
+      const rowCount = data?.row_count ?? 0;
+      uploadSuccess = `Upload received. ${rowCount} data rows were saved for processing.`;
     } catch (err) {
       uploadError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -107,12 +107,14 @@
     {:else}
       <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-lg border border-slate-200 p-6">
         <h1 class="text-xl font-bold text-slate-900">Trip Upload</h1>
-        <p class="text-sm text-slate-600 mt-1">Upload trip data for {provider.provider_name}.</p>
+        <p class="text-sm text-slate-600 mt-1">Upload trip data for {provider.provider_name}. Files are stored securely for processing.</p>
 
         <div
           class={`mt-6 border-2 border-dashed rounded-xl p-6 text-center transition ${
             isDragging ? 'border-primary bg-primary/5' : 'border-slate-200'
           }`}
+          role="button"
+          tabindex="0"
           on:dragover|preventDefault={() => { isDragging = true; }}
           on:dragleave={() => { isDragging = false; }}
           on:drop={handleDrop}

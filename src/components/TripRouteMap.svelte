@@ -1,5 +1,6 @@
 <script>
   import { Map, TileLayer, Polyline, CircleMarker } from 'sveaflet';
+  import { DEFAULT_MAP_STYLE } from '$lib/mapStyles';
   export let mapKey = 'trip-map';
   export let center = [37.989, -121.835];
   export let zoom = 11;
@@ -19,10 +20,9 @@
     style="height: 100vh; width: 100%; border-radius: 0; overflow: hidden;"
   >
     <TileLayer
-      url={'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'}
+      url={DEFAULT_MAP_STYLE.url}
       options={{
-        attribution:
-          "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors &copy; <a href='https://carto.com/attributions'>CARTO</a>"
+        attribution: DEFAULT_MAP_STYLE.attribution
       }}
     />
 

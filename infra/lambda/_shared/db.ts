@@ -29,6 +29,7 @@ export const TABLES = {
   GET_PROVIDER_INFO_CALLS: `${OPTIMAT_SCHEMA}.get_provider_info_calls`,
   GENERAL_QUESTION_CALLS: `${OPTIMAT_SCHEMA}.general_question_calls`,
   CONVERSATION_STATES: `${OPTIMAT_SCHEMA}.conversation_states`,
+  CHAT_TRIP_STATE: `${OPTIMAT_SCHEMA}.chat_trip_state`,
   TOOL_CALLS: `${OPTIMAT_SCHEMA}.tool_calls`,
   TRIP_RECORD_PAIRS_RAW: `${OPTIMAT_SCHEMA}.trip_record_pairs_raw`,
   DEMAND_RESPONSE_MANIFEST_REVIEW: `${OPTIMAT_SCHEMA}.demand_response_manifest_review`,

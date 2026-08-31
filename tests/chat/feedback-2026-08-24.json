@@ -1,0 +1,103 @@
+{
+  "source": "Initial review spreadsheet, To be fixed notes 8/24/26",
+  "scenarios": [
+    {
+      "id": "WC-RESIDENCE",
+      "trip": "Walnut Creek local trip",
+      "rider": { "disabled": true, "ada_paratransit_eligible": true, "veteran": false, "residence_city": "Walnut Creek" },
+      "feedback": "Tool only sometimes asks residence and incorrectly recommends Lamorinda.",
+      "after": "Reuse the known Walnut Creek residence and exclude Lamorinda Spirit for its Lafayette/Moraga/Orinda residence rule."
+    },
+    {
+      "id": "WC-65-DISABLED-ADA",
+      "trip": "317 Dogwood Dr, Walnut Creek to 301 Lennon Lane, Walnut Creek, noon to 2 PM",
+      "rider": { "age": 65, "disabled": true, "ada_paratransit_eligible": true, "residence_city": "Walnut Creek" },
+      "feedback": "Incorrectly includes Lamorinda and Rossmoor Dial-A-Bus.",
+      "after": "Exclude Lamorinda for residence mismatch and Rossmoor for missing Rossmoor residency/ID."
+    },
+    {
+      "id": "WC-65-NOT-DISABLED",
+      "trip": "317 Dogwood Dr, Walnut Creek to 301 Lennon Lane, Walnut Creek, noon to 2 PM",
+      "rider": { "age": 65, "disabled": false, "ada_paratransit_eligible": false, "residence_city": "Walnut Creek" },
+      "feedback": "Incorrectly displays LINK and Lamorinda Spirit.",
+      "after": "Exclude LINK for the known disability/ADA mismatch and Lamorinda for residence mismatch."
+    },
+    {
+      "id": "WC-55-NOT-DISABLED",
+      "trip": "2125 Tice Creek Dr, Walnut Creek to 1990 Market St, Concord, noon to 3 PM",
+      "rider": { "age": 55, "disabled": false, "ada_paratransit_eligible": false, "residence_city": "Walnut Creek" },
+      "feedback": "Mobility Matters should only be recommended if veteran; LINK, Walnut Creek 60+ programs, and Lamorinda were incorrectly recommended.",
+      "after": "Exclude known age/disability/residence mismatches and ask veteran status only because it can change Mobility Matters."
+    },
+    {
+      "id": "WC-55-DISABLED-ADA",
+      "trip": "2125 Tice Creek Dr, Walnut Creek to 1990 Market St, Concord, noon to 3 PM",
+      "rider": { "age": 55, "disabled": true, "ada_paratransit_eligible": true, "residence_city": "Walnut Creek" },
+      "feedback": "Incorrectly mentions Lamorinda Spirit.",
+      "after": "Exclude Lamorinda for residence mismatch; leave unresolved LINK prioritization to the documented policy decision."
+    },
+    {
+      "id": "SR-65-DISABLED-ADA",
+      "trip": "2569 Twin Creeks Drive, San Ramon to 2601 San Ramon Valley Blvd, July 30 noon to 3 PM",
+      "rider": { "age": 65, "disabled": true, "ada_paratransit_eligible": true, "residence_city": "San Ramon" },
+      "feedback": "Missing San Ramon Senior Van Express.",
+      "after": "Explain that the stored/published schedule does not confirm the requested return; do not fabricate availability pending data-team confirmation."
+    },
+    {
+      "id": "SR-65-NOT-DISABLED",
+      "trip": "2569 Twin Creeks Drive, San Ramon to 2601 San Ramon Valley Blvd, July 30 noon to 3 PM",
+      "rider": { "age": 65, "disabled": false, "ada_paratransit_eligible": false, "residence_city": "San Ramon" },
+      "feedback": "Incorrectly mentions LINK and misses Senior Van Express.",
+      "after": "Exclude LINK; explain the Senior Van schedule/data limitation."
+    },
+    {
+      "id": "SR-55-NOT-DISABLED",
+      "trip": "2569 Twin Creeks Drive, San Ramon to 2601 San Ramon Valley Blvd, July 30 noon to 3 PM",
+      "rider": { "age": 55, "disabled": false, "ada_paratransit_eligible": false, "residence_city": "San Ramon" },
+      "feedback": "Incorrectly mentions LINK and misses Senior Van Express.",
+      "after": "Exclude LINK, ask veteran status only when needed for Mobility Matters, and explain the Senior Van schedule/data limitation."
+    },
+    {
+      "id": "SR-55-DISABLED-ADA",
+      "trip": "2569 Twin Creeks Drive, San Ramon to 2601 San Ramon Valley Blvd, July 30 noon to 3 PM",
+      "rider": { "age": 55, "disabled": true, "ada_paratransit_eligible": true, "residence_city": "San Ramon" },
+      "feedback": "LINK should not be recommended when a single agency can fulfill the trip; Senior Van Express is missing.",
+      "after": "Keep LINK prioritization explicitly unresolved and explain the Senior Van schedule/data limitation."
+    },
+    {
+      "id": "RICHMOND-65-NOT-ADA",
+      "trip": "6083 Monterey Ave, Richmond to 2222 East St, Concord, 10 AM to 4 PM",
+      "rider": { "age": 65, "disabled": true, "ada_paratransit_eligible": false, "residence_city": "Richmond" },
+      "feedback": "Correctly recommends Mobility Matters because the user is a senior.",
+      "after": "Preserve cautious 'may qualify' wording and flag unconfirmed schedule/additional provider conditions."
+    },
+    {
+      "id": "RICHMOND-55-DISABLED-ADA",
+      "trip": "6083 Monterey Ave, Richmond to 2222 East St, Concord, 10 AM to 4 PM",
+      "rider": { "age": 55, "disabled": true, "ada_paratransit_eligible": true, "residence_city": "Richmond" },
+      "feedback": "Correctly says the rider may qualify rather than definitively qualifies.",
+      "after": "Preserve preliminary wording and ask veteran status if it is the only fact that could unlock Mobility Matters."
+    },
+    {
+      "id": "RICHMOND-WC-65-ADA",
+      "trip": "3815 Lakeside Dr, Richmond to 365 Lennon Ln, Walnut Creek, August 7 noon to 3 PM",
+      "rider": { "age": 65, "disabled": true, "ada_paratransit_eligible": true, "residence_city": "Richmond" },
+      "feedback": "Missing One-Seat Regional Ride.",
+      "after": "Do not invent One-Seat eligibility for a non-confirmed participating origin; flag the program/network data decision."
+    },
+    {
+      "id": "RICHMOND-WC-65-NOT-DISABLED",
+      "trip": "3815 Lakeside Dr, Richmond to 365 Lennon Ln, Walnut Creek, August 7 noon to 3 PM",
+      "rider": { "age": 65, "disabled": false, "ada_paratransit_eligible": false, "residence_city": "Richmond" },
+      "feedback": "Correctly recommends Mobility Matters and correctly does not recommend One-Seat.",
+      "after": "Preserve the correct eligibility result and preliminary wording."
+    },
+    {
+      "id": "RICHMOND-WC-55-ADA",
+      "trip": "3815 Lakeside Dr, Richmond to 365 Lennon Ln, Walnut Creek, August 7 noon to 3 PM",
+      "rider": { "age": 55, "disabled": true, "ada_paratransit_eligible": true, "residence_city": "Richmond" },
+      "feedback": "Mobility Matters incorrectly displayed because the user is not a senior; One-Seat is missing.",
+      "after": "Do not recommend Mobility Matters without veteran status; flag One-Seat participation as a data/policy decision."
+    }
+  ]
+}
