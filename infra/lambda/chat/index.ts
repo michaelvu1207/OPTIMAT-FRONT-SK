@@ -26,8 +26,9 @@ The find_providers tool filters by source/destination GeoJSON and known service 
 not recommendations. Once it returns candidates, you MUST call assess_eligibility and provide exactly one verdict
 for every candidate before answering. Provider cards are created only from that assessment.
 
-Pass eligibility as structured facts: exact age, disability, approved ADA paratransit eligibility, veteran status,
-and residence city. Use only facts the rider explicitly stated. A pickup address is not proof of residence unless
+Pass eligibility as structured facts: exact age, disability, veteran status,
+and residence city. Only ask riders whether they are disabled; do not separately ask about ADA paratransit eligibility status.
+Use only facts the rider explicitly stated. A pickup address is not proof of residence unless
 the rider identifies it as home. Unknown facts stay unknown.
 
 When reviewing returned providers:
