@@ -76,10 +76,7 @@ function isPubliclyAvailableProvider(provider: Record<string, unknown>): boolean
   const properties = provider.properties && typeof provider.properties === "object"
     ? provider.properties as Record<string, unknown>
     : provider;
-  const normalizedName = String(properties.provider_name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  return properties.is_operating !== false &&
-    normalizedName !== "oneseatregionalride" &&
-    normalizedName !== "oneseatride";
+  return properties.is_operating !== false;
 }
 
 function isFixedRouteType(type: unknown): boolean {
