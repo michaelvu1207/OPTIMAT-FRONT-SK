@@ -23,6 +23,7 @@
   let error = null;
   let selectedProvider = null;
   let activeProviderGroupId = 'fixed-route';
+  let westcatExpanded = true;
 
   let mapCenter = [37.9020731, -122.0618702];
   let mapZoom = 10;
@@ -53,6 +54,11 @@
     0
   );
   $: filteredProviders = providers.filter((provider) => activeProviderGroup.matches(provider.provider_type));
+  $: westcatParent = filteredProviders.find((provider) => provider.provider_name?.trim() === 'WestCAT Paratransit');
+  $: westcatChildren = westcatParent
+    ? filteredProviders.filter((provider) => provider.provider_name?.trim() === 'WestCAT Paratransit Outside Area Service')
+    : [];
+  $: topLevelProviders = filteredProviders.filter((provider) => !westcatChildren.includes(provider));
 
   onMount(async () => {
     mounted = true;
@@ -277,11 +283,11 @@
                 </div>
               {:else}
                 <div class="space-y-2">
-                  {#each filteredProviders as provider (provider.provider_id || provider.id)}
+                  {#snippet providerCard(provider, hasChildren = false)}
                     {@const providerId = provider.provider_id || provider.id}
                     {@const isSelected = (selectedProvider?.provider_id || selectedProvider?.id) === providerId}
                     <button
-                      class="w-full text-left rounded-lg border p-3 transition {
+                      class="w-full min-w-0 text-left rounded-lg border p-3 transition {hasChildren ? 'pr-14' : ''} {
                         isSelected
                           ? 'bg-primary/10 border-primary shadow-md ring-1 ring-primary/50'
                           : 'bg-card border-border/60 hover:bg-muted/50 hover:border-border'
@@ -300,6 +306,35 @@
                         {/if}
                       </div>
                     </button>
+                  {/snippet}
+                  {#each topLevelProviders as provider (provider.provider_id || provider.id)}
+                    {#if provider === westcatParent && westcatChildren.length > 0}
+                      <div>
+                        <div class="relative">
+                          {@render providerCard(provider, true)}
+                          <button
+                            class="absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                            aria-label={`${westcatExpanded ? 'Collapse' : 'Expand'} WestCAT Paratransit services`}
+                            aria-expanded={westcatExpanded}
+                            aria-controls="westcat-child-services"
+                            onclick={() => westcatExpanded = !westcatExpanded}
+                          >
+                            <svg class="h-4 w-4 transition-transform {westcatExpanded ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                              <path d="m9 5 7 7-7 7" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div id="westcat-child-services" hidden={!westcatExpanded}>
+                          <div class="ml-4 mt-2 space-y-2 border-l border-border pl-5">
+                            {#each westcatChildren as child (child.provider_id || child.id)}
+                              {@render providerCard(child)}
+                            {/each}
+                          </div>
+                        </div>
+                      </div>
+                    {:else}
+                      {@render providerCard(provider)}
+                    {/if}
                   {/each}
                 </div>
               {/if}
