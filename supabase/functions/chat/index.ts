@@ -28,6 +28,7 @@ import {
   ToolResult,
 } from "./tools.ts";
 import { getServiceClockContext, SERVICE_TIME_ZONE } from "./trip.ts";
+import { serializeToolResultForModel } from "./model-payload.ts";
 import {
   buildCorrectionPrompt,
   buildFallbackResponse,
@@ -420,7 +421,7 @@ serve(async (req: Request) => {
         toolResults.push({
           toolResult: {
             toolUseId: toolUse.toolUseId,
-            content: [{ text: JSON.stringify(result.success ? result.data : { error: result.error }) }],
+            content: [{ text: serializeToolResultForModel(result.success ? result.data : { error: result.error }) }],
           },
         });
       }

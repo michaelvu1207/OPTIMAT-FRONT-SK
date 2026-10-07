@@ -13,6 +13,7 @@ import { createHandler, jsonResponse, errorResponse } from '../_shared/adapter.j
 import { query, queryRows, queryOne, TABLES } from '../_shared/db.js';
 import { toolDefinitions, executeTool, storeToolCall, type ToolResult } from './tools.js';
 import { buildCurrentTimeBlock, buildRiderFactsBlock, loadTurnContext, saveTurnContext } from './state.js';
+import { serializeToolResultForModel } from "./model-payload.ts";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -345,7 +346,7 @@ export const handler = createHandler(async (req) => {
       toolResults.push({
         toolResult: {
           toolUseId: toolUse.toolUseId,
-          content: [{ text: JSON.stringify(result.success ? result.data : { error: result.error }) }],
+          content: [{ text: serializeToolResultForModel(result.success ? result.data : { error: result.error }) }],
         },
       });
     }
