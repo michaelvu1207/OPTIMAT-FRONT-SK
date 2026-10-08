@@ -35,6 +35,7 @@ export interface EligibilityAssessment {
   verdict: 'eligible' | 'ineligible' | 'verification_required';
   reason: string;
   missing_fact?: RiderFact | null;
+  exclusion_basis?: 'age' | 'residence_city' | 'veteran' | 'disability' | 'ada_approval' | 'other';
 }
 
 export interface AssessEligibilityParams {
@@ -93,8 +94,9 @@ export const toolDefinitions = [
   {
     name: 'find_providers',
     description: `Find paratransit providers that can serve a round trip between origin and destination.
-The server filters by source/destination GeoJSON and known operating hours. It does not decide eligibility.
-Call this once the locations, date, outbound time, and trip type are known. Pass only rider facts the rider
+The server filters by source/destination GeoJSON, known operating hours, and excludes ADA Paratransit when disabled=false.
+Exact age and residence city are mandatory before searching. Ask for missing values; never infer residence from pickup.
+Call this once the locations, date, outbound time, trip type, age, and residence city are known. Pass only rider facts the rider
 explicitly stated. Unknown facts must be omitted rather than guessed. After this returns candidates, immediately
 call assess_eligibility with a verdict for every candidate. A candidate with service_hours_known=false has not
 had its requested time confirmed; describe the schedule as needing provider verification, never as available.`,
@@ -115,17 +117,17 @@ had its requested time confirmed; describe the schedule as needing provider veri
           type: 'object',
           description: 'Only facts explicitly supplied by the rider. Omit unknown facts.',
           properties: {
-            age: { type: 'number' },
+            age: { type: 'integer', minimum: 0, maximum: 120 },
             disabled: { type: 'boolean' },
             ada_paratransit_eligible: {
               type: 'boolean',
               description: 'Record only if the rider voluntarily states whether a transit agency has approved their ADA paratransit eligibility. Never ask for this status or infer it from disability.',
             },
             veteran: { type: 'boolean' },
-            residence_city: { type: 'string' },
+            residence_city: { type: 'string', minLength: 1 },
             declined: { type: 'boolean', description: 'True if the rider declines further eligibility questions.' },
           },
-          required: [],
+          required: ['age', 'residence_city'],
         },
       },
       required: ['source_address', 'destination_address', 'departure_time', 'travel_date', 'trip_type', 'rider_eligibility'],
@@ -143,6 +145,10 @@ Geographic coverage is already established; do not infer residence from the pick
 If ADA approval is required but unknown, use verification_required and explain that the provider must confirm it.
 Omit missing_fact for ADA approval; never ask the rider about ADA eligibility, certification, application, or agency approval.
 Disability alone does not establish ADA approval. Preserve any ADA status the rider voluntarily supplied.
+When disabled=false, ADA Paratransit is excluded by the server. Non-ADA services still follow their own requirements.
+When disabled=true, never exclude an option because of disability or ADA approval, even if approval is unknown or false.
+Keep such options as verification_required when provider confirmation is needed. Age, residence, veteran status,
+and other independent requirements still apply. For every ineligible verdict, supply exclusion_basis naming the failed requirement.
 The server rejects incomplete assessments, invented provider names, and omitted candidates.`,
     input_schema: {
       type: 'object' as const,
@@ -155,6 +161,10 @@ The server rejects incomplete assessments, invented provider names, and omitted 
               provider_name: { type: 'string' },
               verdict: { type: 'string', enum: ['eligible', 'ineligible', 'verification_required'] },
               reason: { type: 'string' },
+              exclusion_basis: {
+                type: 'string',
+                enum: ['age', 'residence_city', 'veteran', 'disability', 'ada_approval', 'other'],
+              },
               missing_fact: {
                 type: 'string',
                 enum: ['age', 'disabled', 'veteran', 'residence_city'],
@@ -374,11 +384,45 @@ function isDirectRideProvider(provider: Provider): boolean {
 
 // ─── Tool Executors ─────────────────────────────────────────────────────────
 
+export function missingRequiredRiderFacts(rider: RiderEligibility): Array<'age' | 'residence_city'> {
+  const missing: Array<'age' | 'residence_city'> = [];
+  if (!Number.isInteger(rider.age) || Number(rider.age) < 0 || Number(rider.age) > 120) missing.push('age');
+  if (typeof rider.residence_city !== 'string' || !rider.residence_city.trim()) missing.push('residence_city');
+  return missing;
+}
+
+export function requiredRiderQuestion(rider: RiderEligibility): string | null {
+  const missing = missingRequiredRiderFacts(rider);
+  if (!missing.length) return null;
+  if (rider.declined) return 'Your age and city of residence are required to check trip options. I cannot complete this search without them.';
+  if (missing.length === 2) return 'How old are you, and what city do you live in? Both are required to check transportation options.';
+  return missing[0] === 'age'
+    ? 'How old are you? Your age is required to check transportation options.'
+    : 'What city do you live in? Your city of residence is required to check transportation options.';
+}
+
+export function isAdaParatransit(provider: Record<string, unknown>): boolean {
+  // Use the service classification, not a substring in eligibility text:
+  // Non-ADA services can mention ADA documentation as one possible proof.
+  return ['adaparatransit', 'adapara'].includes(String(provider.provider_type || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+}
+
+export function filterByDisability<T extends Record<string, unknown>>(providers: T[], rider: RiderEligibility): T[] {
+  return rider.disabled === false ? providers.filter((provider) => !isAdaParatransit(provider)) : providers;
+}
+
 export async function executeFindProviders(
   params: FindProvidersParams,
   apiKey: string,
   turn: TurnContext,
 ): Promise<ToolResult> {
+  turn.riderEligibility = { ...turn.riderEligibility, ...(params.rider_eligibility || {}) };
+  const requiredQuestion = requiredRiderQuestion(turn.riderEligibility);
+  if (requiredQuestion) {
+    turn.lastSearch = null;
+    turn.latestAssessment = null;
+    return { success: false, error: requiredQuestion };
+  }
   try {
     const [sourceLocation, destLocation] = await Promise.all([
       geocodeAddress(params.source_address, apiKey),
@@ -401,20 +445,20 @@ export async function executeFindProviders(
         matching.push({
           ...p,
           match_criteria: {
-            algorithm: 'Geocode origin and destination, keep providers whose service zone contains both points, then keep providers operating at both requested times. Eligibility is returned for assistant reasoning and is not hard-filtered.',
+            algorithm: 'Match both addresses and service hours, then exclude ADA Paratransit for riders who explicitly report no disability. Assess remaining requirements from provider data.',
             passed: [
               { label: 'Origin inside service area', detail: sourceLocation.formatted_address },
               { label: 'Destination inside service area', detail: destLocation.formatted_address },
             ],
-            not_hard_filtered: ['eligibility'],
+            not_hard_filtered: ['remaining eligibility requirements'],
           },
         });
       }
     }
 
-    // Filter by service hours only. Eligibility requirements stay in the
-    // provider payload so the assistant can reason from the full text.
-    const filtered = matching
+    // Apply service hours before the disability policy. Other eligibility
+    // requirements stay in the provider payload for assessment.
+    const scheduled = matching
       .filter((p) => isTimeWithinServiceHours(p, params.departure_time, params.return_time, params.travel_date))
       .map((p) => ({
         ...p,
@@ -430,11 +474,13 @@ export async function executeFindProviders(
         },
       }));
 
-    const riderEligibility = {
-      ...turn.riderEligibility,
-      ...(params.rider_eligibility || {}),
-    };
-    turn.riderEligibility = riderEligibility;
+    const filtered = filterByDisability(scheduled, turn.riderEligibility);
+    const disabilityExcluded = scheduled.filter((provider) => !filtered.includes(provider)).map((provider) => ({
+      provider_name: providerName(provider), stage: 'eligibility',
+      reason: 'ADA Paratransit is excluded because the rider stated they are not disabled.',
+    }));
+
+    const riderEligibility = turn.riderEligibility;
 
     const candidates = filtered.map(({ service_zone, ...rest }) => ({
       ...rest,
@@ -455,6 +501,7 @@ export async function executeFindProviders(
       return_time: params.return_time || null,
       candidates,
       candidate_count: candidates.length,
+      excluded_providers: disabilityExcluded,
       rider_eligibility: riderEligibility,
       source_address: sourceLocation.formatted_address,
       destination_address: destLocation.formatted_address,
@@ -463,7 +510,8 @@ export async function executeFindProviders(
       filtered_out_count: matching.length - filtered.length,
       diagnostics: {
         geography_match_count: matching.length,
-        schedule_match_count: filtered.length,
+        schedule_match_count: scheduled.length,
+        disability_excluded_count: disabilityExcluded.length,
         providers_without_service_hours: candidates.filter((provider) => !provider.service_hours_known).length,
       },
       public_transit: transitData,
@@ -611,6 +659,8 @@ export function executeAssessEligibility(
   params: AssessEligibilityParams,
   turn: TurnContext,
 ): ToolResult {
+  const requiredQuestion = requiredRiderQuestion(turn.riderEligibility);
+  if (requiredQuestion) return { success: false, error: requiredQuestion };
   if (!turn.lastSearch) {
     return { success: false, error: 'Call find_providers before assess_eligibility.' };
   }
@@ -630,6 +680,9 @@ export function executeAssessEligibility(
   }
 
   const assessedNames = new Set(assessments.map((assessment) => providerNameKey(assessment.provider_name)));
+  if (assessedNames.size !== assessments.length) {
+    return { success: false, error: 'Each candidate must have exactly one verdict; remove duplicate assessments.' };
+  }
   const missingProviders = candidates
     .map(providerName)
     .filter((name) => !assessedNames.has(providerNameKey(name)));
@@ -643,10 +696,23 @@ export function executeAssessEligibility(
 
   const eligible: Record<string, unknown>[] = [];
   const verificationRequired: Record<string, unknown>[] = [];
-  const excluded: Record<string, unknown>[] = [];
+  const excluded: Record<string, unknown>[] = Array.isArray(turn.lastSearch.result.excluded_providers)
+    ? [...turn.lastSearch.result.excluded_providers] : [];
 
-  for (const assessment of assessments) {
+  const effectiveAssessments: EligibilityAssessment[] = [];
+  for (const originalAssessment of assessments) {
+    let assessment = originalAssessment;
     const provider = candidateByName.get(providerNameKey(assessment.provider_name))!;
+    // Enforce the policy even for stale candidates or an incorrect model verdict.
+    if (turn.riderEligibility.disabled === false && isAdaParatransit(provider)) {
+      assessment = { ...assessment, verdict: 'ineligible', missing_fact: null, exclusion_basis: 'disability',
+        reason: 'ADA Paratransit is excluded because the rider stated they are not disabled.' };
+    } else if (turn.riderEligibility.disabled === true && assessment.verdict === 'ineligible' &&
+      (!assessment.exclusion_basis || ['disability', 'ada_approval'].includes(assessment.exclusion_basis))) {
+      assessment = { ...assessment, verdict: 'verification_required', missing_fact: null,
+        reason: 'Retained as an option for a rider with a disability. The provider must confirm remaining requirements and any application steps.' };
+    }
+    effectiveAssessments.push(assessment);
     const decorated = {
       ...provider,
       eligibility_status: assessment.verdict,
@@ -665,7 +731,7 @@ export function executeAssessEligibility(
     }
   }
 
-  const nextQuestion = nextEligibilityQuestion(assessments, turn.riderEligibility);
+  const nextQuestion = nextEligibilityQuestion(effectiveAssessments, turn.riderEligibility);
   const result = {
     ...turn.lastSearch.result,
     status: 'complete',

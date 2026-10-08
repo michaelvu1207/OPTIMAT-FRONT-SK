@@ -11,9 +11,9 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import { createHandler, jsonResponse, errorResponse } from '../_shared/adapter.js';
 import { query, queryRows, queryOne, TABLES } from '../_shared/db.js';
-import { toolDefinitions, executeTool, storeToolCall, type ToolResult } from './tools.js';
+import { toolDefinitions, executeTool, storeToolCall, requiredRiderQuestion, type ToolResult } from './tools.js';
 import { buildCurrentTimeBlock, buildRiderFactsBlock, loadTurnContext, saveTurnContext } from './state.js';
-import { serializeToolResultForModel } from './model-payload.js';
+import { serializeToolResultForModel, boundConversationHistory, assertModelRequestBudget, ModelContextLimitError } from './model-payload.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -26,17 +26,25 @@ You can find paratransit providers that can serve a trip between an origin (pick
 The find_providers tool filters by source/destination GeoJSON and known service hours. It returns candidates,
 not recommendations. Once it returns candidates, you MUST call assess_eligibility and provide exactly one verdict
 for every candidate before answering. Provider cards are created only from that assessment.
+Before searching or recommending trip options, you MUST know both the rider's exact age and city of residence.
+Ask for both when missing, even if no particular candidate appears to need them. Reuse explicit answers from
+this message or prior turns. If either is declined, explain that the trip search cannot be completed without it;
+do not guess, repeatedly pressure the rider, or offer unassessed providers as recommendations.
 
 Pass eligibility as structured facts: exact age, disability, veteran status,
 and residence city. Only ask riders whether they are disabled; do not separately ask about ADA paratransit eligibility status.
 Use only facts the rider explicitly stated. A pickup address is not proof of residence unless
 the rider identifies it as home. Unknown facts stay unknown.
 
-Only ask whether the rider has a disability.
+For disability information, only ask whether the rider has a disability.
 Never ask about ADA paratransit eligibility.
 This includes questions about certification, applications, or transit-agency approval. Do not infer ADA approval
 from disability. Record ADA status only when volunteered. If ADA approval is required but unknown, use
 verification_required and explain that the provider must confirm it without asking the rider about it.
+If disabled=false, exclude every service classified as ADA Paratransit, but do not exclude Non-ADA services
+merely because their documentation mentions ADA. If disabled=true, do not remove any option on disability
+or ADA approval grounds, even if approval is unknown or false. Retain it with a provider-verification note.
+Age, residence, geography, service hours, and other independent requirements still apply.
 
 When reviewing returned providers:
 - Preserve every AND/OR clause in the returned eligibility text, including residence.
@@ -82,7 +90,8 @@ When you get the trip information, summarize the trip including:
 7. For each recommended provider, include the eligibility reason and any proof/application step shown in the provider data.
 Format it concisely.
 
-Ask only for information that changes at least one candidate's eligibility. Reuse known rider facts from prior turns.
+Age and city of residence are always required for trip searches. For other facts, ask only for information that
+changes at least one candidate's eligibility, and never ask about ADA approval. Reuse known rider facts from prior turns.
 If the rider already provided the information, do not ask again.
 
 If the user asks for information about a specific provider, you must ask for the provider name.
@@ -176,7 +185,8 @@ function sanitizeAttachmentForChat(attachment: Attachment): Attachment {
   };
 }
 
-function buildNoProviderResponse(providerSearch: Record<string, unknown>): string | null {
+export function buildNoProviderResponse(providerSearch: Record<string, unknown>): string | null {
+  if (Array.isArray(providerSearch.verification_required) && providerSearch.verification_required.length) return null;
   if (providerSearch.status === 'awaiting_eligibility_assessment') {
     const candidates = Array.isArray(providerSearch.candidates) ? providerSearch.candidates : [];
     // If candidates exist, the model still owes the required assessment; do not misreport them as
@@ -197,8 +207,10 @@ function buildNoProviderResponse(providerSearch: Record<string, unknown>): strin
       : 'the destination address';
   const hasPublicTransit = Boolean(providerSearch.public_transit);
 
+  const eligibilityExcluded = Array.isArray(providerSearch.excluded_providers) && providerSearch.excluded_providers.length > 0;
   const lines = [
-    "I couldn't find any providers in our current data that serve both ends of this trip.",
+    eligibilityExcluded ? "No providers matched this trip after applying the rider eligibility requirements."
+      : "I couldn't find any providers in our current data that serve both ends of this trip at the requested times.",
     '',
     `Pickup: ${sourceAddress}`,
     `Destination: ${destinationAddress}`,
@@ -208,7 +220,9 @@ function buildNoProviderResponse(providerSearch: Record<string, unknown>): strin
     lines.push('', 'Public transit routing may still be available for this trip. Open the results to review the transit option.');
   }
 
-  lines.push('', "This means no provider service area matched both addresses after geocoding and service-hour filtering. I won't recommend a specific provider unless it appears in the filtered results.");
+  lines.push('', eligibilityExcluded
+    ? 'Providers were excluded by eligibility requirements; this does not mean their service areas miss the trip.'
+    : 'No provider remained after checking both addresses and service hours.');
 
   return lines.join('\n');
 }
@@ -246,6 +260,9 @@ export const handler = createHandler(async (req) => {
   const body = req.body as { conversation_id?: string; message?: string } | null;
   if (!body?.conversation_id || !body?.message) {
     return errorResponse('Missing required fields: conversation_id and message', 400, req.origin);
+  }
+  if (typeof body.message !== 'string' || Buffer.byteLength(body.message, 'utf8') > 16_000) {
+    return errorResponse('Please shorten your message to the trip details and rider information.', 400, req.origin);
   }
 
   const googleMapsApiKey = 'aws-location';
@@ -290,84 +307,98 @@ export const handler = createHandler(async (req) => {
   const bedrockTools = convertToolsToBedrockFormat(toolDefinitions);
 
   // Tool-calling loop
-  let currentMessages = convertMessagesToBedrockFormat(messageHistory);
+  let currentMessages: any[] = [];
   let iterations = 0;
   let finalResponse = '';
+  let contextLimited = false;
+  let searchedThisTurn = false;
 
-  while (iterations < MAX_TOOL_ITERATIONS) {
-    iterations++;
+  try {
+    currentMessages = convertMessagesToBedrockFormat(boundConversationHistory(messageHistory));
+    while (iterations < MAX_TOOL_ITERATIONS) {
+      iterations++;
 
-    const command = new ConverseCommand({
-      modelId: BEDROCK_MODEL_ID,
-      system: [{ text: systemPrompt }],
-      messages: currentMessages,
-      toolConfig: { tools: bedrockTools as any },
-      inferenceConfig: { maxTokens: Number(process.env.CHAT_MAX_TOKENS || 4000) },
-    });
+      const modelRequest = {
+        modelId: BEDROCK_MODEL_ID,
+        system: [{ text: systemPrompt }],
+        messages: currentMessages,
+        toolConfig: { tools: bedrockTools as any },
+        inferenceConfig: { maxTokens: Number(process.env.CHAT_MAX_TOKENS || 4000) },
+      };
+      assertModelRequestBudget(modelRequest);
+      const command = new ConverseCommand(modelRequest);
 
-    const response = await bedrockClient.send(command);
-    const outputContent = response.output?.message?.content || [];
+      const response = await bedrockClient.send(command);
+      const outputContent = response.output?.message?.content || [];
 
-    const toolUseBlocks = outputContent.filter((block: any) => block.toolUse);
-    const textBlocks = outputContent.filter((block: any) => block.text);
+      const toolUseBlocks = outputContent.filter((block: any) => block.toolUse);
+      const textBlocks = outputContent.filter((block: any) => block.text);
 
-    if (textBlocks.length > 0) {
-      finalResponse = textBlocks.map((b: any) => b.text).join('\n');
-    }
+      if (textBlocks.length > 0) {
+        finalResponse = textBlocks.map((b: any) => b.text).join('\n');
+      }
 
-    if (toolUseBlocks.length === 0 || response.stopReason === 'end_turn') {
-      break;
-    }
+      if (toolUseBlocks.length === 0 || response.stopReason === 'end_turn') {
+        break;
+      }
 
-    // Execute tool calls
-    const toolResults: any[] = [];
+      // Execute tool calls
+      const toolResults: any[] = [];
 
-    for (const block of toolUseBlocks) {
-      const toolUse = block.toolUse;
-      if (!toolUse?.name || !toolUse.toolUseId) continue;
-      console.log(`Executing tool: ${toolUse.name}`, toolUse.input);
+      for (const block of toolUseBlocks) {
+        const toolUse = block.toolUse;
+        if (!toolUse?.name || !toolUse.toolUseId) continue;
+        if (toolUse.name === 'find_providers' || toolUse.name === 'assess_eligibility') searchedThisTurn = true;
+        console.log(`Executing tool: ${toolUse.name}`, toolUse.input);
 
-      const result: ToolResult = await executeTool(toolUse.name, toolUse.input, googleMapsApiKey, turn);
-      await storeToolCall(body.conversation_id, toolUse.name, toolUse.input, result);
+        const result: ToolResult = await executeTool(toolUse.name, toolUse.input, googleMapsApiKey, turn);
+        await storeToolCall(body.conversation_id, toolUse.name, toolUse.input, result);
 
-      // Build attachment
-      if (result.success && result.data) {
-        const typeMap: Record<string, string> = {
-          find_providers: 'provider_search',
-          assess_eligibility: 'provider_search',
-          search_addresses_from_user_query: 'address_search',
-          get_provider_info: 'provider_info',
-          general_provider_question: 'web_search',
-        };
-        attachments.push({
-          type: typeMap[toolUse.name] || 'tool_result',
-          data: result.data,
-          metadata: { tool_name: toolUse.name, tool_use_id: toolUse.toolUseId, conversation_id: body.conversation_id },
+        // Build attachment
+        if (result.success && result.data) {
+          const typeMap: Record<string, string> = {
+            find_providers: 'provider_search',
+            assess_eligibility: 'provider_search',
+            search_addresses_from_user_query: 'address_search',
+            get_provider_info: 'provider_info',
+            general_provider_question: 'web_search',
+          };
+          attachments.push({
+            type: typeMap[toolUse.name] || 'tool_result',
+            data: result.data,
+            metadata: { tool_name: toolUse.name, tool_use_id: toolUse.toolUseId, conversation_id: body.conversation_id },
+          });
+        }
+
+        toolResults.push({
+          toolResult: {
+            toolUseId: toolUse.toolUseId,
+            content: [{ text: serializeToolResultForModel(result.success ? result.data : { error: result.error }) }],
+          },
         });
       }
 
-      toolResults.push({
-        toolResult: {
-          toolUseId: toolUse.toolUseId,
-          content: [{ text: serializeToolResultForModel(result.success ? result.data : { error: result.error }) }],
-        },
-      });
+      // Continue conversation with tool results
+      currentMessages = [
+        ...currentMessages,
+        { role: 'assistant' as const, content: outputContent },
+        { role: 'user' as const, content: toolResults },
+      ];
     }
-
-    // Continue conversation with tool results
-    currentMessages = [
-      ...currentMessages,
-      { role: 'assistant' as const, content: outputContent },
-      { role: 'user' as const, content: toolResults },
-    ];
+  } catch (error) {
+    if (!(error instanceof ModelContextLimitError)) throw error;
+    contextLimited = true;
+    finalResponse = 'There are too many search details to assess safely in one response. Please narrow the trip details or ask about a specific provider. I have not completed provider eligibility verification.';
   }
 
-  const responseAttachments = compactAttachments(attachments);
+  // Do not expose incomplete candidates as recommendations after hitting a budget.
+  const responseAttachments = contextLimited ? [] : compactAttachments(attachments);
   const providerSearch = getProviderSearchData(responseAttachments);
   const noProviderResponse = providerSearch ? buildNoProviderResponse(providerSearch) : null;
   if (noProviderResponse) {
     finalResponse = noProviderResponse;
   }
+  if (searchedThisTurn) finalResponse = requiredRiderQuestion(turn.riderEligibility) || finalResponse;
   finalResponse = softenEligibilityClaims(finalResponse);
   await saveTurnContext(body.conversation_id, turn);
 

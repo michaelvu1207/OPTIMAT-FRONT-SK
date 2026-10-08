@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { serializeToolResultForModel } from './model-payload.js';
+import { serializeToolResultForModel, assertModelRequestBudget, boundConversationHistory, ModelContextLimitError } from './model-payload.js';
 import { executeAssessEligibility, type TurnContext } from './tools.js';
 
 test('search and assessment keep geometry for the application but exclude it from model context', () => {
@@ -65,4 +65,47 @@ test('provider details, nested results and failures use the same model boundary'
   });
   assert.equal(serializeToolResultForModel({ error: 'Provider not found' }), '{"error":"Provider not found"}');
   assert.equal(serializeToolResultForModel(null), 'null');
+});
+
+test('Pinole-Berkeley sized geometry and raw imports never enter model context', () => {
+  const geometry = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: {
+    type: 'Polygon', coordinates: [Array.from({ length: 100_000 }, (_, i) => [-122 + i / 1e6, 37.9])],
+  } }] };
+  const payload = { candidates: [{ provider_name: 'Pinole-Berkeley option',
+    eligibility_requirement: 'Age 60+ or disabled AND Pinole resident.',
+    unexpected_geometry: geometry,
+    imported_json: JSON.stringify({ service_area_geojson: geometry, fare: '$5' }),
+    raw_data: JSON.stringify({ geometry }),
+  }] };
+  assert.ok(JSON.stringify(payload).length > 1_000_000);
+  const serialized = serializeToolResultForModel(payload);
+  assert.ok(serialized.length < 1000);
+  assert.match(serialized, /Pinole resident/);
+  assert.match(serialized, /\$5/);
+  assert.doesNotMatch(serialized, /coordinates|FeatureCollection|raw_data/);
+  assert.equal(payload.candidates[0].unexpected_geometry, geometry);
+});
+
+test('oversized non-geometry results fail safely instead of truncating eligibility rules', () => {
+  assert.throws(() => serializeToolResultForModel({ eligibility_requirement: 'x'.repeat(70_000) }), ModelContextLimitError);
+});
+
+test('history is bounded by complete exchanges and preserves the latest Pinole trip', () => {
+  const history = Array.from({ length: 100 }, () => [
+    { role: 'user', content: 'old user '.repeat(500) },
+    { role: 'assistant', content: 'old assistant '.repeat(500) },
+  ]).flat();
+  const latest = { role: 'user', content: "I'm going from 801 Patrick Dr in Pinole to 2240 Channing Way Berkeley on Thursday. I want to leave at 10am and return at 1pm. I'm 65, disabled, and a Pinole resident." };
+  const result = boundConversationHistory([...history, latest]);
+  assert.ok(Buffer.byteLength(JSON.stringify(result)) <= 24_000);
+  assert.equal(result[0].role, 'user');
+  assert.deepEqual(result.at(-1), latest);
+  assert.ok(result.length < history.length);
+});
+
+test('budget includes accumulated tool-loop messages and multibyte payloads', () => {
+  assertModelRequestBudget({ messages: [{ text: 'Small request' }] });
+  assert.throws(() => assertModelRequestBudget({ messages: Array.from({ length: 10 }, () => ({
+    content: [{ toolResult: { content: [{ text: '多'.repeat(10_000) }] } }],
+  })) }), ModelContextLimitError);
 });
