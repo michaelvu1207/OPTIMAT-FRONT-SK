@@ -109,6 +109,77 @@ test('a rider who declined is not asked another eligibility question', () => {
   assert.equal((result.data as Record<string, any>).next_question, null);
 });
 
+test('unknown ADA approval remains provider verification without a rider question', () => {
+  for (const rider of [{}, { disabled: true }]) {
+    const turn = turnWithCandidates([
+      { provider_name: 'ADA Provider', eligibility_requirement: 'ADA paratransit approval required.' },
+    ], rider);
+
+    const result = executeAssessEligibility({ assessments: [{
+      provider_name: 'ADA Provider',
+      verdict: 'verification_required',
+      reason: 'The provider must confirm ADA approval.',
+      // Be defensive even if an older model output supplies this field.
+      missing_fact: 'ada_paratransit_eligible',
+    }] }, turn);
+
+    assert.equal(result.success, true);
+    const data = result.data as Record<string, any>;
+    assert.equal(data.next_question, null);
+    assert.equal(data.data.length, 0);
+    assert.equal(data.verification_required[0].provider_name, 'ADA Provider');
+    assert.equal(turn.riderEligibility.ada_paratransit_eligible, undefined);
+  }
+});
+
+test('ADA requirements cannot outrank an allowed rider question', () => {
+  const turn = turnWithCandidates([
+    { provider_name: 'ADA Provider A' },
+    { provider_name: 'ADA Provider B' },
+    { provider_name: 'Local Provider' },
+  ], { disabled: true });
+
+  const result = executeAssessEligibility({ assessments: [
+    ...['ADA Provider A', 'ADA Provider B'].map((provider_name) => ({
+      provider_name,
+      verdict: 'verification_required' as const,
+      reason: 'The provider must confirm ADA approval.',
+      missing_fact: 'ada_paratransit_eligible' as const,
+    })),
+    {
+      provider_name: 'Local Provider',
+      verdict: 'verification_required',
+      reason: 'Residence is unknown.',
+      missing_fact: 'residence_city',
+    },
+  ] }, turn);
+
+  const data = result.data as Record<string, any>;
+  assert.equal(data.next_question.field, 'residence_city');
+  assert.deepEqual(data.next_question.provider_names, ['Local Provider']);
+  assert.equal(data.verification_required.length, 3);
+});
+
+test('volunteered ADA status is preserved for eligibility assessment', () => {
+  for (const approved of [true, false]) {
+    const turn = turnWithCandidates([
+      { provider_name: 'ADA Provider', eligibility_requirement: 'ADA paratransit approval required.' },
+    ], { disabled: true, ada_paratransit_eligible: approved });
+
+    const result = executeAssessEligibility({ assessments: [{
+      provider_name: 'ADA Provider',
+      verdict: approved ? 'eligible' : 'ineligible',
+      reason: approved ? 'The rider volunteered that approval was granted.' : 'The rider volunteered that approval was denied.',
+    }] }, turn);
+
+    const data = result.data as Record<string, any>;
+    assert.equal(data.next_question, null);
+    assert.equal(data.data.length, approved ? 1 : 0);
+    assert.equal(data.excluded_providers.length, approved ? 0 : 1);
+    assert.equal(turn.riderEligibility.ada_paratransit_eligible, approved);
+  }
+});
+
 test('outbound and return legs may use different service intervals', () => {
   const provider = {
     service_hours: {

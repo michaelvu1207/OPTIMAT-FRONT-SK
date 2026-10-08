@@ -13,7 +13,7 @@ import { createHandler, jsonResponse, errorResponse } from '../_shared/adapter.j
 import { query, queryRows, queryOne, TABLES } from '../_shared/db.js';
 import { toolDefinitions, executeTool, storeToolCall, type ToolResult } from './tools.js';
 import { buildCurrentTimeBlock, buildRiderFactsBlock, loadTurnContext, saveTurnContext } from './state.js';
-import { serializeToolResultForModel } from "./model-payload.ts";
+import { serializeToolResultForModel } from './model-payload.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -34,6 +34,9 @@ the rider identifies it as home. Unknown facts stay unknown.
 
 Only ask whether the rider has a disability.
 Never ask about ADA paratransit eligibility.
+This includes questions about certification, applications, or transit-agency approval. Do not infer ADA approval
+from disability. Record ADA status only when volunteered. If ADA approval is required but unknown, use
+verification_required and explain that the provider must confirm it without asking the rider about it.
 
 When reviewing returned providers:
 - Preserve every AND/OR clause in the returned eligibility text, including residence.

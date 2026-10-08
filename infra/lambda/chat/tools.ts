@@ -119,7 +119,7 @@ had its requested time confirmed; describe the schedule as needing provider veri
             disabled: { type: 'boolean' },
             ada_paratransit_eligible: {
               type: 'boolean',
-              description: 'Whether the rider explicitly says a transit agency has approved their ADA paratransit eligibility.',
+              description: 'Record only if the rider voluntarily states whether a transit agency has approved their ADA paratransit eligibility. Never ask for this status or infer it from disability.',
             },
             veteran: { type: 'boolean' },
             residence_city: { type: 'string' },
@@ -140,6 +140,9 @@ Geographic coverage is already established; do not infer residence from the pick
 - ineligible: a known rider fact fails the requirement.
 - verification_required: an unknown rider fact or provider decision prevents a verdict. Set missing_fact to the
   single rider fact that would most directly resolve it, or omit it when only the provider can decide.
+If ADA approval is required but unknown, use verification_required and explain that the provider must confirm it.
+Omit missing_fact for ADA approval; never ask the rider about ADA eligibility, certification, application, or agency approval.
+Disability alone does not establish ADA approval. Preserve any ADA status the rider voluntarily supplied.
 The server rejects incomplete assessments, invented provider names, and omitted candidates.`,
     input_schema: {
       type: 'object' as const,
@@ -154,7 +157,7 @@ The server rejects incomplete assessments, invented provider names, and omitted 
               reason: { type: 'string' },
               missing_fact: {
                 type: 'string',
-                enum: ['age', 'disabled', 'ada_paratransit_eligible', 'veteran', 'residence_city'],
+                enum: ['age', 'disabled', 'veteran', 'residence_city'],
               },
             },
             required: ['provider_name', 'verdict', 'reason'],
@@ -563,7 +566,6 @@ const RIDER_FACT_ORDER: RiderFact[] = [
   'residence_city',
   'age',
   'disabled',
-  'ada_paratransit_eligible',
   'veteran',
 ];
 
@@ -583,6 +585,9 @@ function nextEligibilityQuestion(
 
   for (const assessment of assessments) {
     if (assessment.verdict !== 'verification_required' || !assessment.missing_fact) continue;
+    // Older model outputs may still name ADA approval as a missing fact. It is
+    // a provider verification requirement, never a question for the rider.
+    if (assessment.missing_fact === 'ada_paratransit_eligible') continue;
     if (known[assessment.missing_fact]) continue;
     const names = byFact.get(assessment.missing_fact) || [];
     if (!names.includes(assessment.provider_name)) names.push(assessment.provider_name);
