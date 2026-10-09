@@ -172,22 +172,22 @@
             onProvidersFound({ detail: providerData });
         }
     }
-    
+
     // Typewriter effect component
     function typewriterAction(node, { text, maxDuration = 2000, messageId, onComplete = null }) {
         let i = 0;
         let currentText = '';
         let timeoutId;
         let isDestroyed = false;
-        
+
         // Calculate simple speed to fit within maxDuration
         const availableTime = maxDuration - 100; // subtract initial delay
         const speed = Math.max(5, availableTime / text.length); // minimum 5ms per character
-        
+
         // Add typing indicator to the set
         typingMessages.add(messageId);
         typingMessages = typingMessages; // Trigger reactivity
-        
+
         function type() {
             if (isDestroyed || i >= text.length) {
                 // Remove typing indicator
@@ -196,17 +196,17 @@
                 if (onComplete) onComplete();
                 return;
             }
-            
+
             currentText += text.charAt(i);
             node.textContent = currentText;
             i++;
-            
+
             timeoutId = setTimeout(type, speed);
         }
-        
+
         // Start typing with a small delay to allow the message to appear first
         timeoutId = setTimeout(type, 100);
-        
+
         return {
             destroy() {
                 isDestroyed = true;
@@ -216,7 +216,7 @@
             }
         };
     }
-  
+
     let messages = [
       {
         role: 'ai',
@@ -234,8 +234,8 @@ How can I assist you today?`,
         id: 'initial-greeting'
       }
     ];
-    
-    const messageSuggestion = "I'm at Hanover Walnut Creek apartments and trying to go to the Target in Walnut Creek. Can you help me find providers?";
+
+    const messageSuggestion = "Start search here, type something like: I'm at Hanover Walnut Creek apartments and trying to go to the Target in Walnut Creek. Can you help me find providers?";
     let userInput = '';
     let loading = false; // For message sending
     let initializing = true; // For initial conversation setup
@@ -253,7 +253,7 @@ How can I assist you today?`,
     let activeChatController = null;
     let statusMessage = '';
     let shouldRestoreComposerFocus = true;
-    
+
     // Save as example functionality
     let savingAsExample = false;
     let showExampleForm = false;
@@ -262,7 +262,7 @@ How can I assist you today?`,
       title: '',
       description: ''
     };
-    
+
     // Example viewing functionality
     let isViewingExample = false;
     let currentExample = null;
@@ -300,7 +300,7 @@ How can I assist you today?`,
 
     // Enhanced attachment handling
     let messageAttachments = new Map(); // Map message IDs to their attachments
-    
+
     // Service zone state management
     let visibleProviderZones = new Set(); // Track which provider zones are visible
     let loadingProviderZones = new Set(); // Track which provider zones are loading
@@ -308,19 +308,19 @@ How can I assist you today?`,
     // Debug logging function
     function debugLogChatResponse(fullResponse, timestamp = new Date().toISOString()) {
         if (!DEBUG_MODE) return;
-        
+
         console.group(`🔍 CHAT RESPONSE DEBUG - ${timestamp}`);
         console.log('📦 Full Response Object:', fullResponse);
-        
+
         if (fullResponse.messages) {
             console.log('💬 Messages:', fullResponse.messages);
             console.log('📊 Message Count:', fullResponse.messages.length);
         }
-        
+
         if (fullResponse.attachments) {
             console.log('📎 Attachments:', fullResponse.attachments);
             console.log('📊 Attachment Count:', fullResponse.attachments.length);
-            
+
             fullResponse.attachments.forEach((attachment, index) => {
                 console.log(`📌 Attachment ${index + 1}:`, {
                     type: attachment.type,
@@ -331,13 +331,13 @@ How can I assist you today?`,
         } else {
             console.log('📎 No attachments in response');
         }
-        
+
         console.log('🗃️ Current Message Attachments Map:');
         console.log('Message Attachments Map Size:', messageAttachments.size);
         console.log('All Message IDs:', messages.map(m => m.id));
         console.log('Messages with Attachments:', Array.from(messageAttachments.keys()));
         console.groupEnd();
-        
+
         console.groupEnd();
     }
 
@@ -467,22 +467,22 @@ How can I assist you today?`,
 
     function debugLogFullChatHistory() {
         if (!DEBUG_MODE) return;
-        
+
         console.group('📚 COMPLETE CHAT HISTORY');
-        
+
         // Log all messages with their attachments
         const chatHistory = messages.map(msg => ({
             message: msg,
             attachments: messageAttachments.get(msg.id) || [],
             hasAttachments: messageAttachments.has(msg.id)
         }));
-        
+
         console.log('Complete Chat Log:', chatHistory);
-        
+
         // Log attachment summary
         const totalAttachments = Array.from(messageAttachments.values())
             .reduce((total, attachments) => total + attachments.length, 0);
-        
+
         console.log('📊 Summary:', {
             totalMessages: messages.length,
             messagesWithAttachments: messageAttachments.size,
@@ -492,7 +492,7 @@ How can I assist you today?`,
                 .map(att => att.type)
                 .filter((type, index, arr) => arr.indexOf(type) === index)
         });
-        
+
         console.groupEnd();
     }
 
@@ -947,7 +947,7 @@ How can I assist you today?`,
     // Service zone management functions
     async function toggleProviderServiceZone(providerId, providerName, provider) {
         const isVisible = visibleProviderZones.has(providerId);
-        
+
         if (isVisible) {
             // Hide the zone
             serviceZoneManager.removeServiceZonesByProvider(providerId);
@@ -957,14 +957,14 @@ How can I assist you today?`,
             // Show the zone
             loadingProviderZones.add(providerId);
             loadingProviderZones = new Set(loadingProviderZones); // Trigger reactivity
-            
+
             try {
                 // Use the service zone data if available from provider
                 if (provider.service_zone) {
                     const zoneData = {
                         type: 'provider',
-                        geoJson: typeof provider.service_zone === 'string' 
-                            ? JSON.parse(provider.service_zone) 
+                        geoJson: typeof provider.service_zone === 'string'
+                            ? JSON.parse(provider.service_zone)
                             : provider.service_zone,
                         label: providerName,
                         description: `${providerName} service area`,
@@ -973,7 +973,7 @@ How can I assist you today?`,
                             provider: provider
                         }
                     };
-                    
+
                     const zoneId = serviceZoneManager.addServiceZone(zoneData, false);
                     if (zoneId) {
                         visibleProviderZones.add(providerId);
@@ -1011,7 +1011,7 @@ How can I assist you today?`,
                 loadingProviderZones = new Set(loadingProviderZones); // Trigger reactivity
             }
         }
-        
+
         visibleProviderZones = new Set(visibleProviderZones); // Trigger reactivity
     }
 
@@ -1026,7 +1026,7 @@ How can I assist you today?`,
     function getAddressSummary(messageId) {
         const attachments = messageAttachments.get(messageId);
         if (!attachments) return null;
-        
+
         const addressAttachment = attachments.find(att => att.type === 'address_search');
         if (!addressAttachment || !addressAttachment.data) return null;
 
@@ -1048,11 +1048,11 @@ How can I assist you today?`,
     function handleMessageClick(messageId) {
         const attachments = messageAttachments.get(messageId);
         if (!attachments || attachments.length === 0) return;
-        
+
         // Check if this message is recent for filtering purposes
         const messageIndex = messages.findIndex(m => m.id === messageId);
         const isRecentMessage = messageIndex >= messages.length - 3;
-        
+
         if (!isViewingExample) {
             // Handle provider attachments - always allow (original behavior)
             const providerAttachment = findProviderResultsAttachment(attachments);
@@ -1083,23 +1083,23 @@ How can I assist you today?`,
                     (providerPayload.destination_coordinates?.lat !== undefined && providerPayload.destination_coordinates?.lng !== undefined
                         ? { lat: providerPayload.destination_coordinates.lat, lon: providerPayload.destination_coordinates.lng }
                         : null);
-                
+
                 // Clear existing service zones when showing new provider results
                 serviceZoneManager.clearAllServiceZones();
                 visibleProviderZones.clear();
                 loadingProviderZones.clear();
-                
+
                 // Process provider data and add to service zone manager
                 const providerData = { ...providerPayload, origin, destination };
                 if (Array.isArray(providerData.data) && providerData.data.length > 0) {
                     // Add all provider service zones to the manager (but don't focus yet)
                     serviceZoneManager.addProviderServiceZones(providerData.data, false);
                 }
-                
+
                 // Show provider data in the parent results panel.
                 emitProvidersFound(providerData);
             }
-            
+
             // Handle address attachments - only for recent messages to show location on map
             const addressAttachment = attachments.find(att => att.type === 'address_search');
             if (addressAttachment && addressAttachment.data && isRecentMessage) {
@@ -1108,7 +1108,7 @@ How can I assist you today?`,
                 if (places.length > 0) {
                     const firstPlace = places[0];
                     const address = firstPlace.formattedAddress || firstPlace.address;
-                    
+
                     // Emit address found event to show on map
                     if (address) {
                         dispatch('addressFound', {
@@ -1185,7 +1185,7 @@ How can I assist you today?`,
       statusMessage = 'Response stopped. You can edit or send another message.';
       activeChatController.abort();
     }
-  
+
     onMount(() => {
       checkServerHealth().then(() => {
         if (serverOnline) {
@@ -1219,7 +1219,7 @@ How can I assist you today?`,
         }
       };
     });
-  
+
     async function handleSubmit() {
       if (loading || !userInput.trim() || !serverOnline || initializing || !conversationId) {
         if (!conversationId && !initializing) {
@@ -1311,12 +1311,12 @@ How can I assist you today?`,
       }
     }
 
-    
+
     // Export function to check server status
     export function getServerStatus() {
       return serverOnline;
     }
-    
+
     // Export functions to control example playback
     export function pauseExamplePlayback() {
       if (isViewingExample && isLoadingExample) {
@@ -1324,7 +1324,7 @@ How can I assist you today?`,
         console.log('Example playback paused');
       }
     }
-    
+
     export function resumeExamplePlayback() {
       if (isViewingExample && examplePlaybackPaused) {
         examplePlaybackPaused = false;
@@ -1335,7 +1335,7 @@ How can I assist you today?`,
         }
       }
     }
-    
+
     async function continueExamplePlayback() {
       // Load next message from current index, processing system messages but not displaying them
       const conversationStates = currentExample?._conversationStates;
@@ -1343,20 +1343,20 @@ How can I assist you today?`,
         isLoadingExample = false;
         return;
       }
-      
+
       // Check if paused or not viewing example
       if (examplePlaybackPaused || !isViewingExample) {
         return;
       }
-      
+
       // Process system messages and empty AI messages automatically without displaying them
       while (currentExampleIndex < conversationStates.length) {
         const stateSnapshot = conversationStates[currentExampleIndex];
         const message = stateSnapshot.message;
         const normalizedRole = normalizeChatRole(message.role);
-        
+
         // Skip system messages and empty AI messages
-        if (normalizedRole === 'system' || 
+        if (normalizedRole === 'system' ||
             (normalizedRole === 'ai' && (!message.content || message.content.trim() === ''))) {
           // Process message state but don't display the message
           await applyConversationState(stateSnapshot.state);
@@ -1370,23 +1370,23 @@ How can I assist you today?`,
             id: message.id || `example-${currentExampleIndex}-${Date.now()}`
           };
           messages = [...messages, messageWithId];
-          
+
           // Apply the conversation state
           await applyConversationState(stateSnapshot.state);
-          
+
           scrollToBottom();
           currentExampleIndex++;
           break; // Stop after displaying one user/AI message
         }
       }
-      
+
       // Check if this was the last message
       if (currentExampleIndex >= conversationStates.length) {
         isLoadingExample = false;
         console.log('Finished loading example conversation with states:', currentExample);
       }
     }
-    
+
     // Example viewing functionality with state reconstruction
     export async function loadExampleWithStates(conversationStates, example) {
       try {
@@ -1396,26 +1396,26 @@ How can I assist you today?`,
         currentExample = { ...example, _conversationStates: conversationStates };
         currentExampleIndex = 0;
         totalExampleStates = conversationStates.length;
-        
+
         // Reset conversation state and clear all messages
         conversationId = null;
         error = null;
         messages = []; // Clear all messages first
         messageAttachments = new Map();
-        
+
         // Load the first message
         await continueExamplePlayback();
-        
+
         // Set loading to false after first message loads
         isLoadingExample = false;
-        
+
       } catch (error) {
         console.error('Error loading example conversation with states:', error);
         isLoadingExample = false;
         throw error;
       }
     }
-    
+
     async function applyConversationState(state) {
       try {
         console.log('Applying conversation state:', state);
@@ -1786,7 +1786,7 @@ How can I assist you today?`,
         startAutoPlay(baseDelay);
       }
     }
-    
+
     export function startNewConversation() {
       // Stop auto-play if active
       stopAutoPlay();
@@ -1823,21 +1823,21 @@ How can I assist you today?`,
       // A new chat is a new chance to hear from the tester.
       feedbackClosed = false;
       feedbackSubmittedFor = null;
-      
+
       // Clear service zones when starting new conversation
       serviceZoneManager.clearAllServiceZones();
       visibleProviderZones.clear();
       loadingProviderZones.clear();
-      
+
       // Emit event to notify parent components
       dispatch('newConversationStarted');
-      
+
       // Initialize a new conversation
       if (serverOnline) {
         initializeNewConversation();
       }
     }
-    
+
     function scrollToBottom(smooth = true) {
       // Scroll chat window to bottom
       setTimeout(() => {
@@ -1952,7 +1952,7 @@ How can I assist you today?`,
         </div>
       </div>
     </div>
-  
+
     <!-- Chat messages -->
     <div class="flex-1 overflow-y-auto px-3 py-3 space-y-3 chat-messages scroll-smooth">
       {#each messages.filter(m => (m.role === 'ai' || m.role === 'human') && typeof m.content === 'string' && m.content.trim() !== '') as message, index (message.id || `${message.role}-${index}-${message.content.substring(0, 20)}`)}
@@ -2123,7 +2123,7 @@ How can I assist you today?`,
           {/key}
         {/if}
       {/each}
-  
+
       {#if loading || isStreaming}
         <div class="flex gap-2 justify-start" in:fade={{ duration: 300 }}>
           <div class="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center text-xs thinking-avatar">
@@ -2249,12 +2249,14 @@ How can I assist you today?`,
 	        }}
 	        class="chat-composer flex-shrink-0 border-t border-border/40 bg-card px-3 py-3"
 	      >
+        <label for="chat-question" class="mb-2 block text-sm font-medium text-foreground md:sr-only">Your question</label>
         <div class="flex gap-2">
           <textarea
+            id="chat-question"
             bind:this={messageInputElement}
             bind:value={userInput}
             placeholder={serverOnline ? messageSuggestion : "Chat unavailable"}
-            class="flex-1 resize-none rounded-lg border border-border/60 bg-background px-3 py-2 text-base sm:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
+            class="min-w-0 flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
 	            onkeydown={(e) => {
