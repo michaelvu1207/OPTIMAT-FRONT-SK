@@ -962,9 +962,10 @@
     title="AI Chat Assistant"
     description="Converse with the assistant and review providers"
     appMode={true}
+    fitMobileViewport={true}
   >
     <!-- Desktop uses a map/chat split. Phones are deliberately chat-first and never mount the map. -->
-    <Resizable.PaneGroup direction="horizontal" class="flex-1 h-full min-w-0">
+    <Resizable.PaneGroup direction="horizontal" class="flex-1 h-full min-h-0 min-w-0">
       {#if !isPhone}
       <!-- Left: the map, full height. Provider details live in the chat, not beside it. -->
       <Resizable.Pane defaultSize={60} minSize={35} class="relative">
@@ -1130,6 +1131,7 @@
         <!-- Chat Content -->
         <div class="flex-1 min-h-0 overflow-hidden">
           <Chat
+            {isPhone}
             bind:this={chatComponent}
             onProvidersFound={handleProvidersFound}
             onProviderSelect={isPhone ? null : selectProvider}

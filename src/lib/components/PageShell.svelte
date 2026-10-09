@@ -10,6 +10,29 @@
   export let backHref: string | null = null;
   export let fullWidth = false;
   export let appMode = false; // Desktop app mode - edge-to-edge, no margins
+  export let fitMobileViewport = false;
+
+  let mobileViewportHeight: number | null = null;
+
+  onMount(() => {
+    if (!fitMobileViewport) return;
+    const phone = window.matchMedia('(max-width: 767px)');
+    const viewport = window.visualViewport;
+    const updateViewportHeight = () => {
+      // Pinch zoom should magnify the page rather than resize its layout.
+      if (viewport && viewport.scale !== 1) return;
+      mobileViewportHeight = phone.matches ? (viewport?.height ?? window.innerHeight) : null;
+    };
+    updateViewportHeight();
+    viewport?.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('resize', updateViewportHeight);
+    phone.addEventListener('change', updateViewportHeight);
+    return () => {
+      viewport?.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('resize', updateViewportHeight);
+      phone.removeEventListener('change', updateViewportHeight);
+    };
+  });
 
 	  const defaultNavItems = [
 	    { label: 'Service Map', href: '/providers-info' },
@@ -67,7 +90,11 @@
 	  }
 </script>
 
-<div class="h-screen w-screen bg-background text-foreground flex flex-col">
+<div
+  class="page-shell h-screen w-screen bg-background text-foreground flex flex-col"
+  class:fit-mobile-viewport={fitMobileViewport}
+  style:--mobile-viewport-height={mobileViewportHeight === null ? undefined : `${mobileViewportHeight}px`}
+>
   <!-- Compact header bar - desktop app style -->
   <header class="app-header relative z-[1200] flex-shrink-0 h-10 border-b border-border/60 bg-card flex items-center px-2 gap-1">
     <!-- Logo/brand -->
@@ -176,7 +203,7 @@
   <!-- Main content area - full viewport -->
   {#if appMode}
     <!-- App mode: edge-to-edge, content fills remaining viewport -->
-    <main class="flex-1 flex flex-col overflow-hidden">
+    <main class="flex-1 min-h-0 flex flex-col overflow-hidden">
       <slot />
     </main>
   {:else}
@@ -220,6 +247,12 @@
 
 <style>
   @media (max-width: 767px) {
+    .fit-mobile-viewport {
+      height: 100svh;
+      height: var(--mobile-viewport-height, 100dvh);
+      overflow: hidden;
+    }
+
     .app-header {
       min-height: 3rem;
       height: 3rem;

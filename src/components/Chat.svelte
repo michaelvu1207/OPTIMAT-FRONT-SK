@@ -104,6 +104,7 @@
     export let onProvidersFound = null;
     export let onProviderSelect = null;
     export let mapSelectedProvider = null;
+    export let isPhone = false;
 
     function normalizeChatRole(role) {
         const value = (role || '').toString().toLowerCase();
@@ -1920,7 +1921,7 @@ How can I assist you today?`,
     }
 
 </script>
-  <div class="flex flex-col h-full bg-background">
+  <div class="flex flex-col h-full min-h-0 overflow-hidden bg-background">
     <!-- Top status bar -->
     <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
       <div class="flex items-center justify-between">
@@ -1954,8 +1955,9 @@ How can I assist you today?`,
     </div>
 
     <!-- Chat messages -->
-    <div class="flex-1 overflow-y-auto px-3 py-3 space-y-3 chat-messages scroll-smooth">
+    <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 space-y-3 chat-messages scroll-smooth">
       {#each messages.filter(m => (m.role === 'ai' || m.role === 'human') && typeof m.content === 'string' && m.content.trim() !== '') as message, index (message.id || `${message.role}-${index}-${message.content.substring(0, 20)}`)}
+        {@const isGreeting = message.id === 'initial-greeting' || message.id === 'new-conversation-greeting'}
         {@const segments = message.role === 'ai' ? buildMessageSegments(message.id, message.content) : []}
         <div
           class="flex gap-2 {message.role === 'human' ? 'justify-end' : 'justify-start'}"
@@ -1972,13 +1974,18 @@ How can I assist you today?`,
             </div>
           {/if}
 
-          <div class="{segments.some((segment) => segment.kind !== 'markdown') ? 'max-w-[94%]' : 'max-w-[75%]'} {
+          <div class="{isPhone && isGreeting ? 'min-w-0 flex-1' : segments.some((segment) => segment.kind !== 'markdown') ? 'max-w-[94%]' : 'max-w-[75%]'} {
             message.role === 'human'
               ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-3 py-2'
               : 'bg-muted text-foreground rounded-2xl rounded-tl-sm px-3 py-2'
           }">
             {#if message.role === 'human'}
               <p class="text-sm whitespace-pre-wrap">{message.content}</p>
+            {:else if isPhone && isGreeting}
+              <div class="chat-markdown" data-testid="mobile-greeting">
+                <p>Hi! I can help you find a ride or answer transportation questions.</p>
+                <p><strong>Where are you starting, and where do you want to go?</strong> Type below to get started.</p>
+              </div>
             {:else}
               <!-- AI message: prose with each provider's card under the paragraph naming it -->
               {#each segments as segment, segmentIndex (segmentIndex)}
@@ -2255,7 +2262,7 @@ How can I assist you today?`,
             id="chat-question"
             bind:this={messageInputElement}
             bind:value={userInput}
-            placeholder={serverOnline ? messageSuggestion : "Chat unavailable"}
+            placeholder={serverOnline ? (isPhone ? "Start search here" : messageSuggestion) : "Chat unavailable"}
             class="min-w-0 flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
@@ -2311,7 +2318,8 @@ How can I assist you today?`,
             {:else if isTranscribing}
               Transcribing voice...
             {:else}
-              Enter to send · Shift+Enter for new line
+              <span class="hidden md:inline">Enter to send · Shift+Enter for new line</span>
+              <span class="md:hidden">Type your question, then tap Send</span>
             {/if}
           </div>
         {/if}
