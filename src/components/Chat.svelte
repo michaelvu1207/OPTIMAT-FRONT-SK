@@ -1913,13 +1913,6 @@ How can I assist you today?`,
       }
     }
 
-    function hasCompletedExchange() {
-      const lastHumanIndex = messages.map((message) => message.role).lastIndexOf('human');
-      return lastHumanIndex >= 0 && messages.slice(lastHumanIndex + 1).some((message) =>
-        message.role === 'ai' && typeof message.content === 'string' && message.content.trim().length > 0
-      );
-    }
-
 </script>
   <div class="flex flex-col h-full min-h-0 overflow-hidden bg-background">
     <!-- Top status bar -->
@@ -2219,31 +2212,6 @@ How can I assist you today?`,
         </div>
       {/if}
 
-      {#if conversationId && !isViewingExample && !loading && !isStreaming && hasCompletedExchange()}
-        <div class="flex justify-end border-t border-border/50 pt-3" data-testid="save-example-at-end">
-          <button
-            type="button"
-            onclick={openExampleForm}
-            class="save-example-btn group inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
-            title="Save as Example"
-          >
-            <svg
-              class="h-4 w-4 transition-transform group-hover:scale-110"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-              />
-            </svg>
-            <span>Save as Example</span>
-          </button>
-        </div>
-      {/if}
     </div>
 
     <!-- Input form (hidden during example viewing) -->

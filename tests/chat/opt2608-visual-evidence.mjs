@@ -235,7 +235,7 @@ try {
     assert.equal(/ADA certification/i.test(bodyText), before);
     assert.equal(bodyText.includes('Regional trips may be booked up to 14 days in advance.'), !before);
     assert.equal(await page.getByRole('link', { name: 'Open in Google Maps' }).count() > 0, !before);
-    assert.equal(await page.getByTestId('save-example-at-end').count() > 0, !before);
+    if (!before) assert.equal(await page.getByRole('button', { name: 'Save as Example' }).count(), 0);
     if (!before) assert.equal(await page.locator('.origin-destination-orientation-line').count(), 0);
     await page.screenshot({ path: resolve(outputDir, 'OPT260810-02-one-seat.png'), fullPage: true });
     await page.screenshot({ path: resolve(outputDir, 'OPT260813-04-one-seat-logic.png'), fullPage: true });
