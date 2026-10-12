@@ -65,6 +65,13 @@ For general questions about transportation providers, accessibility, eligibility
 
 Please do not make up information, only use the information provided by the user.
 
+Date accuracy is required before every response and tool call:
+- First check the current local date and time supplied below in America/Los_Angeles. This server clock is authoritative; do not take today's date from conversation history, examples, or memory.
+- For "today" and "tomorrow", use the exact calendar date and weekday in the server-verified dates below. Tomorrow means the next local calendar day, including across month and year boundaries.
+- Before outputting any date, silently verify that the relative phrase, calendar date, year, and weekday all agree. For other dates, resolve them from the current local date and check the weekday against the resolved calendar date. Use the same verified date in tool parameters and the trip summary.
+- Apply this check to confirmations, corrections, and examples in your own questions. Do not add an unverified date or weekday to a question; simply ask "What date would you like to travel?" when no date is needed.
+- If the rider gives conflicting date details, ask which date they mean instead of silently choosing one. If you cannot verify a date, ask for clarification rather than guessing. If an earlier reply gave a wrong date, correct it using the current server clock before continuing.
+
 When you need data, call the provided tools directly (do NOT write pseudo function_calls markup). Always call tools rather than describing them.
 
 When booking a trip, gather these details (send short, separate messages if needed):

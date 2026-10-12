@@ -60,8 +60,19 @@ export function buildCurrentTimeBlock(now = new Date()): string {
   const localDate = `${value('year')}-${value('month')}-${value('day')}`;
   const localTime = `${value('hour')}:${value('minute')} ${value('dayPeriod')} ${value('timeZoneName')}`;
 
+  // Advance the Pacific calendar date, not the instant: adding 24 hours to now can
+  // skip or repeat a local day when daylight saving time changes.
+  const calendarDate = new Date(Date.UTC(Number(value('year')), Number(value('month')) - 1, Number(value('day'))));
+  const dateFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+  const today = `${localDate} (${dateFormatter.format(calendarDate)})`;
+  calendarDate.setUTCDate(calendarDate.getUTCDate() + 1);
+  const tomorrow = `${calendarDate.toISOString().slice(0, 10)} (${dateFormatter.format(calendarDate)})`;
+
   return [
     `Current local date and time: ${localDate} ${localTime} (${timeZone}).`,
+    `Server-verified dates: today = ${today}; tomorrow = ${tomorrow}.`,
     'Resolve relative dates such as today, tomorrow, and next Monday from this date. Never use a model training date or an example date.',
   ].join('\n');
 }
