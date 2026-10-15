@@ -2194,8 +2194,8 @@ How can I assist you today?`,
         </div>
       {/if}
 
-      <!-- Examples to play, offered until the rider asks their own question. -->
-      {#if $$slots.examples && !isViewingExample && replayStates.length === 0 && !messages.some((message) => message.role === 'human')}
+      <!-- Examples to play on desktop, offered until the rider asks their own question. -->
+      {#if !isPhone && $$slots.examples && !isViewingExample && replayStates.length === 0 && !messages.some((message) => message.role === 'human')}
         <div class="pt-1">
           <slot name="examples" />
         </div>
