@@ -337,6 +337,20 @@ Resources:
       BuildMethod: esbuild
       BuildProperties: { EntryPoints: [feedback/index.ts], Format: cjs, Minify: true, Target: node24 }
 
+  PortalAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub optimat-${EnvironmentName}-portal-auth
+      Handler: portal-auth/index.handler
+      Role: !GetAtt ApplicationFunctionRole.Arn
+      Events:
+        Proxy:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: '/portal-auth/{proxy+}', Method: ANY }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties: { EntryPoints: [portal-auth/index.ts], Format: cjs, Minify: true, Target: node24 }
+
   ProvidersFunction:
     Type: AWS::Serverless::Function
     Properties:

@@ -8,6 +8,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { getPortalToken } from './portalToken';
 
 // Supabase is temporary migration infrastructure. Never fall back to a production
 // project or credential when an environment is not explicitly configured.
@@ -226,7 +227,10 @@ export function getSupabaseRestUrl(path: string): string {
  * Required for authenticated requests or when using custom fetch
  */
 export function getAuthHeaders(): Record<string, string> {
-  if (API_BACKEND === 'aws') return { 'Content-Type': 'application/json' };
+  if (API_BACKEND === 'aws') {
+    const token = getPortalToken();
+    return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  }
   return {
     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     'apikey': SUPABASE_ANON_KEY,

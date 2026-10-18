@@ -7,7 +7,8 @@
   import { Input } from '$lib/components/ui/input';
   import { Textarea } from '$lib/components/ui/textarea';
   import { getProvider, updateProvider, type Provider, type ProviderUpdate } from '$lib/api';
-  import providerSession, { clearProvider, setProvider } from '$lib/stores/providerSession';
+  import providerSession, { setProvider } from '$lib/stores/providerSession';
+  import { logout as logoutAccount } from '$lib/stores/portalAccount';
   import mockDataEnabled from '$lib/stores/mockData';
   import { providerPortalNavItems } from '$lib/providerPortalNav';
   import BookingEditor from '$lib/components/providers/BookingEditor.svelte';
@@ -52,8 +53,8 @@
   let serviceAreaCitiesText = '';
   let serviceHoursRaw = '';
 
-  function logout() {
-    clearProvider();
+  async function logout() {
+    try { await logoutAccount(); } catch { /* Local session is cleared even if the API is unavailable. */ }
     push('/provider-portal');
   }
 

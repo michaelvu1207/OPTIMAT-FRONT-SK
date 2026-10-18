@@ -13,7 +13,7 @@
  */
 
 import { createHandler, jsonResponse, errorResponse } from '../_shared/adapter.js';
-import { requireMigrationAdmin } from '../_shared/admin.js';
+import { requireProviderAccess } from '../_shared/portal-auth.js';
 import { query, queryRows, queryOne, TABLES, normalizeProvider } from '../_shared/db.js';
 import { geocodePlace } from '../_shared/location.js';
 
@@ -37,6 +37,13 @@ interface ProviderFilter {
 }
 
 interface ProviderUpdate {
+  planning_type?: string;
+  provider_org?: string;
+  provider_software?: string;
+  service_hours?: unknown;
+  service_area_cities?: string[] | null;
+  service_area_source?: string;
+  service_area_notes?: string;
   provider_name?: string;
   provider_type?: string;
   routing_type?: string;
@@ -567,6 +574,13 @@ async function updateProvider(providerId: string, updateData: ProviderUpdate, or
 
     // Build update object, only including non-null fields
     const fieldMapping: Record<keyof ProviderUpdate, { column: string; isJsonb: boolean }> = {
+      planning_type: { column: 'planning_type', isJsonb: false },
+      provider_org: { column: 'provider_org', isJsonb: false },
+      provider_software: { column: 'provider_software', isJsonb: false },
+      service_hours: { column: 'service_hours', isJsonb: false },
+      service_area_cities: { column: 'service_area_cities', isJsonb: false },
+      service_area_source: { column: 'service_area_source', isJsonb: false },
+      service_area_notes: { column: 'service_area_notes', isJsonb: false },
       provider_name: { column: 'provider_name', isJsonb: false },
       provider_type: { column: 'provider_type', isJsonb: false },
       routing_type: { column: 'routing_type', isJsonb: false },
@@ -591,8 +605,11 @@ async function updateProvider(providerId: string, updateData: ProviderUpdate, or
       if (value === undefined) continue;
 
       if (!isJsonb) {
+        if (field === 'service_area_cities' && value !== null && (!Array.isArray(value) || value.some(city => typeof city !== 'string'))) {
+          return errorResponse('Service area cities must be an array of strings', 400, origin);
+        }
         setClauses.push(`${column} = $${paramIdx++}`);
-        params.push(value);
+        params.push(field === 'service_hours' && value !== null && typeof value === 'object' ? JSON.stringify(value) : value);
         continue;
       }
 
@@ -612,20 +629,20 @@ async function updateProvider(providerId: string, updateData: ProviderUpdate, or
           params.push(null);
           continue;
         }
-        try {
-          parsed = JSON.parse(trimmed);
-        } catch {
-          return errorResponse(`Invalid JSON for field '${field}'`, 400, origin);
+        try { parsed = JSON.parse(trimmed); }
+        catch {
+          if (field === 'service_zone' || field === 'contacts' || /^[\[{]/.test(trimmed)) return errorResponse(`Invalid JSON for field '${field}'`, 400, origin);
+          parsed = trimmed;
         }
       }
 
       // Enforce basic shapes to avoid storing JSONB scalar strings/numbers
-      const expectsArray = field === 'eligibility_reqs' || field === 'contacts';
+      const expectsArray = field === 'contacts';
       if (expectsArray) {
         if (parsed !== null && parsed !== undefined && !Array.isArray(parsed)) {
           return errorResponse(`Field '${field}' must be a JSON array`, 400, origin);
         }
-      } else {
+      } else if (field === 'service_zone') {
         if (parsed !== null && parsed !== undefined && (typeof parsed !== 'object' || Array.isArray(parsed))) {
           return errorResponse(`Field '${field}' must be a JSON object`, 400, origin);
         }
@@ -724,7 +741,7 @@ export const handler = createHandler(async (req) => {
 
   // PUT /providers/:id
   if (method === 'PUT' && sub.length === 1) {
-    const unauthorized = await requireMigrationAdmin(req);
+    const unauthorized = await requireProviderAccess(req, sub[0]);
     if (unauthorized) return unauthorized;
     const body = req.body;
     if (!body || typeof body !== 'object') {

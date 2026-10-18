@@ -1,185 +1,85 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fade } from 'svelte/transition';
   import { push } from 'svelte-spa-router';
   import PageShell from '$lib/components/PageShell.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { getAllProviders, type Provider } from '$lib/api';
-  import providerSession, { setProvider } from '$lib/stores/providerSession';
-  import mockDataEnabled from '$lib/stores/mockData';
   import { providerPortalNavItems } from '$lib/providerPortalNav';
-
-  let mounted = false;
-  let selectedProviderKey = '';
-  let lookupLoading = false;
-  let lookupError: string | null = null;
-
+  import { portalAccount, portalRequest, login, logout, clearAccount } from '$lib/stores/portalAccount';
+  import { setProvider } from '$lib/stores/providerSession';
+  import type { Provider } from '$lib/api';
+  let username = '', password = '', currentPassword = '', newPassword = '', confirmPassword = '';
   let providers: Provider[] = [];
-  let optionsLoading = false;
-  let optionsError: string | null = null;
-  let providerOptions: Array<{ value: string; providerName: string }> = [];
-  $: currentProvider = $providerSession.provider;
-  $: mockEnabled = $mockDataEnabled;
-
-  onMount(async () => {
-    mounted = true;
-    await loadProviders();
-  });
-
-  $: if (mounted && currentProvider) {
-    push('/provider-portal/info');
-  }
-
+  let busy = false, error = '', notice = '', selected = '';
   async function loadProviders() {
-    optionsLoading = true;
-    optionsError = null;
+    providers = [];
+    if ($portalAccount) providers = await portalRequest<Provider[]>('providers');
+  }
+  onMount(() => { loadProviders().catch(e => error = e.message); });
+  async function signIn() {
+    busy = true; error = ''; notice = '';
+    try { await login(username, password); password = ''; await loadProviders(); }
+    catch (e) { error = e instanceof Error ? e.message : String(e); }
+    finally { busy = false; }
+  }
+  async function signOut() {
+    busy = true; error = '';
+    try { await logout(); } catch { notice = 'Signed out locally. The server session will expire automatically.'; }
+    finally { providers = []; selected = ''; currentPassword = ''; newPassword = ''; confirmPassword = ''; busy = false; }
+  }
+  async function changePassword() {
+    error = ''; notice = '';
+    if (newPassword !== confirmPassword) { error = 'Passwords do not match.'; return; }
+    busy = true;
     try {
-      const { data, error } = await getAllProviders();
-      if (error) throw error;
-      providers = data || [];
-      providerOptions = buildProviderOptions(providers);
-    } catch (err) {
-      optionsError = err instanceof Error ? err.message : String(err);
-      providers = [];
-      providerOptions = [];
-    } finally {
-      optionsLoading = false;
-    }
+      await portalRequest('password', 'POST', { current_password: currentPassword, password: newPassword });
+      clearAccount(); providers = []; currentPassword = ''; newPassword = ''; confirmPassword = '';
+      notice = 'Password changed. Please sign in with your new password.';
+    } catch (e) { error = e instanceof Error ? e.message : String(e); }
+    finally { busy = false; }
   }
-
-  function buildProviderOptions(list: Provider[]) {
-    const options: Array<{ value: string; providerName: string }> = [];
-    for (const provider of list) {
-      const value = String(provider.provider_id || provider.id || provider.provider_name);
-      options.push({
-        value,
-        providerName: provider.provider_name
-      });
-    }
-    return options.sort((a, b) => a.providerName.localeCompare(b.providerName));
-  }
-
-  async function lookupProvider() {
-    if (!selectedProviderKey) {
-      lookupError = 'Please select a provider.';
-      return;
-    }
-
-    lookupLoading = true;
-    lookupError = null;
-
-    try {
-      let list = providers;
-      if (!list.length) {
-        const { data, error } = await getAllProviders();
-        if (error) throw error;
-        list = data || [];
-      }
-
-      const foundProvider = list.find((provider) =>
-        String(provider.provider_id || provider.id || provider.provider_name) === selectedProviderKey
-      ) || null;
-
-      if (!foundProvider) {
-        lookupError = 'No provider found. Please refresh the list and try again.';
-        return;
-      }
-
-      setProvider(foundProvider);
-      push('/provider-portal/info');
-    } catch (err) {
-      lookupError = err instanceof Error ? err.message : String(err);
-    } finally {
-      lookupLoading = false;
-    }
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter') {
-      lookupProvider();
-    }
-  }
-
-  function toggleMockData() {
-    mockDataEnabled.update((value) => !value);
-    selectedProviderKey = '';
+  function openProvider() {
+    const provider = providers.find(p => String(p.provider_id) === selected);
+    if (provider) { setProvider(provider); push('/provider-portal/info'); }
   }
 </script>
 
-{#if mounted}
-  <PageShell appMode={true} navItems={providerPortalNavItems}>
-    <div slot="header-actions" class="flex items-center gap-2 text-xs text-muted-foreground">
-      <span>Public View</span>
-      <Button variant="outline" size="sm" onclick={toggleMockData}>
-        {mockEnabled ? 'Mock Data: On' : 'Mock Data: Off'}
-      </Button>
+<PageShell appMode={true} navItems={providerPortalNavItems}>
+  <div class="flex-1 overflow-auto bg-slate-50 p-6">
+    <div class="mx-auto max-w-2xl space-y-6">
+      <div><h1 class="text-2xl font-bold text-slate-900">Provider Portal</h1><p class="mt-2 text-slate-600">Manage your account and assigned provider profiles.</p></div>
+      {#if error}<div role="alert" class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>{/if}
+      {#if notice}<div role="status" class="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">{notice}</div>{/if}
+      {#if !$portalAccount}
+        <form onsubmit={(event) => { event.preventDefault(); signIn(); }} class="space-y-5 rounded-xl border bg-white p-6 shadow-sm">
+          <h2 class="text-lg font-semibold">Sign in</h2>
+          <label class="block">Username<input class="field" bind:value={username} autocomplete="username" required maxlength="80" /></label>
+          <label class="block">Password<input class="field" type="password" bind:value={password} autocomplete="current-password" required maxlength="128" /></label>
+          <button class="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+          <p class="text-sm text-slate-500">Accounts are created by your administrator. Contact them if you need access or a password reset.</p>
+        </form>
+      {:else}
+        <section class="space-y-4 rounded-xl border bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="font-semibold">{$portalAccount.display_name}</h2><p class="text-sm text-slate-500">{$portalAccount.username} · {$portalAccount.role === 'super_admin' ? 'Super administrator' : 'Provider account'}</p></div><button class="secondary" onclick={signOut} disabled={busy}>Sign out</button></div>
+
+            {#if $portalAccount.role === 'super_admin'}<a href="#/admin/accounts" class="primary inline-block">Manage accounts</a>{/if}
+            <label class="block">Provider<select class="field" bind:value={selected}><option value="">Select a provider…</option>{#each providers as provider}<option value={String(provider.provider_id)}>{provider.provider_name}</option>{/each}</select></label>
+            <button class="primary" disabled={!selected || busy} onclick={openProvider}>Manage provider</button>
+            {#if providers.length === 0}<p class="text-sm text-slate-500">No providers are assigned to your account. Contact your administrator.</p>{/if}
+        </section>
+        <form onsubmit={(event) => { event.preventDefault(); changePassword(); }} class="space-y-4 rounded-xl border bg-white p-6 shadow-sm">
+          <h2 class="text-lg font-semibold">Change password</h2>
+          <label class="block">Current password<input class="field" type="password" bind:value={currentPassword} autocomplete="current-password" required maxlength="128" /></label>
+          <label class="block">New password<input class="field" type="password" bind:value={newPassword} autocomplete="new-password" required minlength="8" maxlength="128" /></label>
+          <label class="block">Confirm new password<input class="field" type="password" bind:value={confirmPassword} autocomplete="new-password" required minlength="8" maxlength="128" /></label>
+          <p class="text-sm text-slate-500">Use 8–128 characters. Changing your password signs out all sessions.</p>
+          <button class="primary" disabled={busy}>{busy ? 'Saving…' : 'Change password'}</button>
+        </form>
+      {/if}
     </div>
-
-    <div class="flex-1 flex items-center justify-center p-4" in:fade={{ duration: 300 }}>
-      <div class="w-full max-w-md">
-        <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-8">
-          <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
-              <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-            </div>
-            <h1 class="text-2xl font-bold text-slate-900">Provider Portal</h1>
-            <p class="text-slate-600 mt-2">Select a provider to view the current public profile.</p>
-          </div>
-
-          <div class="space-y-4">
-            <div>
-              <!-- svelte-ignore a11y_label_has_associated_control -->
-              <label class="block text-sm font-medium text-slate-700 mb-2">Provider</label>
-              <select
-                class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
-                bind:value={selectedProviderKey}
-                disabled={optionsLoading || providerOptions.length === 0}
-                onkeydown={handleKeydown}
-              >
-                <option value="">Select a provider…</option>
-                {#each providerOptions as option}
-                  <option value={option.value}>{option.providerName}</option>
-                {/each}
-              </select>
-              {#if optionsLoading}
-                <p class="text-xs text-slate-500 mt-2">Loading providers…</p>
-              {:else if optionsError}
-                <p class="text-xs text-red-600 mt-2">{optionsError}</p>
-              {/if}
-            </div>
-
-            {#if lookupError}
-              <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" transition:fade>
-                {lookupError}
-              </div>
-            {/if}
-
-            <Button
-              class="w-full"
-              onclick={lookupProvider}
-              disabled={lookupLoading || !selectedProviderKey}
-            >
-              {#if lookupLoading}
-                <span class="animate-spin mr-2">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                </span>
-                Looking up…
-              {:else}
-                Open Provider View
-              {/if}
-            </Button>
-          </div>
-
-          <p class="text-center text-xs text-slate-500 mt-6">
-            Provider profile edits are handled through the controlled data update workflow.
-          </p>
-        </div>
-      </div>
-    </div>
-  </PageShell>
-{/if}
+  </div>
+</PageShell>
+<style>
+  .field { display: block; width: 100%; margin-top: .5rem; padding: .65rem .8rem; border: 1px solid #cbd5e1; border-radius: .5rem; background: white; }
+  .primary, .secondary { border-radius: .5rem; padding: .65rem 1rem; font-weight: 600; }
+  .primary { background: #0f172a; color: white; } .secondary { border: 1px solid #cbd5e1; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+</style>

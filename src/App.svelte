@@ -1,10 +1,13 @@
 <script>
-  import { tick } from 'svelte';
+  import { tick, onMount } from 'svelte';
+  import { restoreAccount } from '$lib/stores/portalAccount';
   import Router, { location } from 'svelte-spa-router';
   import routes from './routes';
   import ChatView from './routes/ChatView.svelte';
 
   let chatVisited = false;
+  let accountReady = false;
+  onMount(async () => { try { await restoreAccount(); } finally { accountReady = true; } });
   $: currentRoute = routes[$location.replace(/\/$/, '') || '/'] || routes['*'];
   $: showingChat = currentRoute === ChatView;
   $: if (showingChat) {
@@ -21,6 +24,6 @@
   </div>
 {/if}
 
-{#if !showingChat}
+{#if !showingChat && accountReady}
   <Router {routes} />
 {/if}

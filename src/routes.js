@@ -3,6 +3,7 @@ import BetaSignup from './routes/BetaSignup.svelte';
 import TripPairs from './routes/TripPairs.svelte';
 import ProvidersInfo from './routes/ProvidersInfo.svelte';
 import ProviderPortal from './routes/ProviderPortal.svelte';
+import AdminAccounts from './routes/AdminAccounts.svelte';
 import ProviderPortalInfo from './routes/ProviderPortalInfo.svelte';
 import ProviderPortalTripRecords from './routes/ProviderPortalTripRecords.svelte';
 import ProviderPortalTripUpload from './routes/ProviderPortalTripUpload.svelte';
@@ -27,6 +28,7 @@ const routes = {
 
   // Provider portal (login + provider-only tabs)
   '/provider-portal': ProviderPortal,
+  '/admin/accounts': AdminAccounts,
   '/provider-portal/info': ProviderPortalInfo,
   '/provider-portal/trip-records': ProviderPortalTripRecords,
   '/provider-portal/trip-upload': ProviderPortalTripUpload,

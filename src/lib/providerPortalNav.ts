@@ -1,4 +1,5 @@
 export const providerPortalNavItems = [
+  { label: 'My account / Providers', href: '/provider-portal' },
   { label: 'Provider Info', href: '/provider-portal/info' },
   { label: 'Trip Records', href: '/provider-portal/trip-records' },
   { label: 'Trip Upload', href: '/provider-portal/trip-upload' },

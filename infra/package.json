@@ -6,6 +6,7 @@
   "scripts": {
     "build:baseline": "node ../scripts/migration/build-aurora-baseline.mjs",
     "check": "tsc --noEmit",
+    "test:portal": "node --import tsx --test lambda/portal-auth/*.test.ts",
     "test": "node --import tsx --test lambda/chat/*.test.ts"
   },
   "dependencies": {

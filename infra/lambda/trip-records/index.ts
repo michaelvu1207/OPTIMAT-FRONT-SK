@@ -13,6 +13,7 @@
  */
 
 import { createHandler, jsonResponse, errorResponse } from '../_shared/adapter.js';
+import { requireProviderAccess } from '../_shared/portal-auth.js';
 import { query, queryRows, TABLES } from '../_shared/db.js';
 import type { ParsedRequest } from '../_shared/adapter.js';
 import { randomUUID } from 'node:crypto';
@@ -449,6 +450,8 @@ export const handler = createHandler(async (req) => {
 
   // POST /trip-records/upload
   if (req.method === 'POST' && subSegments[0] === 'upload' && subSegments.length === 1) {
+    const denied = await requireProviderAccess(req, (req.body as { provider_id?: unknown } | null)?.provider_id);
+    if (denied) return denied;
     return await uploadTripRecords(req, req.origin);
   }
 
