@@ -236,7 +236,7 @@ How can I assist you today?`,
       }
     ];
 
-    const messageSuggestion = "Start search here, type something like: I'm at Hanover Walnut Creek apartments and trying to go to the Target in Walnut Creek. Can you help me find providers?";
+    const messageSuggestion = "Start search here.";
     let userInput = '';
     let loading = false; // For message sending
     let initializing = true; // For initial conversation setup
@@ -2230,7 +2230,7 @@ How can I assist you today?`,
             id="chat-question"
             bind:this={messageInputElement}
             bind:value={userInput}
-            placeholder={serverOnline ? (isPhone ? "Start search here" : messageSuggestion) : "Chat unavailable"}
+            placeholder={serverOnline ? messageSuggestion : "Chat unavailable"}
             class="min-w-0 flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
