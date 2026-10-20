@@ -968,7 +968,7 @@
     <Resizable.PaneGroup direction="horizontal" class="flex-1 h-full min-h-0 min-w-0">
       {#if !isPhone}
       <!-- Left: the map, full height. Provider details live in the chat, not beside it. -->
-      <Resizable.Pane defaultSize={60} minSize={35} class="relative">
+      <Resizable.Pane defaultSize={35} minSize={35} class="relative">
         <!-- Map style selector - floating overlay -->
         <div class="absolute top-2 left-2 z-10 rounded-md border border-border/50 bg-background/95 backdrop-blur px-2 py-1.5 shadow-sm">
           <select
@@ -1115,7 +1115,7 @@
 
       <!-- Right: Chat Panel (full height) -->
       <Resizable.Pane
-        defaultSize={isPhone ? 100 : 40}
+        defaultSize={isPhone ? 100 : 65}
         minSize={isPhone ? 100 : 25}
         class="min-w-0 bg-card flex flex-col overflow-hidden {isPhone ? '' : 'border-l border-border/40'}"
       >
