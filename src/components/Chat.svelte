@@ -1,5 +1,6 @@
 <script>
     import { onMount, createEventDispatcher, tick } from 'svelte';
+    import { containDialogTab } from '$lib/utils/dialogFocus.js';
     import { fade, fly, slide } from 'svelte/transition';
     import MicIcon from '@lucide/svelte/icons/mic';
     import SquareIcon from '@lucide/svelte/icons/square';
@@ -252,9 +253,13 @@ How can I assist you today?`,
     let messageInputElement = null;
     let sendButtonElement = null;
     let composerElement = null;
+    let chatWindowElement = null;
+    let followingLatestMessage = true;
+    let unreadResponse = false;
+    let responseAnnouncement = '';
     let activeChatController = null;
     let statusMessage = '';
-    let shouldRestoreComposerFocus = true;
+    let shouldRestoreComposerFocus = false;
 
     // Save as example functionality
     let savingAsExample = false;
@@ -1206,11 +1211,13 @@ How can I assist you today?`,
 
       window.addEventListener('keydown', handleKeydown);
       document.addEventListener('pointerdown', trackIntentionalFocusTarget, true);
+      document.addEventListener('focusin', trackIntentionalFocusTarget, true);
 
       return () => {
         clearInterval(interval);
         window.removeEventListener('keydown', handleKeydown);
         document.removeEventListener('pointerdown', trackIntentionalFocusTarget, true);
+        document.removeEventListener('focusin', trackIntentionalFocusTarget, true);
         cleanupRecording();
         activeChatController?.abort();
         activeChatController = null;
@@ -1236,6 +1243,7 @@ How can I assist you today?`,
       currentTool = null;
       error = null;
       statusMessage = '';
+      responseAnnouncement = '';
       const controller = new AbortController();
       activeChatController = controller;
 
@@ -1246,7 +1254,7 @@ How can I assist you today?`,
       };
       messages = [...messages, newMessage];
       userInput = '';
-      scrollToBottom();
+      scrollToBottom(false, true);
 
       try {
         const { data: chatResponse, error: apiError } = await sendChatMessage(
@@ -1276,6 +1284,7 @@ How can I assist you today?`,
             id: `ai-${Date.now()}`
           };
           messages = [...messages, finalMessage];
+          responseAnnouncement = 'New response available in the conversation.';
 
           // Handle attachments
           if (pendingAttachments.length > 0) {
@@ -1790,6 +1799,10 @@ How can I assist you today?`,
     }
 
     export function startNewConversation() {
+      followingLatestMessage = true;
+      unreadResponse = false;
+      responseAnnouncement = '';
+      if (chatWindowElement) chatWindowElement.scrollTop = 0;
       examplesExpanded = false;
       // Stop auto-play if active
       stopAutoPlay();
@@ -1841,21 +1854,37 @@ How can I assist you today?`,
       }
     }
 
-    function scrollToBottom(smooth = true) {
-      // Scroll chat window to bottom
-      setTimeout(() => {
-        const chatWindow = document.querySelector('.chat-messages');
-        if (chatWindow) {
-          if (smooth) {
-            chatWindow.scrollTo({
-              top: chatWindow.scrollHeight,
-              behavior: 'smooth'
-            });
-          } else {
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-          }
-        }
-      }, 100);
+    function trackConversationScroll() {
+      if (!chatWindowElement) return;
+      followingLatestMessage = chatWindowElement.scrollHeight - chatWindowElement.clientHeight - chatWindowElement.scrollTop < 48;
+      if (followingLatestMessage) unreadResponse = false;
+    }
+
+    async function scrollToBottom(smooth = false, force = false) {
+      // Capture the reader's position before Svelte adds the new content.
+      const wasFollowing = followingLatestMessage;
+      await tick();
+      const chatWindow = chatWindowElement;
+      if (!chatWindow) return;
+      const readingHistory = chatWindow.contains(document.activeElement);
+      if (!force && (!wasFollowing || !followingLatestMessage || readingHistory)) {
+        unreadResponse = true;
+        return;
+      }
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' });
+      unreadResponse = false;
+    }
+
+    async function jumpToLatestMessage() {
+      await scrollToBottom(false, true);
+      const replies = chatWindowElement?.querySelectorAll('[data-message-role="ai"]');
+      replies?.[replies.length - 1]?.focus({ preventScroll: true });
+    }
+
+    function openModal(element) {
+      element.showModal();
+      return { destroy: () => element.close() };
     }
 
     function openExampleForm() {
@@ -1950,11 +1979,24 @@ How can I assist you today?`,
     </div>
 
     <!-- Chat messages -->
-    <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 space-y-3 chat-messages scroll-smooth">
+    <!-- Scrollable history needs a tab stop so keyboard users can scroll it. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div
+      bind:this={chatWindowElement}
+      onscroll={trackConversationScroll}
+      role="region"
+      aria-label="Conversation history"
+      tabindex="0"
+      class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 space-y-3 chat-messages focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+    >
       {#each messages.filter(m => (m.role === 'ai' || m.role === 'human') && typeof m.content === 'string' && m.content.trim() !== '') as message, index (message.id || `${message.role}-${index}-${message.content.substring(0, 20)}`)}
         {@const isGreeting = message.id === 'initial-greeting' || message.id === 'new-conversation-greeting'}
         {@const segments = message.role === 'ai' ? buildMessageSegments(message.id, message.content) : []}
         <div
+          role="article"
+          aria-label={message.role === 'human' ? 'Your message' : 'OPTIMAT response'}
+          data-message-role={message.role}
+          tabindex="-1"
           class="flex gap-2 {message.role === 'human' ? 'justify-end' : 'justify-start'}"
           in:fly={{
             x: message.role === 'human' ? 20 : -20,
@@ -2217,7 +2259,7 @@ How can I assist you today?`,
       {/if}
 
       {#if error}
-        <div class="bg-destructive/10 border border-destructive/40 text-destructive p-3 rounded-lg text-sm">
+        <div role="alert" class="bg-destructive/10 border border-destructive/40 text-destructive p-3 rounded-lg text-sm">
           {error}
         </div>
       {/if}
@@ -2228,6 +2270,13 @@ How can I assist you today?`,
       {/if}
 
     </div>
+
+    <div role="status" aria-live="polite" aria-atomic="true" class="sr-only">{responseAnnouncement}</div>
+    {#if unreadResponse}
+      <button type="button" onclick={jumpToLatestMessage} class="self-center shrink-0 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground focus-visible:ring-2 focus-visible:ring-primary">
+        Jump to latest message
+      </button>
+    {/if}
 
     <!-- Input form (hidden during example viewing) -->
     {#if !isViewingExample}
@@ -2323,6 +2372,7 @@ How can I assist you today?`,
             <div class="flex items-center gap-3">
               <input
                 type="range"
+                aria-label="Example playback position"
                 min="0"
                 max={replayStates.length - 1}
                 bind:value={currentStateIndex}
@@ -2345,6 +2395,7 @@ How can I assist you today?`,
                   disabled={currentStateIndex >= replayStates.length}
                   class="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   title={isAutoPlaying ? 'Pause' : 'Play'}
+                  aria-label={isAutoPlaying ? 'Pause example playback' : 'Play example'}
                 >
                   {#if isAutoPlaying}
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -2363,6 +2414,7 @@ How can I assist you today?`,
                   disabled={currentStateIndex >= replayStates.length || isAutoPlaying}
                   class="p-2 rounded-lg bg-muted hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   title="Next"
+                  aria-label="Next example message"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -2371,6 +2423,7 @@ How can I assist you today?`,
 
                 <!-- Speed selector -->
                 <select
+                  aria-label="Example playback speed"
                   bind:value={playbackSpeed}
 	                  onchange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
                   class="text-sm bg-muted border-0 rounded-lg px-2 py-1.5 cursor-pointer focus:ring-1 focus:ring-primary"
@@ -2420,29 +2473,13 @@ How can I assist you today?`,
 
     <!-- Save as Example Modal -->
     {#if showExampleForm}
-      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-      <div
-        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]"
-	        onclick={closeExampleForm}
-	        onkeydown={(e) => {
-          if (e.key === 'Escape') {
-            closeExampleForm();
-          }
-        }}
-        role="dialog"
-        aria-modal="true"
+      <dialog
+        use:openModal
+        class="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl border border-border bg-card p-6 text-foreground shadow-xl backdrop:bg-black/50 backdrop:backdrop-blur-sm"
         aria-labelledby="modal-title"
-        tabindex="0"
-        transition:fade={{ duration: 150 }}
+        oncancel={(event) => { event.preventDefault(); closeExampleForm(); }}
+        onkeydown={containDialogTab}
       >
-        <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-        <div
-          class="bg-card border border-border rounded-xl shadow-xl p-6 w-full max-w-md mx-4"
-	          onclick={(e) => e.stopPropagation()}
-	          onkeydown={(e) => e.stopPropagation()}
-          role="document"
-          in:fly={{ y: 20, duration: 200 }}
-        >
           {#if saveExampleSuccess}
             <!-- Success state -->
             <div class="text-center py-4">
@@ -2451,7 +2488,7 @@ How can I assist you today?`,
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
               </div>
-              <h3 class="text-lg font-semibold text-foreground mb-2">Example Saved!</h3>
+              <h3 id="modal-title" class="text-lg font-semibold text-foreground mb-2">Example Saved!</h3>
               <p class="text-sm text-foreground mb-6">
                 {#if exampleForm.title}
                   "{exampleForm.title}" has been saved to your examples.
@@ -2551,14 +2588,13 @@ How can I assist you today?`,
               </div>
             </form>
           {/if}
-        </div>
-      </div>
+      </dialog>
     {/if}
   </div>
 
   <style>
     .chat-messages {
-      scroll-behavior: smooth;
+      scroll-behavior: auto;
     }
 
     @keyframes bounce {

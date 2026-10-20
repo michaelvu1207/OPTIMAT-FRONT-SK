@@ -972,6 +972,7 @@
         <!-- Map style selector - floating overlay -->
         <div class="absolute top-2 left-2 z-10 rounded-md border border-border/50 bg-background/95 backdrop-blur px-2 py-1.5 shadow-sm">
           <select
+            aria-label="Map style"
             class="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer"
             bind:value={currentMapStyleId}
             on:change={(e) => changeMapStyle(e.target.value)}
@@ -1110,7 +1111,7 @@
         </div>
       </Resizable.Pane>
 
-      <Resizable.Handle withHandle />
+      <Resizable.Handle withHandle aria-label="Resize map and chat panels" />
       {/if}
 
       <!-- Right: Chat Panel (full height) -->
@@ -1169,7 +1170,8 @@
                       <button
                         class="p-1 rounded-md hover:bg-muted/80 text-foreground hover:text-foreground transition-colors"
                         on:click={(e) => toggleDropdown(example.id, e)}
-                        aria-label="Example options"
+                        aria-label={`Options for ${example.title || 'Untitled Example'}`}
+                        aria-expanded={openDropdownId === example.id}
                       >
                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />

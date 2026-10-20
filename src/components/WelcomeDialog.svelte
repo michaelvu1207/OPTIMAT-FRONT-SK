@@ -6,54 +6,38 @@
    * it is a prototype under test, and where to send feedback.
    */
   import { onMount } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
+  import { containDialogTab } from '$lib/utils/dialogFocus.js';
 
   /** Called after the rider dismisses it, in case the caller wants to focus the chat box. */
   export let onClose = null;
 
   const CONTACT = 'haleemab@ccta.ca.gov';
 
-  let visible = false;
+  let dialogElement = null;
 
   onMount(() => {
-    visible = true;
+    dialogElement?.showModal();
+    return () => dialogElement?.close();
   });
 
   function close() {
-    visible = false;
+    dialogElement?.close();
     onClose?.();
   }
 
-  function onKeydown(event) {
-    if (event.key === 'Escape') close();
-  }
 </script>
 
-<svelte:window on:keydown={onKeydown} />
-
-{#if visible}
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div
-    class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-    on:click={close}
-    transition:fade={{ duration: 150 }}
-  >
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div
-      class="relative w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl sm:p-7"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="welcome-title"
-      tabindex="-1"
-      on:click|stopPropagation
-      in:fly={{ y: 16, duration: 200 }}
-    >
+<dialog
+  bind:this={dialogElement}
+  class="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-6 text-foreground shadow-xl backdrop:bg-black/50 backdrop:backdrop-blur-sm sm:p-7"
+  aria-labelledby="welcome-title"
+  on:cancel|preventDefault={close}
+  on:keydown={containDialogTab}
+>
       <button
         type="button"
         class="absolute right-3 top-3 rounded-md p-1.5 text-foreground transition hover:bg-muted hover:text-foreground"
-        aria-label="Close"
+        aria-label="Close welcome dialog"
         on:click={close}
       >
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,6 +72,4 @@
           Get started
         </button>
       </div>
-    </div>
-  </div>
-{/if}
+</dialog>

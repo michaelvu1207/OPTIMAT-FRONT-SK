@@ -166,6 +166,7 @@
     {#if phone}
       <a
         href="tel:{phone.replace(/[^\d+]/g, '')}"
+        aria-label={`Call ${provider?.provider_name} at ${phone}`}
         class="text-base font-semibold text-primary hover:underline"
         on:click|stopPropagation
       >
@@ -213,6 +214,8 @@
       <button
         type="button"
         class="rounded-md bg-muted px-2 py-1 font-medium text-foreground transition hover:bg-muted/70"
+        aria-label={`${selected ? 'Hide' : 'Show'} service area for ${provider?.provider_name}`}
+        aria-pressed={selected}
         on:click|stopPropagation={() => onSelect(provider)}
       >
         {selected ? 'Hide area' : 'Show service area'}
@@ -221,6 +224,7 @@
     {#if website}
       <a
         href={website}
+        aria-label={`Visit ${provider?.provider_name} website (opens in a new tab)`}
         target="_blank"
         rel="noopener noreferrer"
         class="text-primary hover:underline"

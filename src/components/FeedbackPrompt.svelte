@@ -45,7 +45,11 @@
     // The bubble sits at the bottom of a scrolled thread, so the form opens below the fold unless
     // it is pulled into view.
     setTimeout(() => {
-      rootElement?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      const history = rootElement?.closest('.chat-messages');
+      if (history && rootElement) {
+        const bottom = rootElement.getBoundingClientRect().bottom - history.getBoundingClientRect().bottom;
+        if (bottom > 0) history.scrollTop += bottom;
+      }
       commentElement?.focus({ preventScroll: true });
     }, 0);
   }
