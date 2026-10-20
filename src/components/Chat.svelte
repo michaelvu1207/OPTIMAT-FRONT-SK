@@ -2240,13 +2240,13 @@ How can I assist you today?`,
 	        class="chat-composer flex-shrink-0 border-t border-border/40 bg-card px-3 py-3"
 	      >
         <label for="chat-question" class="mb-2 block text-sm font-medium text-foreground md:sr-only">Your question</label>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2 md:flex-nowrap">
           <textarea
             id="chat-question"
             bind:this={messageInputElement}
             bind:value={userInput}
             placeholder={serverOnline ? messageSuggestion : "Chat unavailable"}
-            class="min-w-0 flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
+            class="min-w-0 basis-full md:basis-auto flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
 	            onkeydown={(e) => {
@@ -2260,20 +2260,26 @@ How can I assist you today?`,
             type="button"
             onclick={toggleRecording}
             disabled={loading || !serverOnline || initializing || isTranscribing}
-            aria-label={isRecording ? 'Stop voice recording' : 'Start voice input'}
-            title={isRecording ? 'Stop voice recording' : 'Start voice input'}
-            class={`self-end h-11 w-11 shrink-0 rounded-lg border transition flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
+            aria-label={isTranscribing ? 'Transcribing voice input' : isRecording ? 'Stop voice recording' : 'Start voice input'}
+            aria-pressed={isRecording}
+            aria-busy={isTranscribing}
+            aria-describedby="voice-input-status"
+            title={isTranscribing ? 'Transcribing voice input' : isRecording ? 'Stop voice recording' : 'Start voice input'}
+            class={`self-end min-h-14 shrink-0 rounded-lg border-2 px-4 py-3 text-base font-semibold transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
               isRecording
-                ? 'border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/15'
-                : 'border-border/60 bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                ? 'border-destructive bg-destructive text-white hover:bg-destructive/90'
+                : 'border-primary bg-primary/10 text-foreground hover:bg-primary/20'
             }`}
           >
             {#if isTranscribing}
-              <div class="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>
+              <div aria-hidden="true" class="animate-spin rounded-full h-6 w-6 border-2 border-current border-t-transparent"></div>
+              <span>Transcribing...</span>
             {:else if isRecording}
-              <SquareIcon size={16} strokeWidth={2.5} />
+              <SquareIcon size={24} strokeWidth={2.5} aria-hidden="true" />
+              <span>Stop recording</span>
             {:else}
-              <MicIcon size={18} strokeWidth={2.25} />
+              <MicIcon size={24} strokeWidth={2.25} aria-hidden="true" />
+              <span>Voice input</span>
             {/if}
           </button>
           <button
@@ -2295,11 +2301,11 @@ How can I assist you today?`,
           </button>
         </div>
         {#if serverOnline}
-          <div class="text-[10px] text-muted-foreground mt-1.5 px-1">
+          <div id="voice-input-status" role="status" aria-live="polite" aria-atomic="true" class="text-sm text-foreground mt-2 px-1">
             {#if isRecording}
-              Recording... press stop when finished
+              Recording... tap Stop recording when finished. Then review your text and tap Send.
             {:else if isTranscribing}
-              Transcribing voice...
+              Converting your voice to text. Please wait, then review your text and tap Send.
             {:else}
               <span class="hidden md:inline">Enter to send · Shift+Enter for new line</span>
               <span class="md:hidden">Type your question, then tap Send</span>
