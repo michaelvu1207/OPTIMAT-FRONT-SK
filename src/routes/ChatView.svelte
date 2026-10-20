@@ -972,7 +972,7 @@
         <!-- Map style selector - floating overlay -->
         <div class="absolute top-2 left-2 z-10 rounded-md border border-border/50 bg-background/95 backdrop-blur px-2 py-1.5 shadow-sm">
           <select
-            class="bg-transparent text-xs border-0 focus:ring-0 cursor-pointer"
+            class="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer"
             bind:value={currentMapStyleId}
             on:change={(e) => changeMapStyle(e.target.value)}
           >
@@ -987,15 +987,15 @@
             class="absolute right-2 top-2 z-10 max-w-56 rounded-lg border border-blue-200 bg-background/95 px-3 py-2 shadow-md backdrop-blur"
             data-testid="transit-route-summary"
           >
-            <div class="flex items-center gap-2 text-xs font-semibold text-foreground">
+            <div class="flex items-center gap-2 text-sm font-semibold text-foreground">
               <span class="h-2.5 w-2.5 rounded-full bg-[#1a73e8]"></span>
               Public Transit Route
             </div>
-            <div class="mt-1 text-[11px] text-muted-foreground">
+            <div class="mt-1 text-sm text-foreground">
               {[providerData?.public_transit?.duration_text, providerData?.public_transit?.distance_text].filter(Boolean).join(' · ')}
             </div>
             {#if getTransitLines().length > 0}
-              <div class="mt-1 text-[10px] text-blue-700">{getTransitLines().join(' → ')}</div>
+              <div class="mt-1 text-sm text-blue-700">{getTransitLines().join(' → ')}</div>
             {/if}
           </div>
         {/if}
@@ -1122,9 +1122,9 @@
         <!-- Chat Header -->
         <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">💬 Chat</span>
+            <span class="text-sm font-medium text-foreground uppercase tracking-wide">💬 Chat</span>
             {#if !serverOnline}
-              <span class="text-[10px] text-destructive">Offline</span>
+              <span class="text-sm text-destructive">Offline</span>
             {/if}
           </div>
         </div>
@@ -1142,18 +1142,18 @@
           >
             <!-- Recorded conversations to play, shown in the chat until the rider asks something. -->
             <svelte:fragment slot="examples">
-              <div class="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div class="mb-1 text-sm font-medium uppercase tracking-wide text-foreground">
                 💡 Examples
               </div>
               <div>
                 {#if loadingExamples}
-              <div class="text-xs text-muted-foreground">Loading examples...</div>
+              <div class="text-sm text-foreground">Loading examples...</div>
                 {:else if examplesError}
-              <div class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <div class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {examplesError}
               </div>
                 {:else if chatExamples.length === 0}
-              <div class="text-xs text-muted-foreground">No examples available</div>
+              <div class="text-sm text-foreground">No examples available</div>
                 {:else}
               <!-- svelte-ignore a11y-click-events-have-key-events -->
               <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -1167,7 +1167,7 @@
                     <!-- Three dots menu button -->
                     <div class="example-dropdown absolute top-2 right-2 z-10">
                       <button
-                        class="p-1 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                        class="p-1 rounded-md hover:bg-muted/80 text-foreground hover:text-foreground transition-colors"
                         on:click={(e) => toggleDropdown(example.id, e)}
                         aria-label="Example options"
                       >
@@ -1183,7 +1183,7 @@
                           transition:fade={{ duration: 100 }}
                         >
                           <button
-                            class="w-full px-3 py-2 text-left text-xs text-destructive hover:bg-destructive/10 rounded-md flex items-center gap-2 transition-colors"
+                            class="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 rounded-md flex items-center gap-2 transition-colors"
                             on:click={(e) => deleteExample(example.id, e)}
                             disabled={deletingExampleId === example.id}
                           >
@@ -1216,13 +1216,13 @@
 
                       <!-- Description -->
                       {#if example.description}
-                        <div class="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                        <div class="text-sm text-foreground line-clamp-2 leading-relaxed">
                           {example.description}
                         </div>
                       {/if}
 
                       <!-- Play indicator -->
-                      <div class="mt-3 flex items-center gap-1.5 text-[10px] text-primary/70">
+                      <div class="mt-3 flex items-center gap-1.5 text-sm text-primary">
                         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                           <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
                         </svg>
@@ -1261,8 +1261,8 @@
 
   :global(.zone-type) {
     background: #f3f4f6;
-    color: #6b7280;
-    font-size: 11px;
+    color: #111827;
+    font-size: 14px;
     padding: 2px 6px;
     border-radius: 4px;
     margin-left: 8px;
@@ -1271,15 +1271,15 @@
   }
 
   :global(.zone-popup-description) {
-    font-size: 13px;
-    color: #4b5563;
+    font-size: 14px;
+    color: #111827;
     margin-bottom: 4px;
   }
 
   :global(.zone-popup-org),
   :global(.zone-popup-eligibility) {
-    font-size: 12px;
-    color: #6b7280;
+    font-size: 14px;
+    color: #111827;
     margin-bottom: 2px;
   }
 

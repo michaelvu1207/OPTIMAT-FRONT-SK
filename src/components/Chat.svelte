@@ -943,7 +943,7 @@ How can I assist you today?`,
         if (type?.includes('paratransit') || type?.includes('ADA')) return 'bg-purple-100 text-purple-700 border-purple-200';
         if (type?.includes('fix') || type?.includes('fixed')) return 'bg-blue-100 text-blue-700 border-blue-200';
         if (type?.includes('dial') || type?.includes('demand')) return 'bg-green-100 text-green-700 border-green-200';
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return 'bg-gray-100 text-gray-900 border-gray-200';
     }
 
     // Service zone management functions
@@ -1924,15 +1924,15 @@ How can I assist you today?`,
         <div class="flex items-center gap-2">
           {#if !serverOnline}
             <div class="w-2 h-2 rounded-full bg-destructive"></div>
-            <span class="text-xs text-muted-foreground">Chat server offline</span>
+            <span class="text-sm text-foreground">Chat server offline</span>
           {:else if isViewingExample}
-            <span class="text-xs text-muted-foreground">Viewing Example</span>
+            <span class="text-sm text-foreground">Viewing Example</span>
           {:else if conversationId}
             <div class="w-2 h-2 rounded-full bg-green-500"></div>
-            <span class="text-xs text-muted-foreground">Active conversation</span>
+            <span class="text-sm text-foreground">Active conversation</span>
           {:else}
             <div class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
-            <span class="text-xs text-muted-foreground">Initializing...</span>
+            <span class="text-sm text-foreground">Initializing...</span>
           {/if}
         </div>
 
@@ -1964,7 +1964,7 @@ How can I assist you today?`,
           }}
         >
           {#if message.role === 'ai'}
-            <div class="flex-shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs">
+            <div class="flex-shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-sm">
               🤖
             </div>
           {/if}
@@ -1992,26 +1992,26 @@ How can I assist you today?`,
                   <!-- The trip as a dispatcher will need to hear it, so the rider can read it out. -->
                   <div class="mt-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2" aria-label="Trip to book">
                     <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0 text-xs">
+                      <div class="min-w-0 text-sm">
                         <div class="font-semibold text-foreground">
                           {segment.trip.dateDisplay} · {segment.trip.arriveBy ? 'arrive by' : 'pickup'} {segment.trip.time}
-                          <span class="font-normal text-muted-foreground">
+                          <span class="font-normal text-foreground">
                             · {segment.trip.tripType === 'round_trip' ? `round trip, back at ${segment.trip.returnTime}` : 'one way'}
                           </span>
                         </div>
-                        <div class="mt-0.5 text-muted-foreground">
+                        <div class="mt-0.5 text-foreground">
                           {segment.trip.origin} → {segment.trip.destination}
                         </div>
                       </div>
                       <button
                         type="button"
-                        class="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary transition hover:bg-primary/15"
+                        class="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-sm font-medium text-primary transition hover:bg-primary/15"
                         onclick={(event) => { event.stopPropagation(); copyTripDetails(segment.trip, message.id); }}
                       >
                         {copiedTripFor === message.id ? 'Copied' : 'Copy trip details'}
                       </button>
                     </div>
-                    <p class="mt-1 text-[11px] text-muted-foreground">
+                    <p class="mt-1 text-sm text-foreground">
                       OPTIMAT can't book for you — call one of these and read them the details.
                     </p>
                   </div>
@@ -2042,17 +2042,17 @@ How can I assist you today?`,
 
                   {#if addressPlaces.length > 0}
                     <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <div class="text-xs text-muted-foreground mb-1">Addresses</div>
+                      <div class="text-sm text-foreground mb-1">Addresses</div>
                       <div class="flex flex-col gap-1">
                         {#each addressPlaces.slice(0, 3) as place (place.address)}
                           <button
                             type="button"
-                            class="text-left text-xs px-2 py-1 rounded-md bg-muted/60 hover:bg-muted transition"
+                            class="text-left text-sm px-2 py-1 rounded-md bg-muted/60 hover:bg-muted transition"
 	                            onclick={() => openAddressPlace(place)}
                           >
                             {#if place.name}
                               <div class="font-medium text-foreground line-clamp-1">{place.name}</div>
-                              <div class="text-[11px] text-muted-foreground line-clamp-1">{place.address}</div>
+                              <div class="text-sm text-foreground line-clamp-1">{place.address}</div>
                             {:else}
                               <div class="text-foreground line-clamp-2">{place.address}</div>
                             {/if}
@@ -2064,25 +2064,25 @@ How can I assist you today?`,
 
                   {#if providerInfo}
                     <details class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <summary class="cursor-pointer text-xs text-muted-foreground select-none">
+                      <summary class="cursor-pointer text-sm text-foreground select-none">
                         Provider details
                       </summary>
-                      <pre class="mt-2 text-[11px] whitespace-pre-wrap break-words text-muted-foreground">{JSON.stringify(providerInfo, null, 2)}</pre>
+                      <pre class="mt-2 text-sm whitespace-pre-wrap break-words text-foreground">{JSON.stringify(providerInfo, null, 2)}</pre>
                     </details>
                   {/if}
 
                   {#if webSearch}
                     <details class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <summary class="cursor-pointer text-xs text-muted-foreground select-none">
+                      <summary class="cursor-pointer text-sm text-foreground select-none">
                         Web search
                       </summary>
                       {#if typeof webSearch === 'object' && webSearch?.answer}
-                        <div class="mt-2 text-xs text-foreground whitespace-pre-wrap">{webSearch.answer}</div>
+                        <div class="mt-2 text-sm text-foreground whitespace-pre-wrap">{webSearch.answer}</div>
                         {#if Array.isArray(webSearch.sources) && webSearch.sources.length > 0}
                           <div class="mt-2 space-y-1">
                             {#each webSearch.sources.slice(0, 5) as source, idx (source.url || `${idx}`)}
                               <a
-                                class="block text-[11px] text-primary hover:underline line-clamp-1"
+                                class="block text-sm text-primary hover:underline line-clamp-1"
                                 href={source.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -2093,7 +2093,7 @@ How can I assist you today?`,
                           </div>
                         {/if}
                       {:else}
-                        <pre class="mt-2 text-[11px] whitespace-pre-wrap break-words text-muted-foreground">{JSON.stringify(webSearch, null, 2)}</pre>
+                        <pre class="mt-2 text-sm whitespace-pre-wrap break-words text-foreground">{JSON.stringify(webSearch, null, 2)}</pre>
                       {/if}
                     </details>
                   {/if}
@@ -2103,7 +2103,7 @@ How can I assist you today?`,
           </div>
 
           {#if message.role === 'human'}
-            <div class="flex-shrink-0 w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs">
+            <div class="flex-shrink-0 w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-sm">
               👤
             </div>
           {/if}
@@ -2128,7 +2128,7 @@ How can I assist you today?`,
 
       {#if loading || isStreaming}
         <div class="flex gap-2 justify-start" in:fade={{ duration: 300 }}>
-          <div class="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center text-xs thinking-avatar">
+          <div class="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center text-sm thinking-avatar">
             🧠
           </div>
           <div class="thinking-bubble rounded-2xl rounded-tl-sm px-3 py-2 max-w-[75%]">
@@ -2191,7 +2191,7 @@ How can I assist you today?`,
             <div class="animate-spin rounded-full h-3 w-3 border-2 border-primary border-t-transparent"></div>
           </div>
           <div class="bg-muted rounded-2xl rounded-tl-sm px-3 py-2">
-            <span class="text-sm text-muted-foreground">Loading example...</span>
+            <span class="text-sm text-foreground">Loading example...</span>
           </div>
         </div>
       {/if}
@@ -2222,7 +2222,7 @@ How can I assist you today?`,
         </div>
       {/if}
       {#if statusMessage}
-        <div class="bg-muted border border-border/60 text-muted-foreground p-3 rounded-lg text-sm" aria-live="polite">
+        <div class="bg-muted border border-border/60 text-foreground p-3 rounded-lg text-sm" aria-live="polite">
           {statusMessage}
         </div>
       {/if}
@@ -2246,7 +2246,7 @@ How can I assist you today?`,
             bind:this={messageInputElement}
             bind:value={userInput}
             placeholder={serverOnline ? messageSuggestion : "Chat unavailable"}
-            class="min-w-0 basis-full md:basis-auto flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
+            class="min-w-0 basis-full md:basis-auto flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
 	            onkeydown={(e) => {
@@ -2331,7 +2331,7 @@ How can I assist you today?`,
                 class="flex-1 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
                 disabled={isAutoPlaying}
               />
-              <span class="text-xs text-muted-foreground whitespace-nowrap min-w-[4rem] text-right">
+              <span class="text-sm text-foreground whitespace-nowrap min-w-[4rem] text-right">
                 {Math.min(currentStateIndex + 1, replayStates.length)} / {replayStates.length}
               </span>
             </div>
@@ -2373,7 +2373,7 @@ How can I assist you today?`,
                 <select
                   bind:value={playbackSpeed}
 	                  onchange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
-                  class="text-xs bg-muted border-0 rounded-lg px-2 py-1.5 cursor-pointer focus:ring-1 focus:ring-primary"
+                  class="text-sm bg-muted border-0 rounded-lg px-2 py-1.5 cursor-pointer focus:ring-1 focus:ring-primary"
                 >
                   <option value={0.5}>0.5x</option>
                   <option value={1}>1x</option>
@@ -2385,9 +2385,9 @@ How can I assist you today?`,
               <!-- Status indicator -->
               <div class="flex items-center gap-2">
                 {#if currentStateIndex >= replayStates.length}
-                  <span class="text-xs text-muted-foreground italic">Example completed</span>
+                  <span class="text-sm text-foreground italic">Example completed</span>
                 {:else if isAutoPlaying}
-                  <span class="text-xs text-primary flex items-center gap-1">
+                  <span class="text-sm text-primary flex items-center gap-1">
                     <span class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
                     Playing
                   </span>
@@ -2409,7 +2409,7 @@ How can I assist you today?`,
                 </svg>
               </button>
             {:else}
-              <div class="text-sm text-muted-foreground italic">
+              <div class="text-sm text-foreground italic">
                 Example completed
               </div>
             {/if}
@@ -2452,7 +2452,7 @@ How can I assist you today?`,
                 </svg>
               </div>
               <h3 class="text-lg font-semibold text-foreground mb-2">Example Saved!</h3>
-              <p class="text-sm text-muted-foreground mb-6">
+              <p class="text-sm text-foreground mb-6">
                 {#if exampleForm.title}
                   "{exampleForm.title}" has been saved to your examples.
                 {:else}
@@ -2481,7 +2481,7 @@ How can I assist you today?`,
               </div>
               <button
 	                onclick={closeExampleForm}
-                class="text-muted-foreground hover:text-foreground transition-colors rounded-lg p-1 hover:bg-muted"
+                class="text-foreground hover:text-foreground transition-colors rounded-lg p-1 hover:bg-muted"
                 aria-label="Close modal"
               >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2490,7 +2490,7 @@ How can I assist you today?`,
               </button>
             </div>
 
-            <p class="text-sm text-muted-foreground mb-4">
+            <p class="text-sm text-foreground mb-4">
               Save this conversation as an example for training or demonstration purposes.
             </p>
 
@@ -2500,7 +2500,7 @@ How can I assist you today?`,
 	            }} class="space-y-4">
               <div>
                 <label for="example-title" class="block text-sm font-medium text-foreground mb-1.5">
-                  Title <span class="text-muted-foreground font-normal">(required)</span>
+                  Title <span class="text-foreground font-normal">(required)</span>
                 </label>
                 <input
                   id="example-title"
@@ -2508,20 +2508,20 @@ How can I assist you today?`,
                   bind:value={exampleForm.title}
                   placeholder="e.g., Finding transit providers in Walnut Creek"
                   required
-                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-muted-foreground"
+                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-foreground"
                 />
               </div>
 
               <div>
                 <label for="example-description" class="block text-sm font-medium text-foreground mb-1.5">
-                  Description <span class="text-muted-foreground font-normal">(optional)</span>
+                  Description <span class="text-foreground font-normal">(optional)</span>
                 </label>
                 <textarea
                   id="example-description"
                   bind:value={exampleForm.description}
                   placeholder="What does this conversation demonstrate?"
                   rows="3"
-                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-muted-foreground resize-none"
+                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-foreground resize-none"
                 ></textarea>
               </div>
 
@@ -2651,6 +2651,11 @@ How can I assist you today?`,
       margin-bottom: 0.75em;
     }
 
+    .chat-markdown {
+      --tw-prose-body: currentColor;
+      --tw-prose-invert-body: currentColor;
+    }
+
     .chat-markdown :global(p:first-child) {
       margin-top: 0;
     }
@@ -2721,8 +2726,12 @@ How can I assist you today?`,
     }
 
     .chat-markdown :global(a) {
-      color: #3b82f6;
+      color: #1d4ed8;
       text-decoration: underline;
+    }
+
+    :global(.dark) .chat-markdown :global(a) {
+      color: #93c5fd;
     }
 
     .chat-markdown :global(a:hover) {
@@ -2734,7 +2743,6 @@ How can I assist you today?`,
       padding-left: 1em;
       margin: 0.75em 0;
       color: inherit;
-      opacity: 0.9;
     }
 
     .chat-markdown :global(hr) {

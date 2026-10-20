@@ -276,11 +276,11 @@
         <div>
           <h3 class="text-xl font-bold text-gray-900">Transportation Providers</h3>
           <div class="flex items-center space-x-2">
-            <p class="text-sm text-gray-600">
+            <p class="text-sm text-gray-900">
               {sortedProviders.length} provider{sortedProviders.length !== 1 ? 's' : ''} found
             </p>
             {#if loadingZones}
-              <div class="flex items-center space-x-1 text-xs text-blue-600">
+              <div class="flex items-center space-x-1 text-sm text-blue-600">
                 <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
                 <span>Loading zones...</span>
               </div>
@@ -288,7 +288,7 @@
           </div>
         </div>
         <button
-          class="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition-colors"
+          class="text-gray-900 hover:text-gray-900 p-2 hover:bg-gray-100 rounded-full transition-colors"
           on:click={closeWindow}
           aria-label="Close provider results"
         >
@@ -302,7 +302,7 @@
     <!-- Content -->
     <div class="{embedded ? 'flex-1 overflow-y-auto' : 'overflow-y-auto max-h-[calc(100vh-12rem)]'}">
       {#if sortedProviders.length === 0}
-        <div class="text-gray-500 text-center py-8 bg-gray-50 m-6 rounded-lg">
+        <div class="text-gray-900 text-center py-8 bg-gray-50 m-6 rounded-lg">
           <div class="text-4xl mb-2">🚌</div>
           <p>No transportation providers found for your criteria.</p>
         </div>
@@ -312,7 +312,7 @@
           {#if providerData.source_address && providerData.destination_address}
             <div class="bg-gray-50 rounded-lg p-4 text-sm">
               <h4 class="font-medium text-gray-900 mb-2">Trip Details</h4>
-              <div class="space-y-1 text-gray-600">
+              <div class="space-y-1 text-gray-900">
                 <p><span class="font-medium">From:</span> {providerData.source_address}</p>
                 <p><span class="font-medium">To:</span> {providerData.destination_address}</p>
               </div>
@@ -330,7 +330,7 @@
                 </div>
                 <div class="flex-1">
                   <h4 class="font-medium text-gray-900 mb-2">Public Transit Option</h4>
-                  <p class="text-gray-700">{publicTransitDescription}</p>
+                  <p class="text-gray-900">{publicTransitDescription}</p>
                 </div>
               </div>
             </div>
@@ -350,7 +350,7 @@
                   <!-- Provider details -->
                   <div class="flex-1 pr-16">
                     <h4 class="font-medium text-gray-900">{provider.provider_name}</h4>
-                    <dl class="mt-2 text-sm text-gray-600 space-y-1">
+                    <dl class="mt-2 text-sm text-gray-900 space-y-1">
                       <div class="flex">
                         <dt class="font-medium w-20">Type:</dt>
                         <dd>{getProviderTypeLabel(provider.provider_type)}</dd>
@@ -401,10 +401,10 @@
                     <!-- Service Zone Toggle Button -->
                     <div class="mt-3 pt-3 border-t border-gray-100">
                       <button
-                        class="inline-flex items-center space-x-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors {
+                        class="inline-flex items-center space-x-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors {
                           visibleZones.has(provider.provider_id)
                             ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                         }"
                         on:click={() => toggleServiceZone(provider.provider_id, provider.provider_name, provider, index)}
                         disabled={loadingZones || isProviderZoneLoading(provider.provider_id)}
@@ -437,7 +437,7 @@
     {#if !embedded}
       <!-- Footer (only shown in non-embedded mode) -->
       <div class="flex justify-between items-center p-4 border-t border-gray-200 bg-gray-50/90">
-        <p class="text-xs text-gray-600">
+        <p class="text-sm text-gray-900">
           Results from AI assistant
         </p>
         <button

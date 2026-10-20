@@ -150,14 +150,14 @@
       <div class="min-w-0">
         <div class="truncate text-sm font-semibold text-foreground">{provider?.provider_name}</div>
         {#if provider?.routing_type}
-          <div class="text-[10px] uppercase tracking-wide text-muted-foreground">{provider.routing_type}</div>
+          <div class="text-sm uppercase tracking-wide text-foreground">{provider.routing_type}</div>
         {/if}
       </div>
     </div>
     {#if !fixedRoute && qualified}
-      <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">You may qualify</span>
+      <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-sm font-medium text-emerald-800">You may qualify</span>
     {:else if !fixedRoute}
-      <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">Confirm eligibility</span>
+      <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-sm font-medium text-amber-800">Confirm eligibility</span>
     {/if}
   </div>
 
@@ -172,29 +172,29 @@
         📞 {phone}
       </a>
     {:else}
-      <span class="text-xs text-muted-foreground">No phone number on file — see their website</span>
+      <span class="text-sm text-foreground">No phone number on file — see their website</span>
     {/if}
     {#if fare}
-      <span class="text-xs text-foreground">{fare}</span>
+      <span class="text-sm text-foreground">{fare}</span>
     {/if}
   </div>
 
   {#if deadline}
-    <div class="mt-1.5 text-[11px] font-medium text-foreground">
+    <div class="mt-1.5 text-sm font-medium text-foreground">
       Call by {deadline}
-      <span class="font-normal text-muted-foreground">· needs {notice} notice</span>
+      <span class="font-normal text-foreground">· needs {notice} notice</span>
     </div>
   {:else if notice}
-    <div class="mt-1.5 text-[11px] text-muted-foreground">Needs {notice} advance notice</div>
+    <div class="mt-1.5 text-sm text-foreground">Needs {notice} advance notice</div>
   {/if}
   {#if regionalNotice}
-    <div class="mt-1 text-[11px] text-muted-foreground">
+    <div class="mt-1 text-sm text-foreground">
       Regional trips may be booked {regionalNotice} in advance.
     </div>
   {/if}
 
   {#if !fixedRoute && !qualified}
-    <div class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+    <div class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
       <span class="font-semibold">Ask when you call:</span> {missingFactsSentence(provider)}
       {#if requirements.length > 0}
         <div class="mt-1 text-amber-800 dark:text-amber-300">{requirements.join(' · ')}</div>
@@ -203,12 +203,12 @@
   {/if}
 
   {#if !hoursKnown}
-    <div class="mt-1.5 text-[11px] text-muted-foreground">
+    <div class="mt-1.5 text-sm text-foreground">
       Operating hours aren't on file{trip?.time ? ` — confirm ${trip.time} works` : ' — confirm your time'}.
     </div>
   {/if}
 
-  <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px]">
+  <div class="mt-2 flex flex-wrap items-center gap-3 text-sm">
     {#if onSelect}
       <button
         type="button"

@@ -52,7 +52,7 @@
     >
       <button
         type="button"
-        class="absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        class="absolute right-3 top-3 rounded-md p-1.5 text-foreground transition hover:bg-muted hover:text-foreground"
         aria-label="Close"
         on:click={close}
       >
@@ -74,7 +74,7 @@
         <a href="mailto:{CONTACT}" class="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary">{CONTACT}</a>
       </p>
 
-      <p class="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+      <p class="mt-3 text-sm leading-relaxed text-foreground">
         OPTIMAT is a project of the Contra Costa Transportation Authority in partnership with the
         University of California, Berkeley PATH research team, and Advanced Mobility Group.
       </p>
