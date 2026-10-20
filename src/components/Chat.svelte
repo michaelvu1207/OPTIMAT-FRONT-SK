@@ -105,6 +105,7 @@
     export let onProviderSelect = null;
     export let mapSelectedProvider = null;
     export let isPhone = false;
+    let examplesExpanded = false;
 
     function normalizeChatRole(role) {
         const value = (role || '').toString().toLowerCase();
@@ -1789,6 +1790,7 @@ How can I assist you today?`,
     }
 
     export function startNewConversation() {
+      examplesExpanded = false;
       // Stop auto-play if active
       stopAutoPlay();
 
@@ -2194,10 +2196,23 @@ How can I assist you today?`,
         </div>
       {/if}
 
-      <!-- Examples to play on desktop, offered until the rider asks their own question. -->
+      <!-- Desktop examples stay collapsed until the rider chooses to view them. -->
       {#if !isPhone && $$slots.examples && !isViewingExample && replayStates.length === 0 && !messages.some((message) => message.role === 'human')}
         <div class="pt-1">
-          <slot name="examples" />
+          <button
+            type="button"
+            class="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
+            aria-expanded={examplesExpanded}
+            aria-controls="chat-examples"
+            onclick={() => { examplesExpanded = !examplesExpanded; }}
+          >
+            {examplesExpanded ? 'Hide examples' : 'Show examples'}
+          </button>
+          <div id="chat-examples" hidden={!examplesExpanded} class="mt-3">
+            {#if examplesExpanded}
+              <slot name="examples" />
+            {/if}
+          </div>
         </div>
       {/if}
 
