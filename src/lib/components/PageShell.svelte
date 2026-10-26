@@ -16,21 +16,18 @@
 
   onMount(() => {
     if (!fitMobileViewport) return;
-    const phone = window.matchMedia('(max-width: 767px)');
     const viewport = window.visualViewport;
     const updateViewportHeight = () => {
       // Pinch zoom should magnify the page rather than resize its layout.
       if (viewport && viewport.scale !== 1) return;
-      mobileViewportHeight = phone.matches ? (viewport?.height ?? window.innerHeight) : null;
+      mobileViewportHeight = viewport?.height ?? window.innerHeight;
     };
     updateViewportHeight();
     viewport?.addEventListener('resize', updateViewportHeight);
     window.addEventListener('resize', updateViewportHeight);
-    phone.addEventListener('change', updateViewportHeight);
     return () => {
       viewport?.removeEventListener('resize', updateViewportHeight);
       window.removeEventListener('resize', updateViewportHeight);
-      phone.removeEventListener('change', updateViewportHeight);
     };
   });
 
@@ -181,7 +178,7 @@
     </nav>
 
     <!-- Spacer -->
-    <div class="flex-1"></div>
+    <div class="nav-spacer flex-1"></div>
 
     <!-- Page title in header (compact) -->
     {#if title && appMode}
@@ -246,27 +243,28 @@
 </div>
 
 <style>
-  @media (max-width: 767px) {
-    .fit-mobile-viewport {
-      height: 100svh;
-      height: var(--mobile-viewport-height, 100dvh);
-      overflow: hidden;
-    }
+  .fit-mobile-viewport {
+    height: 100svh;
+    height: var(--mobile-viewport-height, 100dvh);
+    width: 100%;
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+    padding-top: env(safe-area-inset-top);
+  }
+
+  @media (max-width: 1024px) {
 
     .app-header {
       min-height: 3rem;
-      height: 3rem;
+      height: auto;
       padding-inline: 0.25rem;
-      overflow: hidden;
     }
 
     .app-nav {
       flex: 1;
-      overflow-x: auto;
-      scrollbar-width: none;
+      flex-wrap: wrap;
     }
 
-    .app-nav::-webkit-scrollbar {
+    .nav-spacer {
       display: none;
     }
 

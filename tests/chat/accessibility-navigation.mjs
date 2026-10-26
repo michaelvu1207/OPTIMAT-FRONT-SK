@@ -2,12 +2,14 @@
 // Start server: VITE_API_BACKEND=aws VITE_AWS_API_URL=https://optimat-test.invalid npm run dev -- --port 43111
 // PLAYWRIGHT_CHANNEL=msedge node tests/chat/accessibility-navigation.mjs [baseUrl]
 import assert from 'node:assert/strict';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { chromium } from 'playwright';
 
 const baseUrl = process.argv[2] || 'http://127.0.0.1:43111/';
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' });
 try {
-  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 664 }]) {
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 664 }, { width: 820, height: 1180 }]) {
     const page = await browser.newPage({ viewport });
     let turn = 0;
     let releaseResponse;
@@ -65,7 +67,7 @@ try {
     await page.getByRole('button', { name: 'Jump to latest message', exact: true }).click();
     assert.equal(await page.getByRole('article', { name: 'OPTIMAT response' }).last().evaluate(el => el === document.activeElement), true);
     assert.ok(await history.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop) < 2);
-    await page.screenshot({ path: `/private/tmp/optimat-a11y-${viewport.width}.png` });
+    await page.screenshot({ path: join(tmpdir(), `optimat-a11y-${viewport.width}.png`) });
     console.log(`PASS ${viewport.width}: modal keyboard containment/Escape, named history, scroll/focus preservation, explicit jump`);
     await page.close();
   }

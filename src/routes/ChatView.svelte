@@ -27,6 +27,7 @@
 
   let mounted = false;
   let isPhone = false;
+  let isCompact = false;
   let showChat = false;
   let showProviderResults = false;
   let providerData = null;
@@ -89,6 +90,7 @@
 
   onMount(async () => {
     isPhone = window.matchMedia('(max-width: 767px)').matches;
+    isCompact = window.matchMedia('(max-width: 1024px)').matches;
     mounted = true;
     await checkServerHealth();
     if (serverOnline) {
@@ -105,17 +107,23 @@
   });
 
   onMount(() => {
-    const media = window.matchMedia('(max-width: 767px)');
-    const updatePhoneLayout = () => {
-      isPhone = media.matches;
-      if (isPhone) {
+    const media = window.matchMedia('(max-width: 1024px)');
+    const phone = window.matchMedia('(max-width: 767px)');
+    const updateResponsiveLayout = () => {
+      isPhone = phone.matches;
+      isCompact = media.matches;
+      if (isCompact) {
         selectedProvider = null;
         clearTransitRoute();
       }
     };
-    updatePhoneLayout();
-    media.addEventListener('change', updatePhoneLayout);
-    return () => media.removeEventListener('change', updatePhoneLayout);
+    updateResponsiveLayout();
+    media.addEventListener('change', updateResponsiveLayout);
+    phone.addEventListener('change', updateResponsiveLayout);
+    return () => {
+      media.removeEventListener('change', updateResponsiveLayout);
+      phone.removeEventListener('change', updateResponsiveLayout);
+    };
   });
 
   async function checkServerHealth() {
@@ -964,9 +972,9 @@
     appMode={true}
     fitMobileViewport={true}
   >
-    <!-- Desktop uses a map/chat split. Phones are deliberately chat-first and never mount the map. -->
+    <!-- Phones and tablets give the conversation the full width. -->
     <Resizable.PaneGroup direction="horizontal" class="flex-1 h-full min-h-0 min-w-0">
-      {#if !isPhone}
+      {#if !isCompact}
       <!-- Left: the map, full height. Provider details live in the chat, not beside it. -->
       <Resizable.Pane defaultSize={35} minSize={35} class="relative">
         <!-- Map style selector - floating overlay -->
@@ -1116,27 +1124,18 @@
 
       <!-- Right: Chat Panel (full height) -->
       <Resizable.Pane
-        defaultSize={isPhone ? 100 : 65}
-        minSize={isPhone ? 100 : 25}
-        class="min-w-0 bg-card flex flex-col overflow-hidden {isPhone ? '' : 'border-l border-border/40'}"
+        defaultSize={isCompact ? 100 : 65}
+        minSize={isCompact ? 100 : 50}
+        class="min-w-0 bg-card flex flex-col overflow-hidden {isCompact ? '' : 'border-l border-border/40'}"
       >
-        <!-- Chat Header -->
-        <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-foreground uppercase tracking-wide">💬 Chat</span>
-            {#if !serverOnline}
-              <span class="text-sm text-destructive">Offline</span>
-            {/if}
-          </div>
-        </div>
         <!-- Chat Content -->
         <div class="flex-1 min-h-0 overflow-hidden">
           <Chat
             {isPhone}
             bind:this={chatComponent}
             onProvidersFound={handleProvidersFound}
-            onProviderSelect={isPhone ? null : selectProvider}
-            mapSelectedProvider={isPhone ? null : selectedProvider}
+            onProviderSelect={isCompact ? null : selectProvider}
+            mapSelectedProvider={isCompact ? null : selectedProvider}
             on:addressFound={handleAddressFound}
             on:newConversationStarted={handleNewConversationStarted}
             on:exampleSaved={handleExampleSaved}

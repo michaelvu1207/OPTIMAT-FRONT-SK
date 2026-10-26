@@ -1945,10 +1945,10 @@ How can I assist you today?`,
     }
 
 </script>
-  <div class="flex flex-col h-full min-h-0 overflow-hidden bg-background">
+  <div class="chat-layout flex flex-col h-full min-h-0 min-w-0 overflow-hidden bg-background">
     <!-- Top status bar -->
     <div class="flex-shrink-0 border-b border-border/40 px-3 py-2 bg-muted/30">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <!-- Left side: status indicators -->
         <div class="flex items-center gap-2">
           {#if !serverOnline}
@@ -2011,7 +2011,7 @@ How can I assist you today?`,
             </div>
           {/if}
 
-          <div class="{isPhone && isGreeting ? 'min-w-0 flex-1' : segments.some((segment) => segment.kind !== 'markdown') ? 'max-w-[94%]' : 'max-w-[75%]'} {
+          <div class="message-bubble min-w-0 {isPhone && isGreeting ? 'flex-1' : segments.some((segment) => segment.kind !== 'markdown') ? 'max-w-[94%]' : 'max-w-[75%]'} {
             message.role === 'human'
               ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-3 py-2'
               : 'bg-muted text-foreground rounded-2xl rounded-tl-sm px-3 py-2'
@@ -2288,14 +2288,14 @@ How can I assist you today?`,
 	        }}
 	        class="chat-composer flex-shrink-0 border-t border-border/40 bg-card px-3 py-3"
 	      >
-        <label for="chat-question" class="mb-2 block text-sm font-medium text-foreground md:sr-only">Your question</label>
-        <div class="flex flex-wrap gap-2 md:flex-nowrap">
+        <label for="chat-question" class="composer-label mb-2 block text-sm font-medium text-foreground">Your question</label>
+        <div class="composer-controls">
           <textarea
             id="chat-question"
             bind:this={messageInputElement}
             bind:value={userInput}
             placeholder={serverOnline ? messageSuggestion : "Chat unavailable"}
-            class="min-w-0 basis-full md:basis-auto flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
+            class="min-w-0 w-full resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base shadow-sm placeholder:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
 	            onkeydown={(e) => {
@@ -2314,7 +2314,7 @@ How can I assist you today?`,
             aria-busy={isTranscribing}
             aria-describedby="voice-input-status"
             title={isTranscribing ? 'Transcribing voice input' : isRecording ? 'Stop voice recording' : 'Start voice input'}
-            class={`self-end min-h-14 shrink-0 rounded-lg border-2 px-4 py-3 text-base font-semibold transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
+            class={`voice-button self-end min-h-14 shrink-0 rounded-lg border-2 px-4 py-3 text-base font-semibold transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
               isRecording
                 ? 'border-destructive bg-destructive text-white hover:bg-destructive/90'
                 : 'border-primary bg-primary/10 text-foreground hover:bg-primary/20'
@@ -2356,8 +2356,10 @@ How can I assist you today?`,
             {:else if isTranscribing}
               Converting your voice to text. Please wait, then review your text and tap Send.
             {:else}
-              <span class="hidden md:inline">Enter to send · Shift+Enter for new line</span>
-              <span class="md:hidden">Type your question, then tap Send</span>
+              <span class="composer-hint">
+                <span class="hidden md:inline">Enter to send · Shift+Enter for new line</span>
+                <span class="md:hidden">Type your question, then tap Send</span>
+              </span>
             {/if}
           </div>
         {/if}
@@ -2593,8 +2595,93 @@ How can I assist you today?`,
   </div>
 
   <style>
+    .chat-layout {
+      container-type: size;
+      container-name: chat;
+    }
+
     .chat-messages {
       scroll-behavior: auto;
+      min-width: 0;
+      overflow-x: hidden;
+      overflow-wrap: anywhere;
+    }
+
+    .message-bubble {
+      overflow-wrap: anywhere;
+    }
+
+    .chat-markdown :global(table) {
+      display: block;
+      max-width: 100%;
+      overflow-x: auto;
+    }
+
+    .chat-composer {
+      padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    }
+
+    .composer-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 0.5rem;
+    }
+
+    .composer-controls textarea {
+      grid-column: 1 / -1;
+    }
+
+    @container chat (min-width: 600px) {
+      .composer-controls {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+      }
+
+      .composer-controls textarea {
+        grid-column: auto;
+      }
+    }
+
+    /* Leave room to read history with a keyboard open or in landscape. */
+    @container chat (max-height: 440px) {
+      .chat-composer {
+        padding: 0.5rem;
+        padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+      }
+
+      .composer-controls {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+      }
+
+      .composer-controls textarea {
+        grid-column: auto;
+        min-height: 3rem;
+        height: 3rem;
+      }
+
+      .voice-button {
+        min-height: 3rem;
+        padding: 0.5rem;
+      }
+
+      .voice-button span,
+      .composer-label,
+      .composer-hint {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+    }
+
+    @container chat (max-width: 600px) {
+      .message-bubble {
+        max-width: calc(100% - 2.25rem);
+      }
     }
 
     @keyframes bounce {
@@ -2858,10 +2945,6 @@ How can I assist you today?`,
       .chat-messages {
         padding-inline: 1rem;
         font-size: 1rem;
-      }
-
-      .chat-composer {
-        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
       }
 
       .chat-markdown {
