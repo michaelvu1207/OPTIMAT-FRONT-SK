@@ -27,6 +27,7 @@ vite.config.ts.timestamp-*
 # Local migration outputs
 scripts/backup/
 scripts/cache/
+scripts/operations/output/
 .gstack/
 
 # Point-in-time API captures from tests/api-harness.mjs (8MB+ each, stale by design).

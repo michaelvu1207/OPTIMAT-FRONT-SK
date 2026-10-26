@@ -18,6 +18,7 @@ import { query, queryRows, TABLES } from '../_shared/db.js';
 import type { ParsedRequest } from '../_shared/adapter.js';
 import { randomUUID } from 'node:crypto';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { operationsDashboard } from './operations.js';
 
 const region = process.env.AWS_REGION || 'us-west-1';
 const s3 = new S3Client({ region });
@@ -420,6 +421,9 @@ function parseRoute(segments: string[]): string[] {
 
 export const handler = createHandler(async (req) => {
   const subSegments = parseRoute(req.pathSegments);
+  if (subSegments.length === 1 && subSegments[0] === 'operations') {
+    return operationsDashboard(req);
+  }
   const providerIdParam = req.searchParams.get('provider_id');
   const providerId = providerIdParam ? Number(providerIdParam) : null;
   const mockParam = req.searchParams.get('mock');
