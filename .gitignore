@@ -28,6 +28,7 @@ vite.config.ts.timestamp-*
 scripts/backup/
 scripts/cache/
 scripts/operations/output/
+scripts/operations/__pycache__/
 .gstack/
 
 # Point-in-time API captures from tests/api-harness.mjs (8MB+ each, stale by design).

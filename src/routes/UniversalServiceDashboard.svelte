@@ -105,7 +105,7 @@
     <section class="visuals" aria-label="Demand map and service summary">
       <div class="map-panel">
         {#if data && points.length}
-          <TripRouteMap mapKey={`operations-${requestId}-${focusedCity}`} {center} zoom={focus ? 11 : 10} overlayMode="heat" {heatPoints} />
+          <TripRouteMap mapKey={`operations-${requestId}-${focusedCity}`} {center} zoom={focus ? 11 : 10} overlayMode="heat" {heatPoints} mapHeight="100%" />
           <div class="map-caption">
             <strong>City-level activity</strong>
             <span>{count(data.event_summary.mapped)} mapped endpoint events · {points.length} areas</span>
@@ -207,7 +207,7 @@
   .operations { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(340px,1fr); height:100%; min-height:0; overflow:hidden; background:#f8fafc; color:#0f172a; }
   .visuals { display:flex; flex-direction:column; min-height:0; overflow:auto; border-right:1px solid #dbe3ef; }
   .map-panel { position:relative; height:48vh; min-height:300px; flex-shrink:0; overflow:hidden; background:#e8eef2; }
-  .map-caption { position:absolute; left:16px; top:16px; z-index:500; background:#fffffff2; padding:12px 16px; border-radius:10px; box-shadow:0 2px 10px #0001; display:grid; gap:4px; font-size:13px; }
+  .map-caption { position:absolute; left:56px; top:12px; z-index:500; max-width:calc(100% - 70px); background:#fffffff2; padding:12px 16px; border-radius:10px; box-shadow:0 2px 10px #0001; display:grid; gap:4px; font-size:13px; }
   .map-empty { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; text-align:center; }
   .summary { padding:20px; }
   .section-heading { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:10px; }

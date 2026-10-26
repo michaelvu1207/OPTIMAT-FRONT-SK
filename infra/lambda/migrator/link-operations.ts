@@ -36,6 +36,31 @@ export async function runLinkOperations(client: pg.Client, apply: boolean) {
   if (unauthorized.summary.records !== 0 || unauthorized.imports.length !== 0 || unauthorized.trips.length !== 0) {
     throw new Error('Operations provider scope verification failed');
   }
+  const cases = [
+    { from: '2025-12-31', to: '2025-12-31', status: null, mode: 'origins', start: 0, end: 24 },
+    { from: '2025-07-01', to: '2025-07-31', status: 'P', mode: 'origins', start: 8, end: 10 },
+    { from: '2025-07-01', to: '2025-12-31', status: 'NS', mode: 'destinations', start: 14, end: 16 },
+    { from: '2026-01-01', to: '2026-01-02', status: null, mode: 'origins', start: 0, end: 24 },
+  ];
+  const filterChecks = [];
+  for (const test of cases) {
+    const timeColumn = test.mode === 'origins' ? 'pickup_depart_time' : 'dropoff_arrive_time';
+    const expected = (await client.query(`SELECT count(*)::integer AS count FROM optimat.operation_trips
+      WHERE import_id=$1 AND service_date BETWEEN $2::date AND $3::date
+      AND ($4::text IS NULL OR status=$4)
+      AND (($5=0 AND $6=24) OR (extract(hour FROM ${timeColumn}) >= $5 AND extract(hour FROM ${timeColumn}) < $6))`,
+      [report.import_id, test.from, test.to, test.status, test.start, test.end])).rows[0].count;
+    const actual = (await client.query(OPERATIONS_SQL, [true, parameters[1], report.provider_id,
+      test.from, test.to, test.start, test.end, test.status, test.mode, 50, 0])).rows[0].payload;
+    if (actual.summary.records !== expected || actual.event_summary.total !== expected) {
+      throw new Error('Operations date/status/hour filter verification failed');
+    }
+    filterChecks.push({ ...test, records: expected });
+  }
+  const nextPage = (await client.query(OPERATIONS_SQL, [...parameters.slice(0, 10), 50])).rows[0].payload;
+  const firstIds = new Set(dashboard.trips.map((trip: { id: string }) => trip.id));
+  if (nextPage.trips.some((trip: { id: string }) => firstIds.has(trip.id))) throw new Error('Operations pagination overlaps');
+  if (dashboard.trips.some((trip: object) => 'client_id' in trip || 'origin_address' in trip)) throw new Error('Private raw fields leaked into dashboard records');
   return { import_id: report.import_id, source: report.filename, ...row,
-    event_summary: dashboard.event_summary, scoped_access_verified: true };
+    event_summary: dashboard.event_summary, scoped_access_verified: true, pagination_verified: true, filter_checks: filterChecks };
 }

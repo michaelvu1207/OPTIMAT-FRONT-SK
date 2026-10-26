@@ -12,12 +12,13 @@
   export let routeMode = 'standard';
   export let selectedTripId = null;
   export let heatPoints = [];
+  export let mapHeight = '100vh';
 </script>
 
 {#key mapKey}
   <Map
     options={{ center, zoom, zoomControl: true }}
-    style="height: 100vh; width: 100%; border-radius: 0; overflow: hidden;"
+    style={`height: ${mapHeight}; width: 100%; border-radius: 0; overflow: hidden;`}
   >
     <TileLayer
       url={DEFAULT_MAP_STYLE.url}
