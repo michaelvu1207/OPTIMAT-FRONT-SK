@@ -12,7 +12,7 @@ export interface OperationsResult {
   event_summary: { total: number; mapped: number; unmapped: number; missing_time: number };
   heat_points: { city: string; lat: number; lng: number; count: number }[];
   hourly: { hour: number; count: number }[];
-  trips: { id: string; source_row: number; date: string; provider_id: number; provider_name: string; origin_city: string | null; destination_city: string | null; origin_zip: string | null; destination_zip: string | null; pickup_time: string | null; dropoff_time: string | null; status: string | null; space_type: string | null; origin_mapped: boolean; destination_mapped: boolean }[];
+  trips: { id: string; source_row: number; date: string; provider_id: number; provider_name: string; origin_city: string | null; destination_city: string | null; pickup_time: string | null; dropoff_time: string | null; status: string | null; origin_mapped: boolean; destination_mapped: boolean }[];
   precision: string; timezone: string;
 }
 

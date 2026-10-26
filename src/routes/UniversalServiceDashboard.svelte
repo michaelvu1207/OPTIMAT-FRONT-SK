@@ -3,7 +3,6 @@
   import PageShell from '$lib/components/PageShell.svelte';
   import TripRouteMap from '../components/TripRouteMap.svelte';
   import { providerPortalNavItems } from '$lib/providerPortalNav';
-  import { restorePortalToken } from '$lib/portalToken';
   import { getOperations, type OperationsResult, type OperationsMode, type OperationsFilters } from '$lib/operationsApi';
 
   let data: OperationsResult | null = null;
@@ -30,7 +29,6 @@
   ];
 
   onMount(() => {
-    restorePortalToken();
     void load();
   });
   onDestroy(() => { requestId += 1; controller?.abort(); });
@@ -145,7 +143,7 @@
         <button type="button" onclick={() => load()} disabled={loading}>Refresh</button>
       </div>
       <form onsubmit={(event) => { event.preventDefault(); applyFilters(); }} class="filters">
-        <label>Provider<select bind:value={provider}><option value="">All authorized providers</option>
+        <label>Provider<select bind:value={provider}><option value="">All published providers</option>
           {#each providerOptions as item}<option value={String(item.provider_id)}>{item.provider_name}</option>{/each}
         </select></label>
         <div class="two-columns">
@@ -165,9 +163,9 @@
         {/each}</div>
         <button class="primary" type="submit" disabled={loading}>{loading ? 'Loading…' : 'Apply filters'}</button>
       </form>
-      {#if error}<div class="error" role="alert">{error} <a href="#/provider-portal">My account / Sign in</a></div>{/if}
+      {#if error}<div class="error" role="alert">{error}</div>{/if}
       {#if data && !data.imports.length}
-        <div class="empty">No active operational import is available for your authorized providers. An administrator must import LINK and assign provider access.</div>
+        <div class="empty">No published operational data is available. Please try again later.</div>
       {/if}
       {#if data}
         <div class="source">
@@ -235,7 +233,6 @@
   .layers { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
   .error,.empty { padding:18px; font-size:13px; line-height:1.6; }
   .error { background:#fef2f2; color:#991b1b; }
-  .error a { text-decoration:underline; display:block; }
   .source { display:grid; gap:4px; font-size:12px; color:#64748b; }
   .source strong { color:#334155; }
   .areas { max-height:250px; overflow:auto; }

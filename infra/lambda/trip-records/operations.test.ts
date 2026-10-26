@@ -5,7 +5,6 @@ import { getPool } from '../_shared/db.js';
 import { handler } from './index.js';
 import { OPERATIONS_SQL, parseFilters } from './operations.js';
 
-const account = { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', role: 'provider' };
 function event(query = '', auth = true, method = 'GET'): APIGatewayProxyEventV2 {
   return { rawPath: '/trip-records/operations', rawQueryString: query,
     headers: auth ? { authorization: `Bearer ${'ab'.repeat(32)}` } : {},
@@ -22,28 +21,32 @@ test('date, mode, pagination and hour filters reject invalid input', () => {
   assert.equal(parseFilters(new URLSearchParams('date_to=2025-12-31')).to, '2025-12-31');
 });
 
-test('anonymous operations requests never reach the database, even with mock=true', async () => {
-  mock.method(await getPool(), 'query', async () => { throw new Error('Unexpected query'); });
-  assert.equal((await handler(event('mock=true', false)) as any).statusCode, 401);
+test('anonymous operations requests read published data, including with mock=true', async () => {
+  mock.method(await getPool(), 'query', async (sql: string, args: unknown[]) => {
+    assert.equal(sql, OPERATIONS_SQL);
+    assert.deepEqual(args, [null, null, null, 0, 24, null, 'combined', 50, 0]);
+    return { rows: [{ payload: { summary: { records: 48832 }, trips: [] } }] };
+  });
+  const result = await handler(event('mock=true', false)) as any;
+  assert.equal(result.statusCode, 200);
+  assert.equal(JSON.parse(result.body).summary.records, 48832);
 });
 
-test('provider scope cannot be widened through filters; private records are not cached', async () => {
+test('login headers do not change public scope and responses are not cached', async () => {
   let observed: unknown[] = [];
   mock.method(await getPool(), 'query', async (sql: string, args: unknown[]) => {
-    if (sql.includes('portal_sessions')) return { rows: [account] };
     assert.equal(sql, OPERATIONS_SQL);
     observed = args;
     return { rows: [{ payload: { imports: [], trips: [] } }] };
   });
   const result = await handler(event('provider_id=9999&date_to=2025-12-31&mode=destinations')) as any;
   assert.equal(result.statusCode, 200);
-  assert.deepEqual(observed.slice(0, 5), [false, account.id, 9999, null, '2025-12-31']);
-  assert.equal(result.headers['Cache-Control'], 'private, no-store');
+  assert.deepEqual(observed.slice(0, 3), [9999, null, '2025-12-31']);
+  assert.equal(result.headers['Cache-Control'], 'no-store');
 });
 
 test('missing migration gives an actionable response without leaking SQL or credentials', async () => {
   mock.method(await getPool(), 'query', async (sql: string) => {
-    if (sql.includes('portal_sessions')) return { rows: [account] };
     throw Object.assign(new Error('private database details'), { code: '42P01' });
   });
   const result = await handler(event()) as any;
@@ -53,10 +56,7 @@ test('missing migration gives an actionable response without leaking SQL or cred
 });
 
 test('invalid filters and unsupported writes do not query operational rows', async () => {
-  mock.method(await getPool(), 'query', async (sql: string) => {
-    assert.match(sql, /portal_sessions/);
-    return { rows: [account] };
-  });
+  mock.method(await getPool(), 'query', async () => { throw new Error('Unexpected query'); });
   assert.equal((await handler(event('hour_to=99')) as any).statusCode, 400);
   assert.equal((await handler(event('', true, 'POST')) as any).statusCode, 405);
 });

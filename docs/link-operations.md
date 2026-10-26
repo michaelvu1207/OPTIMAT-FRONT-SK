@@ -1,6 +1,6 @@
 # LINK operations dashboard
 
-The Universal Service Dashboard reads authenticated operational records from
+The Universal Service Dashboard reads public operational records from
 `GET /trip-records/operations`. It no longer generates random trips, provider
 assignments, coordinates, dates, or distances. The existing Trip Upload intake
 does not automatically perform this import.
@@ -76,7 +76,7 @@ Invoke with a JSON file containing:
 ```
 
 This action applies migration 0005, imports the bundled snapshot, and reconciles
-counts, dates, statuses, mapping coverage, SQL filters, pagination, and provider
+counts, dates, statuses, mapping coverage, SQL filters, pagination, and the published provider
 scope. It accepts no SQL, storage keys, or record payloads from invocation input.
 Invoke `{"action":"verify-link-operations"}` for read-only reconciliation.
 Keep private import bundles out of version control and public storage.
@@ -110,14 +110,15 @@ existing `/trip-records/{proxy+}` route already covers the new endpoint.
 Deploy the frontend with VITE_API_BACKEND=aws and the existing VITE_AWS_API_URL.
 The repository-connected Amplify app releases from its configured Git branch.
 
-Sign in through My account / Providers, then open Universal Dashboard. Super
-administrators can view active imports across providers. Provider accounts see
-only imports assigned through `portal_account_providers`. An account without
-LINK access sees no LINK records. No new account or assignment is created.
-Anonymous requests receive 401; private responses use Cache-Control: no-store.
+Open Universal Dashboard directly; no sign-in is required. The public endpoint
+serves only active LINK imports for provider 2006, regardless of whether the
+visitor is signed in. Publishing another provider requires an explicit code
+change. Account management, uploads, and other portal endpoints retain their
+existing authorization. Database roles and grants are unchanged.
+Responses use Cache-Control: no-store.
 
 The API returns aggregated points and at most 100 sanitized records per page
-(50 in the UI), without client IDs or street addresses. SQL parameters are
+(50 in the UI), without client IDs, street addresses, ZIP codes, or space types. SQL parameters are
 validated and bound, not interpolated. All panels derive from one SQL snapshot.
 API errors produce a visible error; they never restore mock records.
 

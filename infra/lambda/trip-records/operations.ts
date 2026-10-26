@@ -1,5 +1,4 @@
 import { errorResponse, jsonResponse, type ParsedRequest } from '../_shared/adapter.js';
-import { getAccount } from '../_shared/portal-auth.js';
 import { queryRows } from '../_shared/db.js';
 
 function dateParam(value: string | null): string | null {
@@ -34,29 +33,29 @@ export function parseFilters(params: URLSearchParams) {
     offset: integer(params.get('offset'), 0, 0, 10000000), limit: integer(params.get('limit'), 50, 1, 100) };
 }
 
+// Public access is limited to the published LINK provider. Other portal APIs keep their access controls.
 // One SQL statement provides a consistent snapshot across all dashboard panels.
 export const OPERATIONS_SQL = `WITH allowed AS MATERIALIZED (
   SELECT i.*, p.provider_name FROM optimat.operation_imports i
   JOIN optimat.providers p ON p.provider_id=i.provider_id
-  WHERE i.active AND ($1::boolean OR EXISTS (
-    SELECT 1 FROM optimat.portal_account_providers ap WHERE ap.account_id=$2::uuid AND ap.provider_id=i.provider_id
-  )) AND ($3::integer IS NULL OR i.provider_id=$3)
+  WHERE i.active AND i.source='LINK' AND i.provider_id=2006
+    AND ($1::integer IS NULL OR i.provider_id=$1)
 ), base AS MATERIALIZED (
   SELECT t.*, a.provider_id, a.provider_name,
-    (($6=0 AND $7=24) OR (extract(hour FROM t.pickup_depart_time)>=$6 AND extract(hour FROM t.pickup_depart_time)<$7)) IS TRUE AS origin_in_window,
-    (($6=0 AND $7=24) OR (extract(hour FROM t.dropoff_arrive_time)>=$6 AND extract(hour FROM t.dropoff_arrive_time)<$7)) IS TRUE AS destination_in_window
+    (($4=0 AND $5=24) OR (extract(hour FROM t.pickup_depart_time)>=$4 AND extract(hour FROM t.pickup_depart_time)<$5)) IS TRUE AS origin_in_window,
+    (($4=0 AND $5=24) OR (extract(hour FROM t.dropoff_arrive_time)>=$4 AND extract(hour FROM t.dropoff_arrive_time)<$5)) IS TRUE AS destination_in_window
   FROM optimat.operation_trips t JOIN allowed a ON a.id=t.import_id
-  WHERE ($4::date IS NULL OR t.service_date >= $4::date) AND ($5::date IS NULL OR t.service_date <= $5::date)
-    AND ($8::text IS NULL OR t.status=$8)
+  WHERE ($2::date IS NULL OR t.service_date >= $2::date) AND ($3::date IS NULL OR t.service_date <= $3::date)
+    AND ($6::text IS NULL OR t.status=$6)
 ), filtered AS MATERIALIZED (
-  SELECT * FROM base WHERE ($9 IN ('combined','origins') AND origin_in_window)
-    OR ($9 IN ('combined','destinations') AND destination_in_window)
+  SELECT * FROM base WHERE ($7 IN ('combined','origins') AND origin_in_window)
+    OR ($7 IN ('combined','destinations') AND destination_in_window)
 ), events AS MATERIALIZED (
   SELECT origin_city AS city, origin_lat AS lat, origin_lng AS lng, pickup_depart_time AS event_time, 'origins' AS kind
-    FROM filtered WHERE $9 IN ('combined','origins') AND origin_in_window
+    FROM filtered WHERE $7 IN ('combined','origins') AND origin_in_window
   UNION ALL
   SELECT destination_city, destination_lat, destination_lng, dropoff_arrive_time, 'destinations'
-    FROM filtered WHERE $9 IN ('combined','destinations') AND destination_in_window
+    FROM filtered WHERE $7 IN ('combined','destinations') AND destination_in_window
 ), points AS (
   SELECT city, lat, lng, count(*)::integer AS count FROM events
   WHERE lat IS NOT NULL AND lng IS NOT NULL GROUP BY city,lat,lng
@@ -65,11 +64,11 @@ export const OPERATIONS_SQL = `WITH allowed AS MATERIALIZED (
   FROM events WHERE event_time IS NOT NULL GROUP BY 1
 ), page AS (
   SELECT import_id || ':' || source_row AS id, source_row, to_char(service_date,'YYYY-MM-DD') AS date,
-    provider_id, provider_name, origin_city, destination_city, origin_zip, destination_zip,
+    provider_id, provider_name, origin_city, destination_city,
     to_char(pickup_depart_time,'HH24:MI:SS') AS pickup_time,
-    to_char(dropoff_arrive_time,'HH24:MI:SS') AS dropoff_time, status, space_type,
+    to_char(dropoff_arrive_time,'HH24:MI:SS') AS dropoff_time, status,
     origin_lat IS NOT NULL AS origin_mapped, destination_lat IS NOT NULL AS destination_mapped
-  FROM filtered ORDER BY service_date, pickup_depart_time NULLS LAST, import_id, source_row LIMIT $10 OFFSET $11
+  FROM filtered ORDER BY service_date, pickup_depart_time NULLS LAST, import_id, source_row LIMIT $8 OFFSET $9
 )
 SELECT jsonb_build_object(
   'imports', (SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'provider_id',provider_id,'provider_name',provider_name,
@@ -90,18 +89,16 @@ SELECT jsonb_build_object(
 
 export async function operationsDashboard(req: ParsedRequest) {
   if (req.method !== 'GET') return errorResponse('Method not allowed.', 405, req.origin);
-  const account = await getAccount(req);
-  if (!account) return errorResponse('Sign in to view operational data.', 401, req.origin);
   let filters: ReturnType<typeof parseFilters>;
   try { filters = parseFilters(req.searchParams); }
   catch (error) { return errorResponse((error as Error).message, 400, req.origin); }
   try {
     const rows = await queryRows<{ payload: Record<string, unknown> }>(OPERATIONS_SQL, [
-      account.role === 'super_admin', account.id, filters.providerId, filters.from, filters.to,
+      filters.providerId, filters.from, filters.to,
       filters.hourFrom, filters.hourTo, filters.status, filters.mode, filters.limit, filters.offset,
     ]);
     const response = jsonResponse({ ...rows[0]?.payload, filters, precision: 'city_reference_point', timezone: 'America/Los_Angeles' }, 200, req.origin);
-    if (typeof response === 'object') response.headers = { ...response.headers, 'Cache-Control': 'private, no-store' };
+    if (typeof response === 'object') response.headers = { ...response.headers, 'Cache-Control': 'no-store' };
     return response;
   } catch (error) {
     const code = (error as { code?: string }).code;

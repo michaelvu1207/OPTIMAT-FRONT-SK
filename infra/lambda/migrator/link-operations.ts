@@ -26,15 +26,15 @@ export async function runLinkOperations(client: pg.Client, apply: boolean) {
   if (statuses.rows.length !== Object.keys(report.status_counts).length || statuses.rows.some(item => report.status_counts[item.status] !== item.count)) {
     throw new Error('LINK status counts do not reconcile');
   }
-  const parameters = [true, '00000000-0000-0000-0000-000000000000', report.provider_id, null, null, 0, 24, null, 'combined', 50, 0];
+  const parameters = [report.provider_id, null, null, 0, 24, null, 'combined', 50, 0];
   const dashboard = (await client.query(OPERATIONS_SQL, parameters)).rows[0].payload;
   if (dashboard.summary.records !== report.row_count || dashboard.event_summary.total !== report.row_count * 2 ||
       dashboard.event_summary.mapped !== report.origin_mapped + report.destination_mapped) {
     throw new Error('Dashboard aggregation does not reconcile');
   }
-  const unauthorized = (await client.query(OPERATIONS_SQL, [false, ...parameters.slice(1)])).rows[0].payload;
-  if (unauthorized.summary.records !== 0 || unauthorized.imports.length !== 0 || unauthorized.trips.length !== 0) {
-    throw new Error('Operations provider scope verification failed');
+  const unpublished = (await client.query(OPERATIONS_SQL, [2147483647, ...parameters.slice(1)])).rows[0].payload;
+  if (unpublished.summary.records !== 0 || unpublished.imports.length !== 0 || unpublished.trips.length !== 0) {
+    throw new Error('Unpublished provider data is exposed');
   }
   const cases = [
     { from: '2025-12-31', to: '2025-12-31', status: null, mode: 'origins', start: 0, end: 24 },
@@ -50,17 +50,17 @@ export async function runLinkOperations(client: pg.Client, apply: boolean) {
       AND ($4::text IS NULL OR status=$4)
       AND (($5=0 AND $6=24) OR (extract(hour FROM ${timeColumn}) >= $5 AND extract(hour FROM ${timeColumn}) < $6))`,
       [report.import_id, test.from, test.to, test.status, test.start, test.end])).rows[0].count;
-    const actual = (await client.query(OPERATIONS_SQL, [true, parameters[1], report.provider_id,
+    const actual = (await client.query(OPERATIONS_SQL, [report.provider_id,
       test.from, test.to, test.start, test.end, test.status, test.mode, 50, 0])).rows[0].payload;
     if (actual.summary.records !== expected || actual.event_summary.total !== expected) {
       throw new Error('Operations date/status/hour filter verification failed');
     }
     filterChecks.push({ ...test, records: expected });
   }
-  const nextPage = (await client.query(OPERATIONS_SQL, [...parameters.slice(0, 10), 50])).rows[0].payload;
+  const nextPage = (await client.query(OPERATIONS_SQL, [...parameters.slice(0, 8), 50])).rows[0].payload;
   const firstIds = new Set(dashboard.trips.map((trip: { id: string }) => trip.id));
   if (nextPage.trips.some((trip: { id: string }) => firstIds.has(trip.id))) throw new Error('Operations pagination overlaps');
-  if (dashboard.trips.some((trip: object) => 'client_id' in trip || 'origin_address' in trip)) throw new Error('Private raw fields leaked into dashboard records');
+  if (dashboard.trips.some((trip: object) => ['client_id', 'origin_address', 'destination_address', 'origin_zip', 'destination_zip', 'space_type'].some(key => key in trip))) throw new Error('Private raw fields leaked into dashboard records');
   return { import_id: report.import_id, source: report.filename, ...row,
-    event_summary: dashboard.event_summary, scoped_access_verified: true, pagination_verified: true, filter_checks: filterChecks };
+    event_summary: dashboard.event_summary, public_scope_verified: true, pagination_verified: true, filter_checks: filterChecks };
 }
