@@ -40,7 +40,7 @@ try {
     await assertComposerVisible(page, viewport.height);
 
     if (mobile) {
-      assert.equal(await page.locator('#chat-question').getAttribute('placeholder'), 'Start search here');
+      assert.equal(await page.locator('#chat-question').getAttribute('placeholder'), 'Start search here.');
       assert.equal(await page.getByTestId('mobile-greeting').count(), 1);
       assert.ok((await page.getByTestId('mobile-greeting').boundingBox()).height < 230);
       await page.getByRole('button', { name: 'New Chat', exact: true }).click();

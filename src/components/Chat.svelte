@@ -1,5 +1,6 @@
 <script>
     import { onMount, createEventDispatcher, tick } from 'svelte';
+    import { containDialogTab } from '$lib/utils/dialogFocus.js';
     import { fade, fly, slide } from 'svelte/transition';
     import MicIcon from '@lucide/svelte/icons/mic';
     import SquareIcon from '@lucide/svelte/icons/square';
@@ -105,6 +106,7 @@
     export let onProviderSelect = null;
     export let mapSelectedProvider = null;
     export let isPhone = false;
+    let examplesExpanded = false;
 
     function normalizeChatRole(role) {
         const value = (role || '').toString().toLowerCase();
@@ -236,7 +238,7 @@ How can I assist you today?`,
       }
     ];
 
-    const messageSuggestion = "Start search here, type something like: I'm at Hanover Walnut Creek apartments and trying to go to the Target in Walnut Creek. Can you help me find providers?";
+    const messageSuggestion = "Start search here.";
     let userInput = '';
     let loading = false; // For message sending
     let initializing = true; // For initial conversation setup
@@ -251,9 +253,13 @@ How can I assist you today?`,
     let messageInputElement = null;
     let sendButtonElement = null;
     let composerElement = null;
+    let chatWindowElement = null;
+    let followingLatestMessage = true;
+    let unreadResponse = false;
+    let responseAnnouncement = '';
     let activeChatController = null;
     let statusMessage = '';
-    let shouldRestoreComposerFocus = true;
+    let shouldRestoreComposerFocus = false;
 
     // Save as example functionality
     let savingAsExample = false;
@@ -942,7 +948,7 @@ How can I assist you today?`,
         if (type?.includes('paratransit') || type?.includes('ADA')) return 'bg-purple-100 text-purple-700 border-purple-200';
         if (type?.includes('fix') || type?.includes('fixed')) return 'bg-blue-100 text-blue-700 border-blue-200';
         if (type?.includes('dial') || type?.includes('demand')) return 'bg-green-100 text-green-700 border-green-200';
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return 'bg-gray-100 text-gray-900 border-gray-200';
     }
 
     // Service zone management functions
@@ -1205,11 +1211,13 @@ How can I assist you today?`,
 
       window.addEventListener('keydown', handleKeydown);
       document.addEventListener('pointerdown', trackIntentionalFocusTarget, true);
+      document.addEventListener('focusin', trackIntentionalFocusTarget, true);
 
       return () => {
         clearInterval(interval);
         window.removeEventListener('keydown', handleKeydown);
         document.removeEventListener('pointerdown', trackIntentionalFocusTarget, true);
+        document.removeEventListener('focusin', trackIntentionalFocusTarget, true);
         cleanupRecording();
         activeChatController?.abort();
         activeChatController = null;
@@ -1235,6 +1243,7 @@ How can I assist you today?`,
       currentTool = null;
       error = null;
       statusMessage = '';
+      responseAnnouncement = '';
       const controller = new AbortController();
       activeChatController = controller;
 
@@ -1245,7 +1254,7 @@ How can I assist you today?`,
       };
       messages = [...messages, newMessage];
       userInput = '';
-      scrollToBottom();
+      scrollToBottom(false, true);
 
       try {
         const { data: chatResponse, error: apiError } = await sendChatMessage(
@@ -1275,6 +1284,7 @@ How can I assist you today?`,
             id: `ai-${Date.now()}`
           };
           messages = [...messages, finalMessage];
+          responseAnnouncement = 'New response available in the conversation.';
 
           // Handle attachments
           if (pendingAttachments.length > 0) {
@@ -1789,6 +1799,11 @@ How can I assist you today?`,
     }
 
     export function startNewConversation() {
+      followingLatestMessage = true;
+      unreadResponse = false;
+      responseAnnouncement = '';
+      if (chatWindowElement) chatWindowElement.scrollTop = 0;
+      examplesExpanded = false;
       // Stop auto-play if active
       stopAutoPlay();
 
@@ -1839,21 +1854,37 @@ How can I assist you today?`,
       }
     }
 
-    function scrollToBottom(smooth = true) {
-      // Scroll chat window to bottom
-      setTimeout(() => {
-        const chatWindow = document.querySelector('.chat-messages');
-        if (chatWindow) {
-          if (smooth) {
-            chatWindow.scrollTo({
-              top: chatWindow.scrollHeight,
-              behavior: 'smooth'
-            });
-          } else {
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-          }
-        }
-      }, 100);
+    function trackConversationScroll() {
+      if (!chatWindowElement) return;
+      followingLatestMessage = chatWindowElement.scrollHeight - chatWindowElement.clientHeight - chatWindowElement.scrollTop < 48;
+      if (followingLatestMessage) unreadResponse = false;
+    }
+
+    async function scrollToBottom(smooth = false, force = false) {
+      // Capture the reader's position before Svelte adds the new content.
+      const wasFollowing = followingLatestMessage;
+      await tick();
+      const chatWindow = chatWindowElement;
+      if (!chatWindow) return;
+      const readingHistory = chatWindow.contains(document.activeElement);
+      if (!force && (!wasFollowing || !followingLatestMessage || readingHistory)) {
+        unreadResponse = true;
+        return;
+      }
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: smooth && !reduceMotion ? 'smooth' : 'instant' });
+      unreadResponse = false;
+    }
+
+    async function jumpToLatestMessage() {
+      await scrollToBottom(false, true);
+      const replies = chatWindowElement?.querySelectorAll('[data-message-role="ai"]');
+      replies?.[replies.length - 1]?.focus({ preventScroll: true });
+    }
+
+    function openModal(element) {
+      element.showModal();
+      return { destroy: () => element.close() };
     }
 
     function openExampleForm() {
@@ -1922,15 +1953,15 @@ How can I assist you today?`,
         <div class="flex items-center gap-2">
           {#if !serverOnline}
             <div class="w-2 h-2 rounded-full bg-destructive"></div>
-            <span class="text-xs text-muted-foreground">Chat server offline</span>
+            <span class="text-sm text-foreground">Chat server offline</span>
           {:else if isViewingExample}
-            <span class="text-xs text-muted-foreground">Viewing Example</span>
+            <span class="text-sm text-foreground">Viewing Example</span>
           {:else if conversationId}
             <div class="w-2 h-2 rounded-full bg-green-500"></div>
-            <span class="text-xs text-muted-foreground">Active conversation</span>
+            <span class="text-sm text-foreground">Active conversation</span>
           {:else}
             <div class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
-            <span class="text-xs text-muted-foreground">Initializing...</span>
+            <span class="text-sm text-foreground">Initializing...</span>
           {/if}
         </div>
 
@@ -1948,11 +1979,24 @@ How can I assist you today?`,
     </div>
 
     <!-- Chat messages -->
-    <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 space-y-3 chat-messages scroll-smooth">
+    <!-- Scrollable history needs a tab stop so keyboard users can scroll it. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div
+      bind:this={chatWindowElement}
+      onscroll={trackConversationScroll}
+      role="region"
+      aria-label="Conversation history"
+      tabindex="0"
+      class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 space-y-3 chat-messages focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+    >
       {#each messages.filter(m => (m.role === 'ai' || m.role === 'human') && typeof m.content === 'string' && m.content.trim() !== '') as message, index (message.id || `${message.role}-${index}-${message.content.substring(0, 20)}`)}
         {@const isGreeting = message.id === 'initial-greeting' || message.id === 'new-conversation-greeting'}
         {@const segments = message.role === 'ai' ? buildMessageSegments(message.id, message.content) : []}
         <div
+          role="article"
+          aria-label={message.role === 'human' ? 'Your message' : 'OPTIMAT response'}
+          data-message-role={message.role}
+          tabindex="-1"
           class="flex gap-2 {message.role === 'human' ? 'justify-end' : 'justify-start'}"
           in:fly={{
             x: message.role === 'human' ? 20 : -20,
@@ -1962,7 +2006,7 @@ How can I assist you today?`,
           }}
         >
           {#if message.role === 'ai'}
-            <div class="flex-shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs">
+            <div class="flex-shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-sm">
               🤖
             </div>
           {/if}
@@ -1990,26 +2034,26 @@ How can I assist you today?`,
                   <!-- The trip as a dispatcher will need to hear it, so the rider can read it out. -->
                   <div class="mt-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2" aria-label="Trip to book">
                     <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0 text-xs">
+                      <div class="min-w-0 text-sm">
                         <div class="font-semibold text-foreground">
                           {segment.trip.dateDisplay} · {segment.trip.arriveBy ? 'arrive by' : 'pickup'} {segment.trip.time}
-                          <span class="font-normal text-muted-foreground">
+                          <span class="font-normal text-foreground">
                             · {segment.trip.tripType === 'round_trip' ? `round trip, back at ${segment.trip.returnTime}` : 'one way'}
                           </span>
                         </div>
-                        <div class="mt-0.5 text-muted-foreground">
+                        <div class="mt-0.5 text-foreground">
                           {segment.trip.origin} → {segment.trip.destination}
                         </div>
                       </div>
                       <button
                         type="button"
-                        class="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary transition hover:bg-primary/15"
+                        class="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-sm font-medium text-primary transition hover:bg-primary/15"
                         onclick={(event) => { event.stopPropagation(); copyTripDetails(segment.trip, message.id); }}
                       >
                         {copiedTripFor === message.id ? 'Copied' : 'Copy trip details'}
                       </button>
                     </div>
-                    <p class="mt-1 text-[11px] text-muted-foreground">
+                    <p class="mt-1 text-sm text-foreground">
                       OPTIMAT can't book for you — call one of these and read them the details.
                     </p>
                   </div>
@@ -2040,17 +2084,17 @@ How can I assist you today?`,
 
                   {#if addressPlaces.length > 0}
                     <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <div class="text-xs text-muted-foreground mb-1">Addresses</div>
+                      <div class="text-sm text-foreground mb-1">Addresses</div>
                       <div class="flex flex-col gap-1">
                         {#each addressPlaces.slice(0, 3) as place (place.address)}
                           <button
                             type="button"
-                            class="text-left text-xs px-2 py-1 rounded-md bg-muted/60 hover:bg-muted transition"
+                            class="text-left text-sm px-2 py-1 rounded-md bg-muted/60 hover:bg-muted transition"
 	                            onclick={() => openAddressPlace(place)}
                           >
                             {#if place.name}
                               <div class="font-medium text-foreground line-clamp-1">{place.name}</div>
-                              <div class="text-[11px] text-muted-foreground line-clamp-1">{place.address}</div>
+                              <div class="text-sm text-foreground line-clamp-1">{place.address}</div>
                             {:else}
                               <div class="text-foreground line-clamp-2">{place.address}</div>
                             {/if}
@@ -2062,25 +2106,25 @@ How can I assist you today?`,
 
                   {#if providerInfo}
                     <details class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <summary class="cursor-pointer text-xs text-muted-foreground select-none">
+                      <summary class="cursor-pointer text-sm text-foreground select-none">
                         Provider details
                       </summary>
-                      <pre class="mt-2 text-[11px] whitespace-pre-wrap break-words text-muted-foreground">{JSON.stringify(providerInfo, null, 2)}</pre>
+                      <pre class="mt-2 text-sm whitespace-pre-wrap break-words text-foreground">{JSON.stringify(providerInfo, null, 2)}</pre>
                     </details>
                   {/if}
 
                   {#if webSearch}
                     <details class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <summary class="cursor-pointer text-xs text-muted-foreground select-none">
+                      <summary class="cursor-pointer text-sm text-foreground select-none">
                         Web search
                       </summary>
                       {#if typeof webSearch === 'object' && webSearch?.answer}
-                        <div class="mt-2 text-xs text-foreground whitespace-pre-wrap">{webSearch.answer}</div>
+                        <div class="mt-2 text-sm text-foreground whitespace-pre-wrap">{webSearch.answer}</div>
                         {#if Array.isArray(webSearch.sources) && webSearch.sources.length > 0}
                           <div class="mt-2 space-y-1">
                             {#each webSearch.sources.slice(0, 5) as source, idx (source.url || `${idx}`)}
                               <a
-                                class="block text-[11px] text-primary hover:underline line-clamp-1"
+                                class="block text-sm text-primary hover:underline line-clamp-1"
                                 href={source.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -2091,7 +2135,7 @@ How can I assist you today?`,
                           </div>
                         {/if}
                       {:else}
-                        <pre class="mt-2 text-[11px] whitespace-pre-wrap break-words text-muted-foreground">{JSON.stringify(webSearch, null, 2)}</pre>
+                        <pre class="mt-2 text-sm whitespace-pre-wrap break-words text-foreground">{JSON.stringify(webSearch, null, 2)}</pre>
                       {/if}
                     </details>
                   {/if}
@@ -2101,7 +2145,7 @@ How can I assist you today?`,
           </div>
 
           {#if message.role === 'human'}
-            <div class="flex-shrink-0 w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs">
+            <div class="flex-shrink-0 w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-sm">
               👤
             </div>
           {/if}
@@ -2126,7 +2170,7 @@ How can I assist you today?`,
 
       {#if loading || isStreaming}
         <div class="flex gap-2 justify-start" in:fade={{ duration: 300 }}>
-          <div class="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center text-xs thinking-avatar">
+          <div class="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center text-sm thinking-avatar">
             🧠
           </div>
           <div class="thinking-bubble rounded-2xl rounded-tl-sm px-3 py-2 max-w-[75%]">
@@ -2189,30 +2233,50 @@ How can I assist you today?`,
             <div class="animate-spin rounded-full h-3 w-3 border-2 border-primary border-t-transparent"></div>
           </div>
           <div class="bg-muted rounded-2xl rounded-tl-sm px-3 py-2">
-            <span class="text-sm text-muted-foreground">Loading example...</span>
+            <span class="text-sm text-foreground">Loading example...</span>
           </div>
         </div>
       {/if}
 
-      <!-- Examples to play on desktop, offered until the rider asks their own question. -->
+      <!-- Desktop examples stay collapsed until the rider chooses to view them. -->
       {#if !isPhone && $$slots.examples && !isViewingExample && replayStates.length === 0 && !messages.some((message) => message.role === 'human')}
         <div class="pt-1">
-          <slot name="examples" />
+          <button
+            type="button"
+            class="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
+            aria-expanded={examplesExpanded}
+            aria-controls="chat-examples"
+            onclick={() => { examplesExpanded = !examplesExpanded; }}
+          >
+            {examplesExpanded ? 'Hide examples' : 'Show examples'}
+          </button>
+          <div id="chat-examples" hidden={!examplesExpanded} class="mt-3">
+            {#if examplesExpanded}
+              <slot name="examples" />
+            {/if}
+          </div>
         </div>
       {/if}
 
       {#if error}
-        <div class="bg-destructive/10 border border-destructive/40 text-destructive p-3 rounded-lg text-sm">
+        <div role="alert" class="bg-destructive/10 border border-destructive/40 text-destructive p-3 rounded-lg text-sm">
           {error}
         </div>
       {/if}
       {#if statusMessage}
-        <div class="bg-muted border border-border/60 text-muted-foreground p-3 rounded-lg text-sm" aria-live="polite">
+        <div class="bg-muted border border-border/60 text-foreground p-3 rounded-lg text-sm" aria-live="polite">
           {statusMessage}
         </div>
       {/if}
 
     </div>
+
+    <div role="status" aria-live="polite" aria-atomic="true" class="sr-only">{responseAnnouncement}</div>
+    {#if unreadResponse}
+      <button type="button" onclick={jumpToLatestMessage} class="self-center shrink-0 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground focus-visible:ring-2 focus-visible:ring-primary">
+        Jump to latest message
+      </button>
+    {/if}
 
     <!-- Input form (hidden during example viewing) -->
     {#if !isViewingExample}
@@ -2225,13 +2289,13 @@ How can I assist you today?`,
 	        class="chat-composer flex-shrink-0 border-t border-border/40 bg-card px-3 py-3"
 	      >
         <label for="chat-question" class="mb-2 block text-sm font-medium text-foreground md:sr-only">Your question</label>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2 md:flex-nowrap">
           <textarea
             id="chat-question"
             bind:this={messageInputElement}
             bind:value={userInput}
-            placeholder={serverOnline ? (isPhone ? "Start search here" : messageSuggestion) : "Chat unavailable"}
-            class="min-w-0 flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
+            placeholder={serverOnline ? messageSuggestion : "Chat unavailable"}
+            class="min-w-0 basis-full md:basis-auto flex-1 resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base md:border md:border-border/60 md:text-sm shadow-sm md:shadow-none placeholder:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
 	            onkeydown={(e) => {
@@ -2245,20 +2309,26 @@ How can I assist you today?`,
             type="button"
             onclick={toggleRecording}
             disabled={loading || !serverOnline || initializing || isTranscribing}
-            aria-label={isRecording ? 'Stop voice recording' : 'Start voice input'}
-            title={isRecording ? 'Stop voice recording' : 'Start voice input'}
-            class={`self-end h-11 w-11 shrink-0 rounded-lg border transition flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
+            aria-label={isTranscribing ? 'Transcribing voice input' : isRecording ? 'Stop voice recording' : 'Start voice input'}
+            aria-pressed={isRecording}
+            aria-busy={isTranscribing}
+            aria-describedby="voice-input-status"
+            title={isTranscribing ? 'Transcribing voice input' : isRecording ? 'Stop voice recording' : 'Start voice input'}
+            class={`self-end min-h-14 shrink-0 rounded-lg border-2 px-4 py-3 text-base font-semibold transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
               isRecording
-                ? 'border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/15'
-                : 'border-border/60 bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                ? 'border-destructive bg-destructive text-white hover:bg-destructive/90'
+                : 'border-primary bg-primary/10 text-foreground hover:bg-primary/20'
             }`}
           >
             {#if isTranscribing}
-              <div class="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>
+              <div aria-hidden="true" class="animate-spin rounded-full h-6 w-6 border-2 border-current border-t-transparent"></div>
+              <span>Transcribing...</span>
             {:else if isRecording}
-              <SquareIcon size={16} strokeWidth={2.5} />
+              <SquareIcon size={24} strokeWidth={2.5} aria-hidden="true" />
+              <span>Stop recording</span>
             {:else}
-              <MicIcon size={18} strokeWidth={2.25} />
+              <MicIcon size={24} strokeWidth={2.25} aria-hidden="true" />
+              <span>Voice input</span>
             {/if}
           </button>
           <button
@@ -2280,11 +2350,11 @@ How can I assist you today?`,
           </button>
         </div>
         {#if serverOnline}
-          <div class="text-[10px] text-muted-foreground mt-1.5 px-1">
+          <div id="voice-input-status" role="status" aria-live="polite" aria-atomic="true" class="text-sm text-foreground mt-2 px-1">
             {#if isRecording}
-              Recording... press stop when finished
+              Recording... tap Stop recording when finished. Then review your text and tap Send.
             {:else if isTranscribing}
-              Transcribing voice...
+              Converting your voice to text. Please wait, then review your text and tap Send.
             {:else}
               <span class="hidden md:inline">Enter to send · Shift+Enter for new line</span>
               <span class="md:hidden">Type your question, then tap Send</span>
@@ -2302,6 +2372,7 @@ How can I assist you today?`,
             <div class="flex items-center gap-3">
               <input
                 type="range"
+                aria-label="Example playback position"
                 min="0"
                 max={replayStates.length - 1}
                 bind:value={currentStateIndex}
@@ -2310,7 +2381,7 @@ How can I assist you today?`,
                 class="flex-1 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
                 disabled={isAutoPlaying}
               />
-              <span class="text-xs text-muted-foreground whitespace-nowrap min-w-[4rem] text-right">
+              <span class="text-sm text-foreground whitespace-nowrap min-w-[4rem] text-right">
                 {Math.min(currentStateIndex + 1, replayStates.length)} / {replayStates.length}
               </span>
             </div>
@@ -2324,6 +2395,7 @@ How can I assist you today?`,
                   disabled={currentStateIndex >= replayStates.length}
                   class="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   title={isAutoPlaying ? 'Pause' : 'Play'}
+                  aria-label={isAutoPlaying ? 'Pause example playback' : 'Play example'}
                 >
                   {#if isAutoPlaying}
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -2342,6 +2414,7 @@ How can I assist you today?`,
                   disabled={currentStateIndex >= replayStates.length || isAutoPlaying}
                   class="p-2 rounded-lg bg-muted hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   title="Next"
+                  aria-label="Next example message"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -2350,9 +2423,10 @@ How can I assist you today?`,
 
                 <!-- Speed selector -->
                 <select
+                  aria-label="Example playback speed"
                   bind:value={playbackSpeed}
 	                  onchange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
-                  class="text-xs bg-muted border-0 rounded-lg px-2 py-1.5 cursor-pointer focus:ring-1 focus:ring-primary"
+                  class="text-sm bg-muted border-0 rounded-lg px-2 py-1.5 cursor-pointer focus:ring-1 focus:ring-primary"
                 >
                   <option value={0.5}>0.5x</option>
                   <option value={1}>1x</option>
@@ -2364,9 +2438,9 @@ How can I assist you today?`,
               <!-- Status indicator -->
               <div class="flex items-center gap-2">
                 {#if currentStateIndex >= replayStates.length}
-                  <span class="text-xs text-muted-foreground italic">Example completed</span>
+                  <span class="text-sm text-foreground italic">Example completed</span>
                 {:else if isAutoPlaying}
-                  <span class="text-xs text-primary flex items-center gap-1">
+                  <span class="text-sm text-primary flex items-center gap-1">
                     <span class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
                     Playing
                   </span>
@@ -2388,7 +2462,7 @@ How can I assist you today?`,
                 </svg>
               </button>
             {:else}
-              <div class="text-sm text-muted-foreground italic">
+              <div class="text-sm text-foreground italic">
                 Example completed
               </div>
             {/if}
@@ -2399,29 +2473,13 @@ How can I assist you today?`,
 
     <!-- Save as Example Modal -->
     {#if showExampleForm}
-      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-      <div
-        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]"
-	        onclick={closeExampleForm}
-	        onkeydown={(e) => {
-          if (e.key === 'Escape') {
-            closeExampleForm();
-          }
-        }}
-        role="dialog"
-        aria-modal="true"
+      <dialog
+        use:openModal
+        class="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl border border-border bg-card p-6 text-foreground shadow-xl backdrop:bg-black/50 backdrop:backdrop-blur-sm"
         aria-labelledby="modal-title"
-        tabindex="0"
-        transition:fade={{ duration: 150 }}
+        oncancel={(event) => { event.preventDefault(); closeExampleForm(); }}
+        onkeydown={containDialogTab}
       >
-        <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-        <div
-          class="bg-card border border-border rounded-xl shadow-xl p-6 w-full max-w-md mx-4"
-	          onclick={(e) => e.stopPropagation()}
-	          onkeydown={(e) => e.stopPropagation()}
-          role="document"
-          in:fly={{ y: 20, duration: 200 }}
-        >
           {#if saveExampleSuccess}
             <!-- Success state -->
             <div class="text-center py-4">
@@ -2430,8 +2488,8 @@ How can I assist you today?`,
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
               </div>
-              <h3 class="text-lg font-semibold text-foreground mb-2">Example Saved!</h3>
-              <p class="text-sm text-muted-foreground mb-6">
+              <h3 id="modal-title" class="text-lg font-semibold text-foreground mb-2">Example Saved!</h3>
+              <p class="text-sm text-foreground mb-6">
                 {#if exampleForm.title}
                   "{exampleForm.title}" has been saved to your examples.
                 {:else}
@@ -2460,7 +2518,7 @@ How can I assist you today?`,
               </div>
               <button
 	                onclick={closeExampleForm}
-                class="text-muted-foreground hover:text-foreground transition-colors rounded-lg p-1 hover:bg-muted"
+                class="text-foreground hover:text-foreground transition-colors rounded-lg p-1 hover:bg-muted"
                 aria-label="Close modal"
               >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2469,7 +2527,7 @@ How can I assist you today?`,
               </button>
             </div>
 
-            <p class="text-sm text-muted-foreground mb-4">
+            <p class="text-sm text-foreground mb-4">
               Save this conversation as an example for training or demonstration purposes.
             </p>
 
@@ -2479,7 +2537,7 @@ How can I assist you today?`,
 	            }} class="space-y-4">
               <div>
                 <label for="example-title" class="block text-sm font-medium text-foreground mb-1.5">
-                  Title <span class="text-muted-foreground font-normal">(required)</span>
+                  Title <span class="text-foreground font-normal">(required)</span>
                 </label>
                 <input
                   id="example-title"
@@ -2487,20 +2545,20 @@ How can I assist you today?`,
                   bind:value={exampleForm.title}
                   placeholder="e.g., Finding transit providers in Walnut Creek"
                   required
-                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-muted-foreground"
+                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-foreground"
                 />
               </div>
 
               <div>
                 <label for="example-description" class="block text-sm font-medium text-foreground mb-1.5">
-                  Description <span class="text-muted-foreground font-normal">(optional)</span>
+                  Description <span class="text-foreground font-normal">(optional)</span>
                 </label>
                 <textarea
                   id="example-description"
                   bind:value={exampleForm.description}
                   placeholder="What does this conversation demonstrate?"
                   rows="3"
-                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-muted-foreground resize-none"
+                  class="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-foreground placeholder:text-foreground resize-none"
                 ></textarea>
               </div>
 
@@ -2530,14 +2588,13 @@ How can I assist you today?`,
               </div>
             </form>
           {/if}
-        </div>
-      </div>
+      </dialog>
     {/if}
   </div>
 
   <style>
     .chat-messages {
-      scroll-behavior: smooth;
+      scroll-behavior: auto;
     }
 
     @keyframes bounce {
@@ -2630,6 +2687,11 @@ How can I assist you today?`,
       margin-bottom: 0.75em;
     }
 
+    .chat-markdown {
+      --tw-prose-body: currentColor;
+      --tw-prose-invert-body: currentColor;
+    }
+
     .chat-markdown :global(p:first-child) {
       margin-top: 0;
     }
@@ -2700,8 +2762,12 @@ How can I assist you today?`,
     }
 
     .chat-markdown :global(a) {
-      color: #3b82f6;
+      color: #1d4ed8;
       text-decoration: underline;
+    }
+
+    :global(.dark) .chat-markdown :global(a) {
+      color: #93c5fd;
     }
 
     .chat-markdown :global(a:hover) {
@@ -2713,7 +2779,6 @@ How can I assist you today?`,
       padding-left: 1em;
       margin: 0.75em 0;
       color: inherit;
-      opacity: 0.9;
     }
 
     .chat-markdown :global(hr) {
