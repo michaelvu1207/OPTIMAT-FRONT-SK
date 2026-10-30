@@ -1,6 +1,6 @@
 export const MAX_CLUSTER_ZOOM = 18;
 
-/** @typedef {{ city: string, lat: number, lng: number, count: number }} ActivityPoint */
+/** @typedef {{ city: string, lat: number, lng: number, count: number, home_count?: number, activity_count?: number }} ActivityPoint */
 /** @typedef {{ x: number, y: number, lat: number, lng: number, count: number, members: ActivityPoint[] }} ActivityCluster */
 
 function project(lat, lng) {

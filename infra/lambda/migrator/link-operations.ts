@@ -2,6 +2,7 @@ import type pg from 'pg';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { OPERATIONS_SQL } from '../trip-records/operations.js';
+import { verifyPairedAnalysis } from '../trip-records/paired-analysis.verify.js';
 
 // These files must be included in the reviewed deployment archive. No SQL,
 // storage keys, credentials, or record payloads are accepted from the event.
@@ -11,6 +12,7 @@ export async function runLinkOperations(client: pg.Client, apply: boolean) {
     await client.query(await readFile(join(__dirname, 'link-schema.sql'), 'utf8'));
     await client.query(await readFile(join(__dirname, 'link-import.sql'), 'utf8'));
   }
+  const pairingChecks = await verifyPairedAnalysis(client);
   const actual = await client.query(`SELECT count(*)::integer AS records,
     count(DISTINCT client_id)::integer AS riders,
     count(origin_lat)::integer AS origins, count(destination_lat)::integer AS destinations,
@@ -28,6 +30,16 @@ export async function runLinkOperations(client: pg.Client, apply: boolean) {
   }
   const parameters = [report.provider_id, null, null, 0, 24, null, 'combined', 50, 0];
   const dashboard = (await client.query(OPERATIONS_SQL, parameters)).rows[0].payload;
+  const paired = dashboard.paired_analysis;
+  if (paired.quality.source_records !== report.row_count || paired.selected_pairs !== 20409 ||
+      paired.quality.excluded_records !== 8014 || paired.changed_activity_pairs !== 136 ||
+      paired.charts.length !== 5 || paired.charts.some((chart: any) => chart.n !== 20409 ||
+        chart.bins.reduce((sum: number, bin: any) => sum + bin.count, 0) !== 20409)) {
+    throw new Error(`Paired analysis does not reconcile with the independent CSV audit: ${JSON.stringify({
+      quality: paired.quality, selected_pairs: paired.selected_pairs, changed_activity_pairs: paired.changed_activity_pairs,
+      chart_samples: paired.charts.map((chart: any) => ({ id: chart.id, n: chart.n,
+        bin_total: chart.bins.reduce((sum: number, bin: any) => sum + bin.count, 0) })) })}`);
+  }
   if (dashboard.summary.records !== report.row_count || dashboard.event_summary.total !== report.row_count * 2 ||
       dashboard.event_summary.mapped !== report.origin_mapped + report.destination_mapped) {
     throw new Error('Dashboard aggregation does not reconcile');
@@ -62,5 +74,7 @@ export async function runLinkOperations(client: pg.Client, apply: boolean) {
   if (nextPage.trips.some((trip: { id: string }) => firstIds.has(trip.id))) throw new Error('Operations pagination overlaps');
   if (dashboard.trips.some((trip: object) => ['client_id', 'origin_address', 'destination_address', 'origin_zip', 'destination_zip', 'space_type'].some(key => key in trip))) throw new Error('Private raw fields leaked into dashboard records');
   return { import_id: report.import_id, source: report.filename, ...row,
-    event_summary: dashboard.event_summary, public_scope_verified: true, pagination_verified: true, filter_checks: filterChecks };
+    event_summary: dashboard.event_summary, paired_quality: paired.quality, paired_events: paired.events,
+    paired_charts: paired.charts.map(({ bins, ...stats }: any) => stats), ...pairingChecks,
+    public_scope_verified: true, pagination_verified: true, filter_checks: filterChecks };
 }

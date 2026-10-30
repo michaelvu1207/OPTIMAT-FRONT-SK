@@ -1,5 +1,6 @@
 import { errorResponse, jsonResponse, type ParsedRequest } from '../_shared/adapter.js';
 import { queryRows } from '../_shared/db.js';
+import { PAIRED_CTES, PAIRED_PAYLOAD, PAIR_SOURCE_COLUMNS } from './paired-analysis.js';
 
 function dateParam(value: string | null): string | null {
   if (!value) return null;
@@ -40,7 +41,10 @@ export const OPERATIONS_SQL = `WITH allowed AS MATERIALIZED (
   JOIN optimat.providers p ON p.provider_id=i.provider_id
   WHERE i.active AND i.source='LINK' AND i.provider_id=2006
     AND ($1::integer IS NULL OR i.provider_id=$1)
-), base AS MATERIALIZED (
+), pair_source AS MATERIALIZED (
+  SELECT ${PAIR_SOURCE_COLUMNS} FROM optimat.operation_trips t JOIN allowed a ON a.id=t.import_id
+  WHERE ($2::date IS NULL OR t.service_date >= $2::date) AND ($3::date IS NULL OR t.service_date <= $3::date)
+), ${PAIRED_CTES}, base AS MATERIALIZED (
   SELECT t.*, a.provider_id, a.provider_name,
     (($4=0 AND $5=24) OR (extract(hour FROM t.pickup_depart_time)>=$4 AND extract(hour FROM t.pickup_depart_time)<$5)) IS TRUE AS origin_in_window,
     (($4=0 AND $5=24) OR (extract(hour FROM t.dropoff_arrive_time)>=$4 AND extract(hour FROM t.dropoff_arrive_time)<$5)) IS TRUE AS destination_in_window
@@ -71,6 +75,7 @@ export const OPERATIONS_SQL = `WITH allowed AS MATERIALIZED (
   FROM filtered ORDER BY service_date, pickup_depart_time NULLS LAST, import_id, source_row LIMIT $8 OFFSET $9
 )
 SELECT jsonb_build_object(
+  'paired_analysis', ${PAIRED_PAYLOAD},
   'imports', (SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'provider_id',provider_id,'provider_name',provider_name,
     'filename',filename,'date_from',to_char(date_from,'YYYY-MM-DD'),'date_to',to_char(date_to,'YYYY-MM-DD'),
     'row_count',row_count,'imported_at',imported_at) ORDER BY provider_id),'[]'::jsonb) FROM allowed),

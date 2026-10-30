@@ -5,6 +5,10 @@ The Universal Service Dashboard reads public operational records from
 assignments, coordinates, dates, or distances. The existing Trip Upload intake
 does not automatically perform this import.
 
+The dashboard also includes five paired journey distributions and a colored
+home/activity map. See [LINK paired journey analysis](link-paired-analysis.md)
+for meeting references, formulas, pairing exclusions, and filter semantics.
+
 ## Source and interpretation
 
 - Workbook: `LINK-070125.xlsx`, worksheet `in`.
@@ -33,7 +37,8 @@ does not automatically perform this import.
   hour windows exclude unknown times. Date bounds are inclusive; hour bounds are
   start-inclusive and end-exclusive. Split overnight windows into two selections.
 - Combined mode includes a trip when either endpoint falls in the selected hour
-  window, but counts only matching endpoint events in the map/hour histogram.
+  window, but counts only matching endpoint events in the all-endpoint map.
+  Paired journey charts use their separately documented pair-preserving window.
 - The source distance unit has not been verified, so no distance KPI is displayed.
 
 ## Prepare the import

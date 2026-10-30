@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import PageShell from '$lib/components/PageShell.svelte';
   import OperationsDemandMap from '../components/OperationsDemandMap.svelte';
+  import PairedTripAnalysis from '../components/PairedTripAnalysis.svelte';
   import { providerPortalNavItems } from '$lib/providerPortalNav';
   import { getOperations, type OperationsResult, type OperationsMode, type OperationsFilters } from '$lib/operationsApi';
 
@@ -22,6 +23,7 @@
   let controller: AbortController | null = null;
   let requestId = 0;
   let focusedCity = '';
+  let locationView: 'endpoints' | 'paired' = 'endpoints';
   const count = (value: number) => value.toLocaleString('en-US');
   const clock = (value: string | null) => value?.slice(0, 5) ?? 'Unknown time';
   const modes: { value: OperationsMode; label: string }[] = [
@@ -78,21 +80,17 @@
     void load();
   }
 
-  $: points = data?.heat_points ?? [];
+  $: points = locationView === 'paired' ? data?.paired_analysis?.points ?? [] : data?.heat_points ?? [];
   $: mapColor = applied.mode === 'origins' ? '#2563eb' : applied.mode === 'destinations' ? '#ea580c' : '#7c3aed';
-  $: hours = Array.from({ length: 24 }, (_, hour) => ({
-    hour, count: data?.hourly.find(item => item.hour === hour)?.count ?? 0
-  }));
-  $: maxHour = Math.max(1, ...hours.map(item => item.count));
   $: displayedWindow = `${String(applied.hour_from ?? '0').padStart(2, '0')}:00–${String(applied.hour_to ?? '24').padStart(2, '0')}:00`;
 </script>
 
-<PageShell title="Universal Service Dashboard" description="LINK operational records · City-level pickup and drop-off activity" appMode={true} navItems={providerPortalNavItems}>
+<PageShell title="Universal Service Dashboard" description="LINK operational records · City activity and paired journeys" appMode={true} navItems={providerPortalNavItems}>
   <div class="operations">
     <section class="visuals" aria-label="Demand map and service summary">
       <div class="map-panel">
         {#if data && points.length}
-          <OperationsDemandMap {points} color={mapColor} {focusedCity} />
+          <OperationsDemandMap {points} color={mapColor} {focusedCity} paired={locationView === 'paired'} />
         {:else}
           <div class="map-empty">
             <strong>{loading ? 'Loading LINK records…' : error ? 'Operational data unavailable' : 'No mapped events'}</strong>
@@ -103,6 +101,7 @@
       <div class="summary">
         <div class="section-heading"><h2>Service summary</h2><span>{data?.summary.date_from ?? '—'} to {data?.summary.date_to ?? '—'}</span></div>
         <p class="note">Displayed: {displayedWindow} America/Los_Angeles · Status {applied.status || 'all raw codes'} · {applied.mode ?? 'combined'}</p>
+        {#if locationView === 'paired'}<p class="note">These summary cards cover raw trip records. The paired map and five charts use only validated round trips.</p>{/if}
         <div class="metrics">
           <div><span>Trip records</span><strong>{data ? count(data.summary.records) : '—'}</strong></div>
           <div><span>Anonymous riders</span><strong>{data ? count(data.summary.riders) : '—'}</strong></div>
@@ -110,16 +109,12 @@
           <div><span>Unmapped endpoint events</span><strong>{data ? count(data.event_summary.unmapped) : '—'}</strong></div>
         </div>
         <p class="note">Circles use Census place reference points, not passenger addresses. Destination cities are inferred only from an unambiguous address and ZIP match within LINK. Both mode counts two endpoints when both are available.</p>
-        <div class="section-heading"><h2>Events by hour</h2><span>Pickup departure / drop-off arrival</span></div>
-        <div class="hours" aria-label="Endpoint events by local hour">
-          {#each hours as item}
-            <div class="hour" title={`${item.hour}:00 — ${count(item.count)} events`}>
-              <div class="bar-space"><div class="bar" style:height={`${100 * item.count / maxHour}%`}></div></div>
-              <span>{String(item.hour).padStart(2, '0')}</span>
-            </div>
-          {/each}
-        </div>
         <p class="note">{data ? count(data.event_summary.missing_time) : '—'} displayed events have no time. Full-day views include these events; narrower time windows exclude them.</p>
+        {#if data?.paired_analysis}
+          <PairedTripAnalysis analysis={data.paired_analysis} />
+        {:else if data}
+          <p class="note">Paired journey analysis is not available from this API version.</p>
+        {/if}
       </div>
     </section>
 
@@ -143,9 +138,16 @@
           {#each statusOptions as code}<option value={code}>{code}</option>{/each}
         </select></label>
         <p class="note">Status meanings are not assumed. These totals describe source records, not verified completed rides.</p>
-        <div class="layers" aria-label="Map layer">{#each modes as item}
+        <label>Map locations<select bind:value={locationView} onchange={() => focusedCity = ''}>
+          <option value="endpoints">All trip endpoints</option>
+          <option value="paired" disabled={!data?.paired_analysis}>Paired home & activity</option>
+        </select></label>
+        {#if locationView === 'endpoints'}<div class="layers" aria-label="Map layer">{#each modes as item}
           <button type="button" aria-pressed={mode === item.value} class:active={mode === item.value} onclick={() => setMode(item.value)} disabled={loading}>{item.label}</button>
-        {/each}</div>
+        {/each}</div>{:else}
+          <p class="note">Blue: inferred home. Orange: activity. Each selected round trip contributes two home and two activity endpoint events. Counts are events, not unique homes or people. The whole pair stays together in an hour selection.</p>
+          {#if data?.paired_analysis}<p class="note">Paired map: {count(data.paired_analysis.events.mapped)} mapped · {count(data.paired_analysis.events.unmapped)} unmapped endpoint events.</p>{/if}
+        {/if}
         <button class="primary" type="submit" disabled={loading}>{loading ? 'Loading…' : 'Apply filters'}</button>
       </form>
       {#if error}<div class="error" role="alert">{error}</div>{/if}
@@ -227,9 +229,5 @@
   .trip>div { display:flex; justify-content:space-between; gap:8px; font-size:12px; }
   .trip p { font-size:13px; margin-top:6px; }
   .trip small { color:#64748b; font-size:11px; }
-  .hours { display:flex; gap:3px; height:104px; align-items:flex-end; }
-  .hour { flex:1; min-width:0; height:100%; display:flex; flex-direction:column; justify-content:flex-end; font-size:9px; text-align:center; color:#64748b; }
-  .bar-space { height:85px; display:flex; align-items:flex-end; justify-content:center; }
-  .bar { width:85%; background:#7c3aed; border-radius:3px 3px 0 0; }
   @media(max-width:850px) { .operations { display:block; overflow:auto; } .visuals,.details { overflow:visible; } .map-panel { height:40vh; } }
 </style>
