@@ -17,8 +17,13 @@ does not automatically perform this import.
   ambiguous DST wall times, so the dashboard does not fabricate UTC timestamps.
 - Coordinates are Census place reference points from the supplied
   `tl_2025_06_place.dbf`. Circles represent city activity, not actual addresses,
-  routes, or precise passenger locations. Circle radius uses a fixed capped
-  logarithmic scale; area lists show exact counts.
+  routes, or precise passenger locations. Numbered circles sum endpoint events
+  in nearby cities. Zooming in splits groups into smaller groups and eventually
+  individual city totals; zooming out merges them. Counts remain exact across
+  zoom levels. Select a group to zoom into its breakdown, or an individual city
+  marker to see its count and location precision. The map stops at city-level
+  detail because the workbook has no street-level coordinates. Group membership
+  is independent of panning; map totals describe all filtered mapped events.
 - Destination cities are inferred only where the normalized destination address
   and ZIP have exactly one observed pickup city in the same workbook.
   No ZIP-only matching, fuzzy city correction, or external geocoding is performed.
@@ -128,6 +133,7 @@ API errors produce a visible error; they never restore mock records.
 python -m unittest discover -s scripts/operations -p "test_*.py"
 npm run check
 npm run build
+node --test scripts/operation-clusters.test.mjs
 npm --prefix infra run check
 npm --prefix infra run test:operations
 npm --prefix infra run test:portal

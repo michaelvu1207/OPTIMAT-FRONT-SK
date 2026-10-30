@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import PageShell from '$lib/components/PageShell.svelte';
-  import TripRouteMap from '../components/TripRouteMap.svelte';
+  import OperationsDemandMap from '../components/OperationsDemandMap.svelte';
   import { providerPortalNavItems } from '$lib/providerPortalNav';
   import { getOperations, type OperationsResult, type OperationsMode, type OperationsFilters } from '$lib/operationsApi';
 
@@ -79,18 +79,7 @@
   }
 
   $: points = data?.heat_points ?? [];
-  // Fixed logarithmic scale across filters; totals remain visible in the area list.
-  $: heatPoints = points.map(point => ({
-    latLng: [point.lat, point.lng],
-    radius: Math.min(38, 7 + 4 * Math.log2(1 + point.count)),
-    fillColor: applied.mode === 'origins' ? '#2563eb' : applied.mode === 'destinations' ? '#ea580c' : '#7c3aed',
-    fillOpacity: 0.6
-  }));
-  $: focus = points.find(point => point.city === focusedCity);
-  $: center = focus ? [focus.lat, focus.lng] : points.length
-    ? [points.reduce((sum, point) => sum + point.lat, 0) / points.length,
-       points.reduce((sum, point) => sum + point.lng, 0) / points.length]
-    : [37.96, -122.03];
+  $: mapColor = applied.mode === 'origins' ? '#2563eb' : applied.mode === 'destinations' ? '#ea580c' : '#7c3aed';
   $: hours = Array.from({ length: 24 }, (_, hour) => ({
     hour, count: data?.hourly.find(item => item.hour === hour)?.count ?? 0
   }));
@@ -103,11 +92,7 @@
     <section class="visuals" aria-label="Demand map and service summary">
       <div class="map-panel">
         {#if data && points.length}
-          <TripRouteMap mapKey={`operations-${requestId}-${focusedCity}`} {center} zoom={focus ? 11 : 10} overlayMode="heat" {heatPoints} mapHeight="100%" />
-          <div class="map-caption">
-            <strong>City-level activity</strong>
-            <span>{count(data.event_summary.mapped)} mapped endpoint events · {points.length} areas</span>
-          </div>
+          <OperationsDemandMap {points} color={mapColor} {focusedCity} />
         {:else}
           <div class="map-empty">
             <strong>{loading ? 'Loading LINK records…' : error ? 'Operational data unavailable' : 'No mapped events'}</strong>
@@ -205,7 +190,6 @@
   .operations { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(340px,1fr); height:100%; min-height:0; overflow:hidden; background:#f8fafc; color:#0f172a; }
   .visuals { display:flex; flex-direction:column; min-height:0; overflow:auto; border-right:1px solid #dbe3ef; }
   .map-panel { position:relative; height:48vh; min-height:300px; flex-shrink:0; overflow:hidden; background:#e8eef2; }
-  .map-caption { position:absolute; left:56px; top:12px; z-index:500; max-width:calc(100% - 70px); background:#fffffff2; padding:12px 16px; border-radius:10px; box-shadow:0 2px 10px #0001; display:grid; gap:4px; font-size:13px; }
   .map-empty { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; text-align:center; }
   .summary { padding:20px; }
   .section-heading { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:10px; }
