@@ -22,6 +22,7 @@
   let applied: OperationsFilters = { mode: 'combined', hour_from: '0', hour_to: '24' };
   let controller: AbortController | null = null;
   let requestId = 0;
+  let filterTimer: ReturnType<typeof setTimeout> | undefined;
   let focusedCity = '';
   let locationView: 'endpoints' | 'paired' = 'endpoints';
   const count = (value: number) => value.toLocaleString('en-US');
@@ -33,7 +34,7 @@
   onMount(() => {
     void load();
   });
-  onDestroy(() => { requestId += 1; controller?.abort(); });
+  onDestroy(() => { clearTimeout(filterTimer); requestId += 1; controller?.abort(); });
 
   async function load() {
     controller?.abort();
@@ -56,6 +57,10 @@
   }
 
   function applyFilters() {
+    clearTimeout(filterTimer);
+    requestId += 1;
+    controller?.abort();
+    loading = false;
     if (dateFrom && dateTo && dateFrom > dateTo) {
       error = 'Start date must not follow end date.';
       return;
@@ -68,6 +73,21 @@
     applied = { provider_id: provider, date_from: dateFrom, date_to: dateTo, status,
       hour_from: hourFrom, hour_to: hourTo, mode };
     void load();
+  }
+
+  function autoFilter(event: Event) {
+    const target = event.target as HTMLInputElement | HTMLSelectElement;
+    if (!target.hasAttribute('data-auto-filter')) return;
+    clearTimeout(filterTimer);
+    requestId += 1;
+    controller?.abort();
+    if (target.dataset.autoFilter === 'provider') {
+      status = '';
+      statusOptions = [];
+    }
+    // The form receives bubbling events after each control updates its binding.
+    if (target.type === 'date') filterTimer = setTimeout(applyFilters, 300);
+    else applyFilters();
   }
 
   function setMode(value: OperationsMode) {
@@ -121,21 +141,21 @@
 
     <aside class="details">
       <div class="toolbar"><div><h1>Agency operating data</h1><p>LINK · WestCAT · Tri Delta Transit · Mobility Matters</p></div>
-        <button type="button" onclick={() => load()} disabled={loading}>Refresh</button>
+        <button type="button" onclick={applyFilters} disabled={loading}>Refresh</button>
       </div>
-      <form onsubmit={(event) => { event.preventDefault(); applyFilters(); }} class="filters">
-        <label>Provider<select bind:value={provider}><option value="">All published providers</option>
+      <form onsubmit={(event) => { event.preventDefault(); applyFilters(); }} onchange={autoFilter} oninput={(event) => { if ((event.target as HTMLInputElement).type === 'date') autoFilter(event); }} class="filters">
+        <label>Provider<select bind:value={provider} data-auto-filter="provider"><option value="">All published providers</option>
           {#each providerOptions as item}<option value={String(item.provider_id)}>{item.provider_name}</option>{/each}
         </select></label>
         <div class="two-columns">
-          <label>Start date<input type="date" bind:value={dateFrom} /></label>
-          <label>End date<input type="date" bind:value={dateTo} /></label>
+          <label>Start date<input type="date" bind:value={dateFrom} data-auto-filter /></label>
+          <label>End date<input type="date" bind:value={dateTo} data-auto-filter /></label>
         </div>
         <div class="two-columns">
-          <label>From hour<select bind:value={hourFrom}>{#each Array.from({ length: 24 }, (_, i) => i) as hour}<option value={String(hour)}>{String(hour).padStart(2, '0')}:00</option>{/each}</select></label>
-          <label>Until hour<select bind:value={hourTo}>{#each Array.from({ length: 24 }, (_, i) => i + 1) as hour}<option value={String(hour)}>{String(hour).padStart(2, '0')}:00</option>{/each}</select></label>
+          <label>From hour<select bind:value={hourFrom} data-auto-filter>{#each Array.from({ length: 24 }, (_, i) => i) as hour}<option value={String(hour)}>{String(hour).padStart(2, '0')}:00</option>{/each}</select></label>
+          <label>Until hour<select bind:value={hourTo} data-auto-filter>{#each Array.from({ length: 24 }, (_, i) => i + 1) as hour}<option value={String(hour)}>{String(hour).padStart(2, '0')}:00</option>{/each}</select></label>
         </div>
-        <label>Source status<select bind:value={status}><option value="">All raw status codes</option>
+        <label>Source status<select bind:value={status} data-auto-filter><option value="">All raw status codes</option>
           {#each statusOptions as code}<option value={code}>{code}</option>{/each}
         </select></label>
         <p class="note">Status meanings are not assumed. These totals describe source records, not verified completed rides.</p>
@@ -144,12 +164,12 @@
           <option value="paired" disabled={!data?.paired_analysis}>Paired home & activity</option>
         </select></label>
         {#if locationView === 'endpoints'}<div class="layers" aria-label="Map layer">{#each modes as item}
-          <button type="button" aria-pressed={mode === item.value} class:active={mode === item.value} onclick={() => setMode(item.value)} disabled={loading}>{item.label}</button>
+          <button type="button" aria-pressed={mode === item.value} class:active={mode === item.value} onclick={() => setMode(item.value)}>{item.label}</button>
         {/each}</div>{:else}
           <p class="note">Blue: inferred home. Orange: activity. Each selected round trip contributes two home and two activity endpoint events. Counts are events, not unique homes or people. The whole pair stays together in an hour selection.</p>
           {#if data?.paired_analysis}<p class="note">Paired map: {count(data.paired_analysis.events.mapped)} mapped · {count(data.paired_analysis.events.unmapped)} unmapped endpoint events.</p>{/if}
         {/if}
-        <button class="primary" type="submit" disabled={loading}>{loading ? 'Loading…' : 'Apply filters'}</button>
+        <p class="filter-status" role="status">{loading ? 'Updating data…' : 'Filters update automatically.'}</p>
       </form>
       {#if error}<div class="error" role="alert">{error}</div>{/if}
       {#if data && !data.imports.length}
@@ -217,8 +237,8 @@
   button { border:1px solid #cbd5e1; padding:8px 12px; border-radius:7px; background:white; cursor:pointer; font-size:13px; }
   button:hover { background:#f1f5f9; }
   button:disabled { opacity:0.5; cursor:default; }
-  .primary,.layers .active { background:#0f172a; color:white; border-color:#0f172a; }
-  .primary:hover { background:#1e293b; }
+  .layers .active { background:#0f172a; color:white; border-color:#0f172a; }
+  .filter-status { margin:0; font-size:12px; color:#64748b; }
   .layers { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
   .error,.empty { padding:18px; font-size:13px; line-height:1.6; }
   .error { background:#fef2f2; color:#991b1b; }
