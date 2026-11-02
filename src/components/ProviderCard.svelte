@@ -1,5 +1,6 @@
 <script>
   import { isFixedRouteProvider } from '$lib/providers/providerFields';
+  import ProviderTimeline from './ProviderTimeline.svelte';
 
   /**
    * A provider, as a rider needs it at the moment of booking: who to call, by when, what it costs,
@@ -13,7 +14,7 @@
   export let provider;
   /** True when the search confirmed the rider meets this provider's requirements. */
   export let qualified = true;
-  /** Resolved trip, used for the booking deadline and the unconfirmed-hours note. */
+  /** Resolved trip, used for the unconfirmed-hours note. */
   export let trip = null;
   export let selected = false;
   export let onSelect = null;
@@ -45,31 +46,6 @@
     }
     const details = [booking.details, booking.instructions].find((value) => typeof value === 'string');
     return details?.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/)?.[0] || null;
-  }
-
-  function advanceNotice(entry) {
-    const schedule = parseMaybeJson(entry?.schedule_type);
-    const notice = schedule?.advance_notice;
-    return typeof notice === 'string' && notice.trim() ? notice.trim() : null;
-  }
-
-  function regionalAdvanceNotice(entry) {
-    const schedule = parseMaybeJson(entry?.schedule_type);
-    const notice = schedule?.regional_advance_notice;
-    return typeof notice === 'string' && notice.trim() ? notice.trim() : null;
-  }
-
-  /** "7 days" against the travel date becomes the date the rider has to call by. */
-  function bookByDate(entry, travelDate) {
-    const notice = advanceNotice(entry);
-    if (!notice || !travelDate) return null;
-    const days = Number(notice.match(/(\d+)\s*day/i)?.[1]);
-    if (!Number.isFinite(days)) return null;
-    const [year, month, day] = String(travelDate).split('-').map(Number);
-    if (!year || !month || !day) return null;
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric'
-    }).format(new Date(Date.UTC(year, month - 1, day - days)));
   }
 
   function fareText(entry) {
@@ -125,9 +101,6 @@
   }
 
   $: phone = providerPhone(provider);
-  $: notice = advanceNotice(provider);
-  $: regionalNotice = regionalAdvanceNotice(provider);
-  $: deadline = bookByDate(provider, trip?.date);
   $: fare = fareText(provider);
   $: website = normalizeWebsite(provider?.website);
   $: requirements = eligibilityLines(provider);
@@ -180,19 +153,7 @@
     {/if}
   </div>
 
-  {#if deadline}
-    <div class="mt-1.5 text-sm font-medium text-foreground">
-      Call by {deadline}
-      <span class="font-normal text-foreground">· needs {notice} notice</span>
-    </div>
-  {:else if notice}
-    <div class="mt-1.5 text-sm text-foreground">Needs {notice} advance notice</div>
-  {/if}
-  {#if regionalNotice}
-    <div class="mt-1 text-sm text-foreground">
-      Regional trips may be booked {regionalNotice} in advance.
-    </div>
-  {/if}
+  <ProviderTimeline {provider} />
 
   {#if !fixedRoute && !qualified}
     <div class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">

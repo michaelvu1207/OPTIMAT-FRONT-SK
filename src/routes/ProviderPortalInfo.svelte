@@ -12,6 +12,7 @@
   import mockDataEnabled from '$lib/stores/mockData';
   import { providerPortalNavItems } from '$lib/providerPortalNav';
   import BookingEditor from '$lib/components/providers/BookingEditor.svelte';
+  import ProviderTimeline from '../components/ProviderTimeline.svelte';
   import FareEditor from '$lib/components/providers/FareEditor.svelte';
   import ScheduleTypeEditor from '$lib/components/providers/ScheduleTypeEditor.svelte';
   import ServiceZoneEditor from '$lib/components/providers/ServiceZoneEditor.svelte';
@@ -47,6 +48,7 @@
   let editMode = false;
   let saving = false;
   let loadingFresh = false;
+  let bookingFormValid = true;
   let saveError: string | null = null;
   let saveSuccess: string | null = null;
   let form: ProviderDraft | null = null;
@@ -187,7 +189,7 @@
   }
 
   async function saveProvider() {
-    if (!provider || !form) return;
+    if (!provider || !form || !bookingFormValid) return;
     const id = providerIdentifier(provider);
     if (!id) {
       saveError = 'This provider does not have a numeric provider_id, so it cannot be saved through the provider portal yet.';
@@ -290,7 +292,7 @@
             <div class="flex flex-wrap gap-2">
               {#if editMode}
                 <Button variant="outline" size="sm" onclick={cancelEditMode} disabled={saving}>Cancel</Button>
-                <Button size="sm" onclick={saveProvider} disabled={saving || !form?.provider_name?.trim()}>
+                <Button size="sm" onclick={saveProvider} disabled={saving || !form?.provider_name?.trim() || !bookingFormValid}>
                   {saving ? 'Saving...' : 'Save changes'}
                 </Button>
               {:else}
@@ -407,14 +409,8 @@
                   {/if}
 
                   <div>
-                    <div class="mb-2 flex items-center justify-between gap-3">
-                      <div class="block text-sm font-medium text-slate-700">Booking</div>
-                      <label class="text-xs text-slate-500">
-                        Import JSON/text
-                        <input class="ml-2 text-xs" type="file" accept=".json,.txt,application/json,text/plain" onchange={(event) => importFile(event, 'booking', 'json')} />
-                      </label>
-                    </div>
-                    <BookingEditor bind:value={form.booking} />
+                    <div class="mb-2 text-sm font-medium text-slate-700">Booking and first-time application</div>
+                    <BookingEditor bind:value={form.booking} bind:valid={bookingFormValid} />
                   </div>
 
                   <div>
@@ -560,6 +556,7 @@
                   <div class="text-slate-900 bg-slate-50 rounded-md px-3 py-2 text-sm whitespace-pre-wrap max-h-32 overflow-y-auto">
                     {formatBooking(provider.booking) || '-'}
                   </div>
+                  <ProviderTimeline {provider} />
                 </div>
 
                 <div>

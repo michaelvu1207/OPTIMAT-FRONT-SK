@@ -25,8 +25,17 @@ export interface ScheduleType {
 }
 
 export interface Booking {
-  method: string;
+  method?: string;
   details?: string;
+  application?: {
+    required?: boolean;
+    processing_time?: string | import('./providerTimeline').ProcessingTime;
+    instructions?: string;
+    source_type?: string;
+    source_url?: string;
+    source_notes?: string;
+    verified_at?: string;
+  };
 }
 
 export interface Fare {

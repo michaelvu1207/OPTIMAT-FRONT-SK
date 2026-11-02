@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { serviceZoneManager } from '../lib/serviceZoneManager.js';
   import { isFixedRouteProvider } from '$lib/providers/providerFields';
+  import ProviderTimeline from './ProviderTimeline.svelte';
   
   /**
    * @typedef {Object} PublicTransitData
@@ -350,6 +351,7 @@
                   <!-- Provider details -->
                   <div class="flex-1 pr-16">
                     <h4 class="font-medium text-gray-900">{provider.provider_name}</h4>
+                    <ProviderTimeline {provider} />
                     <dl class="mt-2 text-sm text-gray-900 space-y-1">
                       <div class="flex">
                         <dt class="font-medium w-20">Type:</dt>
