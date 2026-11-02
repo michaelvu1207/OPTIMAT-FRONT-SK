@@ -2,8 +2,7 @@
   /**
    * What OPTIMAT is, shown once when the page loads.
    *
-   * Testers arrive at a map and a chat box with no framing, so this says what the tool does, that
-   * it is a prototype under test, and where to send feedback.
+   * Explain the county focus and why rider details are requested before starting a chat.
    */
   import { onMount } from 'svelte';
   import { containDialogTab } from '$lib/utils/dialogFocus.js';
@@ -51,11 +50,32 @@
       </div>
 
       <p class="mt-3 text-[15px] leading-relaxed text-foreground">
-        OPTIMAT is a user-friendly trip planning tool that will help seniors and people with
-        disabilities discover and match to transportation services from the 24+ providers in Contra
-        Costa County. This prototype tool is currently under testing and we welcome your feedback.
-        Want to share your input or learn more? Connect with us at
-        <a href="mailto:{CONTACT}" class="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary">{CONTACT}</a>
+        OPTIMAT helps seniors and people with disabilities find transportation from 24+ providers
+        serving Contra Costa County. Each provider has its own service area and eligibility rules.
+      </p>
+
+      <section class="mt-4 text-sm leading-relaxed text-foreground" aria-labelledby="welcome-details-title">
+        <h3 id="welcome-details-title" class="font-semibold">Why we ask for details</h3>
+        <ul class="mt-2 list-disc space-y-1 pl-5">
+          <li>Pickup and destination addresses help us check where providers can take you.</li>
+          <li>Travel dates and times help us check service hours and booking notice.</li>
+          <li>Age, city of residence, and accessibility needs help us check provider eligibility.</li>
+        </ul>
+      </section>
+
+      <section class="mt-4 text-sm leading-relaxed text-foreground" aria-labelledby="welcome-data-title">
+        <h3 id="welcome-data-title" class="font-semibold">Your information</h3>
+        <p class="mt-2">
+          Your chat messages and trip details are stored by OPTIMAT. Information is encrypted
+          during transfer and in database storage. Share only the details needed to find a ride;
+          do not include medical records or payment information.
+        </p>
+      </section>
+
+      <p class="mt-4 text-sm leading-relaxed text-foreground">
+        This prototype is being tested. Providers confirm eligibility and availability; OPTIMAT
+        does not book your ride. For questions about your information or to share feedback, contact
+        <a href="mailto:{CONTACT}" class="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary">{CONTACT}</a>.
       </p>
 
       <p class="mt-3 text-sm leading-relaxed text-foreground">
