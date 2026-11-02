@@ -348,9 +348,25 @@
   }
 
   async function handleAddressFound(event) {
-    const { address, messageRole, placeName } = event.detail;
-    const coordinates = await geocodeAddress(address);
+    const { address, messageRole, placeName, tripRole, location } = event.detail;
+    const coordinates = Number.isFinite(location?.lat) && Number.isFinite(location?.lng)
+      ? [location.lat, location.lng]
+      : await geocodeAddress(address);
     if (!coordinates) return;
+
+    if (messageRole === 'attachment_selection' && ['pickup', 'destination'].includes(tripRole)) {
+      const type = tripRole === 'pickup' ? PingTypes.ORIGIN : PingTypes.DESTINATION;
+      pingManager.removePingsByType(type);
+      pingManager.addPing({
+        type,
+        coordinates,
+        label: placeName || address,
+        description: address,
+        metadata: { source: 'address_selection', address, placeName }
+      }, false);
+      pingManager.focusOnAllPings();
+      return;
+    }
 
     foundAddresses.push({ address, coordinates, role: messageRole, placeName });
 

@@ -145,18 +145,40 @@
         if (!addressAttachment?.data) return [];
         const data = safeParseAttachmentData(addressAttachment.data) || {};
         const places = Array.isArray(data.places) ? data.places : [];
-        return places.map((place) => ({
+        const normalized = places.map((place) => ({
             address: place?.formattedAddress || place?.address || '',
             name: place?.displayName?.text || place?.name || '',
-            location: place?.location || null
+            location: place?.location || null,
+            placeType: place?.place_type || null
         })).filter((p) => p.address);
+        return normalized.filter((place, index) =>
+            normalized.findIndex((candidate) => candidate.address === place.address && candidate.name === place.name) === index
+        );
     }
 
-    function openAddressPlace(place) {
-        if (!place?.address) return;
+    async function selectAddressPlace(messageId, place, role) {
+        if (loading || !serverOnline || initializing || !conversationId || isViewingExample) return;
+        const selectedConversationId = conversationId;
+        const previous = selectedAddresses.get(role);
+        selectedAddresses = new Map(selectedAddresses).set(role, { messageId, address: place.address, pending: true });
+        const label = role === 'pickup' ? 'pickup' : 'destination';
+        const name = place.name && place.name !== place.address ? `${place.name}, ` : '';
+        const sent = await handleSubmit(`Use ${name}${place.address} as my ${label}.`);
+        if (conversationId !== selectedConversationId) return;
+        if (!sent) {
+            const restored = new Map(selectedAddresses);
+            if (previous) restored.set(role, previous);
+            else restored.delete(role);
+            selectedAddresses = restored;
+            return;
+        }
+        selectedAddresses = new Map(selectedAddresses).set(role, { messageId, address: place.address, pending: false });
+        responseAnnouncement = `${role === 'pickup' ? 'Pickup' : 'Destination'} selected: ${place.address}. New response available in the conversation.`;
         dispatch('addressFound', {
             address: place.address,
-            messageRole: 'attachment_click',
+            messageRole: 'attachment_selection',
+            tripRole: role,
+            location: place.location,
             placeName: place.name || null
         });
     }
@@ -307,6 +329,7 @@ How can I assist you today?`,
 
     // Enhanced attachment handling
     let messageAttachments = new Map(); // Map message IDs to their attachments
+    let selectedAddresses = new Map(); // Latest explicitly confirmed address for each trip role.
 
     // Service zone state management
     let visibleProviderZones = new Set(); // Track which provider zones are visible
@@ -1229,12 +1252,13 @@ How can I assist you today?`,
       };
     });
 
-    async function handleSubmit() {
-      if (loading || !userInput.trim() || !serverOnline || initializing || !conversationId) {
+    async function handleSubmit(confirmedAddress = null) {
+      const content = typeof confirmedAddress === 'string' ? confirmedAddress : userInput;
+      if (loading || !content.trim() || !serverOnline || initializing || !conversationId) {
         if (!conversationId && !initializing) {
             error = "Conversation not initialized. Please wait or refresh.";
         }
-        return;
+        return false;
       }
 
       loading = true;
@@ -1249,11 +1273,11 @@ How can I assist you today?`,
 
       const newMessage = {
         role: 'human',
-        content: userInput,
+        content,
         id: `human-${Date.now()}`
       };
       messages = [...messages, newMessage];
-      userInput = '';
+      if (typeof confirmedAddress !== 'string') userInput = '';
       scrollToBottom(false, true);
 
       try {
@@ -1303,6 +1327,7 @@ How can I assist you today?`,
         }
 
         scrollToBottom();
+        return true;
 
       } catch (e) {
         if (e?.name === 'AbortError' || controller.signal.aborted) {
@@ -1311,6 +1336,7 @@ How can I assist you today?`,
           error = e.message;
           console.error('Chat error:', e);
         }
+        return false;
       } finally {
         if (activeChatController === controller) activeChatController = null;
         loading = false;
@@ -1836,6 +1862,7 @@ How can I assist you today?`,
         id: 'new-conversation-greeting'
       }];
       messageAttachments = new Map();
+      selectedAddresses = new Map();
       // A new chat is a new chance to hear from the tester.
       feedbackClosed = false;
       feedbackSubmittedFor = null;
@@ -2084,21 +2111,36 @@ How can I assist you today?`,
 
                   {#if addressPlaces.length > 0}
                     <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <div class="text-sm text-foreground mb-1">Addresses</div>
-                      <div class="flex flex-col gap-1">
-                        {#each addressPlaces.slice(0, 3) as place (place.address)}
-                          <button
-                            type="button"
-                            class="text-left text-sm px-2 py-1 rounded-md bg-muted/60 hover:bg-muted transition"
-	                            onclick={() => openAddressPlace(place)}
-                          >
-                            {#if place.name}
-                              <div class="font-medium text-foreground line-clamp-1">{place.name}</div>
-                              <div class="text-sm text-foreground line-clamp-1">{place.address}</div>
-                            {:else}
-                              <div class="text-foreground line-clamp-2">{place.address}</div>
+                      <div class="text-sm font-semibold text-foreground mb-1">Choose a location</div>
+                      <div class="flex flex-col gap-2">
+                        {#each addressPlaces.slice(0, 3) as place (`${place.name}|${place.address}`)}
+                          <div class="rounded-md bg-muted/60 p-3 text-sm text-foreground" data-address-choice={place.address}>
+                            {#if place.name && place.name !== place.address}
+                              <div class="font-semibold break-words">{place.name}</div>
                             {/if}
-                          </button>
+                            <div class="break-words">{place.address}</div>
+                            {#if ['Street', 'Locality', 'PostalCode', 'Region', 'Country', 'District', 'SubDistrict', 'SubRegion'].includes(place.placeType)}
+                              <p class="mt-2">This is an area or road, not a specific pickup or destination. Enter a full street address or search for a specific facility.</p>
+                            {:else if !isViewingExample}
+                              <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label={`${place.name && place.name !== place.address ? `${place.name}, ` : ''}${place.address}`}>
+                                {#each ['pickup', 'destination'] as role}
+                                  {@const selected = selectedAddresses.get(role)}
+                                  {@const isSelected = selected?.messageId === message.id && selected?.address === place.address}
+                                  <button
+                                    type="button"
+                                    class="min-h-11 rounded-lg border border-primary bg-background px-3 py-2 font-medium text-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                                    disabled={loading || !serverOnline || initializing || !conversationId || isSelected}
+                                    onclick={(event) => {
+                                      event.stopPropagation();
+                                      selectAddressPlace(message.id, place, role);
+                                    }}
+                                  >
+                                    {isSelected ? selected.pending ? 'Confirming...' : `${role === 'pickup' ? 'Pickup' : 'Destination'} selected` : `Use as ${role}`}
+                                  </button>
+                                {/each}
+                              </div>
+                            {/if}
+                          </div>
                         {/each}
                       </div>
                     </div>

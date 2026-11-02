@@ -1,4 +1,4 @@
-import { GeoPlacesClient, SearchTextCommand } from '@aws-sdk/client-geo-places';
+import { GeoPlacesClient, SearchTextCommand, type SearchTextResultItem } from '@aws-sdk/client-geo-places';
 import { GeoRoutesClient, CalculateRoutesCommand } from '@aws-sdk/client-geo-routes';
 
 // Amazon Location Places/Routes is not offered in us-west-1. Use the nearest
@@ -13,7 +13,22 @@ export type AwsPlace = {
   lat: number;
   lng: number;
   placeId: string;
+  placeType?: string;
 };
+
+export function normalizePlaceResults(items: SearchTextResultItem[], query: string): AwsPlace[] {
+  return items
+    .filter((item) => Array.isArray(item.Position) && item.Position.length >= 2 &&
+      Number.isFinite(item.Position[0]) && Number.isFinite(item.Position[1]))
+    .map((item) => ({
+      name: item.Title?.trim() || item.Address?.Label?.trim() || query,
+      address: item.Address?.Label?.trim() || item.Title?.trim() || query,
+      lng: item.Position![0],
+      lat: item.Position![1],
+      placeId: item.PlaceId || '',
+      placeType: item.PlaceType,
+    }));
+}
 
 export async function searchPlaces(query: string, maxResults = 5): Promise<AwsPlace[]> {
   const response = await places.send(new SearchTextCommand({
@@ -24,15 +39,7 @@ export async function searchPlaces(query: string, maxResults = 5): Promise<AwsPl
     IntendedUse: 'SingleUse',
     Language: 'en',
   }));
-  return (response.ResultItems || [])
-    .filter((item) => Array.isArray(item.Position) && item.Position.length >= 2)
-    .map((item) => ({
-      name: item.Title || query,
-      address: item.Title || query,
-      lng: Number(item.Position![0]),
-      lat: Number(item.Position![1]),
-      placeId: item.PlaceId || '',
-    }));
+  return normalizePlaceResults(response.ResultItems || [], query);
 }
 
 export async function geocodePlace(query: string): Promise<AwsPlace | null> {

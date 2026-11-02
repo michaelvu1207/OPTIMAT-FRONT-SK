@@ -534,6 +534,8 @@ async function executeSearchAddresses(params: SearchAddressesParams, apiKey: str
       name: place.name,
       address: place.address,
       location: { lat: place.lat, lng: place.lng },
+      place_id: place.placeId,
+      place_type: place.placeType,
     }));
     return { success: true, data: { places, query: params.user_query } };
   } catch (error) {
