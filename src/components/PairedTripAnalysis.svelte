@@ -6,7 +6,8 @@
 </script>
 
 <section aria-label="Paired round-trip analysis" class="paired-analysis">
-  <div class="heading"><div><span class="eyebrow">LINK · Paired journeys</span><h2>Outbound, return & activity patterns</h2></div><strong>{count(analysis.selected_pairs)} round trips</strong></div>
+  <div class="heading"><div><span class="eyebrow">Paired journeys · Eligible source records</span><h2>Outbound, return & activity patterns</h2></div><strong>{count(analysis.selected_pairs)} round trips</strong></div>
+  {#if analysis.selected_pairs === 0}<p class="note">No validated round trips match this selection. Pairing requires client IDs, actual leg times and a matching home address/ZIP. Tri Delta and Mobility Matters exports lack required fields; use All trip endpoints to view their supplied locations.</p>{/if}
   <p class="note">Each validated pair contributes one observation to every chart. Dates and provider follow the filters. Both legs must match the selected status. An hour window keeps the whole pair when either departure falls inside it. Map layers do not change these charts.</p>
   <div class="charts">
     <OperationsHistogram title="Outbound departure time" description="Departure from the inferred home location." chart={analysis.charts.find(c => c.id === 'outbound_time')} unit="clock" color="#2563eb" />

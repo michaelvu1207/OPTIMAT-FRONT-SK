@@ -19,6 +19,9 @@ test('date, mode, pagination and hour filters reject invalid input', () => {
   }
   assert.equal(parseFilters(new URLSearchParams()).hourTo, 24);
   assert.equal(parseFilters(new URLSearchParams('date_to=2025-12-31')).to, '2025-12-31');
+  for (const status of ['CA,UG', 'Cancelled at door', 'No-Show', 'Performed / Scheduled']) {
+    assert.equal(parseFilters(new URLSearchParams({ status })).status, status);
+  }
 });
 
 test('anonymous operations requests read published data, including with mock=true', async () => {

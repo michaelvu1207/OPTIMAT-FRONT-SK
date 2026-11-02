@@ -85,7 +85,7 @@
   $: displayedWindow = `${String(applied.hour_from ?? '0').padStart(2, '0')}:00–${String(applied.hour_to ?? '24').padStart(2, '0')}:00`;
 </script>
 
-<PageShell title="Universal Service Dashboard" description="LINK operational records · City activity and paired journeys" appMode={true} navItems={providerPortalNavItems}>
+<PageShell title="Universal Service Dashboard" description="Agency operational records · City activity and paired journeys" appMode={true} navItems={providerPortalNavItems}>
   <div class="operations">
     <section class="visuals" aria-label="Demand map and service summary">
       <div class="map-panel">
@@ -93,7 +93,7 @@
           <OperationsDemandMap {points} color={mapColor} {focusedCity} paired={locationView === 'paired'} />
         {:else}
           <div class="map-empty">
-            <strong>{loading ? 'Loading LINK records…' : error ? 'Operational data unavailable' : 'No mapped events'}</strong>
+            <strong>{loading ? 'Loading agency records…' : error ? 'Operational data unavailable' : 'No mapped events'}</strong>
             <p>{error ? 'Resolve the message in the filter panel and refresh.' : 'The map displays only events with a resolved city reference point.'}</p>
           </div>
         {/if}
@@ -103,12 +103,13 @@
         <p class="note">Displayed: {displayedWindow} America/Los_Angeles · Status {applied.status || 'all raw codes'} · {applied.mode ?? 'combined'}</p>
         {#if locationView === 'paired'}<p class="note">These summary cards cover raw trip records. The paired map and five charts use only validated round trips.</p>{/if}
         <div class="metrics">
-          <div><span>Trip records</span><strong>{data ? count(data.summary.records) : '—'}</strong></div>
-          <div><span>Anonymous riders</span><strong>{data ? count(data.summary.riders) : '—'}</strong></div>
+          <div><span>Source service records</span><strong>{data ? count(data.summary.records) : '—'}</strong></div>
+          <div><span>Identified anonymous riders</span><strong>{data && data.summary.client_identified_records !== 0 ? count(data.summary.riders) : '—'}</strong></div>
           <div><span>Mapped endpoint events</span><strong>{data ? count(data.event_summary.mapped) : '—'}</strong></div>
           <div><span>Unmapped endpoint events</span><strong>{data ? count(data.event_summary.unmapped) : '—'}</strong></div>
         </div>
-        <p class="note">Circles use Census place reference points, not passenger addresses. Destination cities are inferred only from an unambiguous address and ZIP match within LINK. Both mode counts two endpoints when both are available.</p>
+        <p class="note">Circles use Census place reference points, not passenger addresses. LINK destination cities use an unambiguous address and ZIP match; other agencies supply cities directly. Unrecognized city spellings stay unmapped. Both mode counts two endpoint slots per record, including unmapped endpoints.</p>
+        <p class="note">WestCAT events are joined into bookings; Tri Delta records are bookings; Mobility Matters records are rides and may include several trip legs. Totals count these source records, not equivalent trip legs. Rider counts include only records with client IDs: {data ? count(data.summary.client_identified_records ?? data.summary.records) : '—'} records.</p>
         <p class="note">{data ? count(data.event_summary.missing_time) : '—'} displayed events have no time. Full-day views include these events; narrower time windows exclude them.</p>
         {#if data?.paired_analysis}
           <PairedTripAnalysis analysis={data.paired_analysis} />
@@ -119,7 +120,7 @@
     </section>
 
     <aside class="details">
-      <div class="toolbar"><div><h1>LINK operating data</h1><p>Historical records from the supplied workbook</p></div>
+      <div class="toolbar"><div><h1>Agency operating data</h1><p>LINK · WestCAT · Tri Delta Transit · Mobility Matters</p></div>
         <button type="button" onclick={() => load()} disabled={loading}>Refresh</button>
       </div>
       <form onsubmit={(event) => { event.preventDefault(); applyFilters(); }} class="filters">
@@ -157,7 +158,9 @@
       {#if data}
         <div class="source">
           {#each data.imports as item}
-            <strong>{item.filename}</strong><span>{item.date_from} to {item.date_to} · {count(item.row_count)} source records</span>
+            <strong>{item.provider_name} · {item.filename}</strong><span>{item.date_from} to {item.date_to} · {count(item.row_count)} {item.record_unit ?? 'trip'} records</span>
+            {#if item.pairing_note}<p class="note">{item.pairing_note}</p>{/if}
+            {#if item.time_note}<p class="note">{item.time_note}</p>{/if}
           {/each}
         </div>
         <section class="areas"><h2>Area activity</h2>
@@ -167,7 +170,7 @@
           {#if !points.length}<p class="note">No mapped areas match this selection.</p>{/if}
         </section>
         <section class="records">
-          <div class="section-heading"><h2>Trip records</h2><span>{count(data.summary.records)} matching</span></div>
+          <div class="section-heading"><h2>Service records</h2><span>{count(data.summary.records)} matching</span></div>
           <div class="pagination">
             <button type="button" onclick={() => changePage(-1)} disabled={loading || offset === 0}>Previous</button>
             <span>{data.summary.records ? offset + 1 : 0}–{Math.min(offset + data.trips.length, data.summary.records)}</span>

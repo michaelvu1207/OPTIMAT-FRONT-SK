@@ -90,7 +90,10 @@
     void import('leaflet').then(module => {
       if (disposed) return;
       leaflet = module;
-      map = module.map(container, { center: [37.96, -122.03], zoom: 10, minZoom: 3, maxZoom: MAX_CLUSTER_ZOOM });
+      // Filters replace this map while new records load. Avoid zoom transition
+      // callbacks accessing panes after the previous provider's map is removed.
+      map = module.map(container, { center: [37.96, -122.03], zoom: 10, minZoom: 3, maxZoom: MAX_CLUSTER_ZOOM,
+        zoomAnimation: false, markerZoomAnimation: false });
       module.tileLayer(DEFAULT_MAP_STYLE.url, { attribution: DEFAULT_MAP_STYLE.attribution, maxZoom: MAX_CLUSTER_ZOOM }).addTo(map);
       layers = module.layerGroup().addTo(map);
       if (points.length) map.fitBounds(module.latLngBounds(points.map(p => [p.lat, p.lng])), { padding: [48, 48], maxZoom: 11 });

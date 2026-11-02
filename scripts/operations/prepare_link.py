@@ -9,8 +9,6 @@ from pathlib import Path
 import re
 import struct
 
-import openpyxl
-
 VERSION = 'link-v1-city'
 HEADERS = ['TripDate', 'ClientID', 'VehicleNumber', 'Passengers', 'PickUpAddress',
            'PickupCity', 'PickupZipCode', 'DropOffAddress', 'DropOffZipCode',
@@ -127,6 +125,7 @@ def literal(value):
 
 
 def prepare(workbook, places_path, output, provider_id):
+    import openpyxl
     file_hash = hashlib.sha256(workbook.read_bytes()).hexdigest()
     places_hash = hashlib.sha256(places_path.read_bytes()).hexdigest()
     import_id = hashlib.sha256(f'{VERSION}:{file_hash}:{places_hash}:{provider_id}'.encode()).hexdigest()

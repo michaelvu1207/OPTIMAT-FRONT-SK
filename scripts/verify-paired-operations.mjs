@@ -6,7 +6,9 @@ const queries = ['', '?date_from=2025-07-01&date_to=2025-07-01',
   '?hour_from=8&hour_to=9', '?status=NS', '?provider_id=9999',
   '?date_from=2026-01-01&date_to=2026-01-02', '?mode=destinations&offset=50'];
 const results = await Promise.all(queries.map(async query => {
-  const response = await fetch(base + query, { signal: AbortSignal.timeout(60000) });
+  const url = new URL(base + query);
+  if (!url.searchParams.has('provider_id')) url.searchParams.set('provider_id', '2006');
+  const response = await fetch(url, { signal: AbortSignal.timeout(60000) });
   assert.equal(response.status, 200, query);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   const data = await response.json();

@@ -1,5 +1,9 @@
 # LINK operations dashboard
 
+For the added WestCAT, Tri Delta Transit and Mobility Matters CSV snapshots,
+see [Agency operational imports](agency-operations.md). The LINK interpretation
+and pairing rules below remain unchanged.
+
 The Universal Service Dashboard reads public operational records from
 `GET /trip-records/operations`. It no longer generates random trips, provider
 assignments, coordinates, dates, or distances. The existing Trip Upload intake
@@ -121,9 +125,10 @@ Deploy the frontend with VITE_API_BACKEND=aws and the existing VITE_AWS_API_URL.
 The repository-connected Amplify app releases from its configured Git branch.
 
 Open Universal Dashboard directly; no sign-in is required. The public endpoint
-serves only active LINK imports for provider 2006, regardless of whether the
-visitor is signed in. Publishing another provider requires an explicit code
-change. Account management, uploads, and other portal endpoints retain their
+serves only explicitly allowed active source/provider pairs: LINK 2006, WESTCAT
+1003, TDT 1002 and MM 4021, regardless of whether the visitor is signed in.
+Publishing another provider requires an explicit code change. Account
+management, uploads, and other portal endpoints retain their
 existing authorization. Database roles and grants are unchanged.
 Responses use Cache-Control: no-store.
 

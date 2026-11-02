@@ -28,18 +28,21 @@ export function parseFilters(params: URLSearchParams) {
   const hourTo = integer(params.get('hour_to'), 24, 1, 24);
   if (hourFrom >= hourTo) throw new Error('End hour must follow start hour. Split overnight windows into two requests.');
   const status = params.get('status') || null;
-  if (status && !/^[A-Z0-9_-]{1,20}$/.test(status)) throw new Error('Invalid status code.');
+  if (status && !/^[A-Za-z0-9_, /-]{1,80}$/.test(status)) throw new Error('Invalid status code.');
   return { from, to, mode, hourFrom, hourTo, status,
     providerId: params.get('provider_id') ? integer(params.get('provider_id'), 0, 1, 2147483647) : null,
     offset: integer(params.get('offset'), 0, 0, 10000000), limit: integer(params.get('limit'), 50, 1, 100) };
 }
 
-// Public access is limited to the published LINK provider. Other portal APIs keep their access controls.
+// Only explicitly published source/provider pairs may be read anonymously.
 // One SQL statement provides a consistent snapshot across all dashboard panels.
 export const OPERATIONS_SQL = `WITH allowed AS MATERIALIZED (
   SELECT i.*, p.provider_name FROM optimat.operation_imports i
   JOIN optimat.providers p ON p.provider_id=i.provider_id
-  WHERE i.active AND i.source='LINK' AND i.provider_id=2006
+  WHERE i.active AND ((i.source='LINK' AND i.provider_id=2006)
+    OR (i.source='WESTCAT' AND i.provider_id=1003)
+    OR (i.source='TDT' AND i.provider_id=1002)
+    OR (i.source='MM' AND i.provider_id=4021))
     AND ($1::integer IS NULL OR i.provider_id=$1)
 ), pair_source AS MATERIALIZED (
   SELECT ${PAIR_SOURCE_COLUMNS} FROM optimat.operation_trips t JOIN allowed a ON a.id=t.import_id
@@ -78,11 +81,14 @@ SELECT jsonb_build_object(
   'paired_analysis', ${PAIRED_PAYLOAD},
   'imports', (SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'provider_id',provider_id,'provider_name',provider_name,
     'filename',filename,'date_from',to_char(date_from,'YYYY-MM-DD'),'date_to',to_char(date_to,'YYYY-MM-DD'),
-    'row_count',row_count,'imported_at',imported_at) ORDER BY provider_id),'[]'::jsonb) FROM allowed),
+    'row_count',row_count,'imported_at',imported_at,'source',source,
+    'record_unit',coalesce(quality_report->>'record_unit','trip'),
+    'pairing_note',quality_report->>'pairing_note','time_note',quality_report->>'time_note') ORDER BY provider_id),'[]'::jsonb) FROM allowed),
   'statuses', (SELECT coalesce(jsonb_agg(status ORDER BY status),'[]'::jsonb) FROM (
     SELECT DISTINCT t.status FROM optimat.operation_trips t JOIN allowed a ON a.id=t.import_id WHERE t.status IS NOT NULL
   ) codes),
   'summary', (SELECT jsonb_build_object('records',count(*),'riders',count(DISTINCT (provider_id,client_id)) FILTER (WHERE client_id IS NOT NULL),
+    'client_identified_records',count(*) FILTER (WHERE client_id IS NOT NULL),
     'providers',count(DISTINCT provider_id),'date_from',to_char(min(service_date),'YYYY-MM-DD'),
     'date_to',to_char(max(service_date),'YYYY-MM-DD')) FROM filtered),
   'event_summary', (SELECT jsonb_build_object('total',count(*),'mapped',count(*) FILTER (WHERE lat IS NOT NULL AND lng IS NOT NULL),
@@ -108,6 +114,6 @@ export async function operationsDashboard(req: ParsedRequest) {
   } catch (error) {
     const code = (error as { code?: string }).code;
     console.error('Operations query failed', { code });
-    return errorResponse(code === '42P01' ? 'Operational data is not installed. Apply migration 0005 and import the LINK workbook.' : 'Operational data could not be loaded.', 503, req.origin);
+    return errorResponse(code === '42P01' ? 'Operational data is not installed. Apply migration 0005 and import the reviewed operational sources.' : 'Operational data could not be loaded.', 503, req.origin);
   }
 }

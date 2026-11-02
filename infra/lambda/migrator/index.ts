@@ -3,11 +3,12 @@ import type { Context } from 'aws-lambda';
 import { getSecret } from '../_shared/secrets.js';
 import { BASELINE_SQL } from './baseline.js';
 import { runLinkOperations } from './link-operations.js';
+import { runAgencyOperations } from './agency-operations.js';
 
 const { Client } = pg;
 
 type MigrationEvent = {
-  action?: 'status' | 'apply-baseline' | 'apply-link-operations' | 'verify-link-operations';
+  action?: 'status' | 'apply-baseline' | 'apply-link-operations' | 'verify-link-operations' | 'apply-agency-operations' | 'verify-agency-operations';
 };
 
 function requiredEnvironment(name: string): string {
@@ -73,7 +74,7 @@ async function migrationStatus(client: pg.Client) {
 
 export const handler = async (event: MigrationEvent = {}, _context?: Context) => {
   const action = event.action || 'status';
-  if (!['status', 'apply-baseline', 'apply-link-operations', 'verify-link-operations'].includes(action)) {
+  if (!['status', 'apply-baseline', 'apply-link-operations', 'verify-link-operations', 'apply-agency-operations', 'verify-agency-operations'].includes(action)) {
     return { success: false, error: 'Unsupported migration action' };
   }
 
@@ -82,6 +83,9 @@ export const handler = async (event: MigrationEvent = {}, _context?: Context) =>
   const client = await connect(masterSecretArn);
 
   try {
+    if (action === 'apply-agency-operations' || action === 'verify-agency-operations') {
+      return { success: true, action, ...(await runAgencyOperations(client, action === 'apply-agency-operations')) };
+    }
     if (action === 'apply-link-operations' || action === 'verify-link-operations') {
       return { success: true, action, ...(await runLinkOperations(client, action === 'apply-link-operations')) };
     }

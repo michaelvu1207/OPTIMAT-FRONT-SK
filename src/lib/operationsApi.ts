@@ -21,9 +21,9 @@ export interface PairedAnalysis {
 }
 export interface OperationsResult {
   paired_analysis?: PairedAnalysis;
-  imports: { id: string; provider_id: number; provider_name: string; filename: string; date_from: string; date_to: string; row_count: number; imported_at: string }[];
+  imports: { id: string; provider_id: number; provider_name: string; filename: string; date_from: string; date_to: string; row_count: number; imported_at: string; source?: string; record_unit?: string; pairing_note?: string | null; time_note?: string | null }[];
   statuses: string[];
-  summary: { records: number; riders: number; providers: number; date_from: string | null; date_to: string | null };
+  summary: { records: number; riders: number; client_identified_records?: number; providers: number; date_from: string | null; date_to: string | null };
   event_summary: { total: number; mapped: number; unmapped: number; missing_time: number };
   heat_points: { city: string; lat: number; lng: number; count: number }[];
   hourly: { hour: number; count: number }[];
