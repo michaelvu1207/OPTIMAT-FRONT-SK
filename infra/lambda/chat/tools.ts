@@ -6,6 +6,7 @@
 import { queryRows, TABLES } from '../_shared/db.js';
 import { getApiKeys } from '../_shared/secrets.js';
 import { geocodePlace, searchPlaces } from '../_shared/location.js';
+import { AGE_RANGES, AGE_RANGE_QUESTION, ageBounds, ageChoiceData, mergeAgeFacts, providerAgeCheck, type AgeRangeId } from './age.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ export type RiderFact = 'age' | 'disabled' | 'ada_paratransit_eligible' | 'veter
 
 export interface RiderEligibility {
   age?: number | null;
+  age_range?: AgeRangeId | null;
   disabled?: boolean | null;
   ada_paratransit_eligible?: boolean | null;
   veteran?: boolean | null;
@@ -92,11 +94,16 @@ export interface ToolResult {
 
 export const toolDefinitions = [
   {
+    name: 'ask_age_range',
+    description: 'Show clickable age-range choices when age information is needed and neither a range nor an exact age is known. Use this instead of asking for an exact age. Do not call for unrelated questions or when age information is already known.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
     name: 'find_providers',
     description: `Find paratransit providers that can serve a round trip between origin and destination.
 The server filters by source/destination GeoJSON, known operating hours, and excludes ADA Paratransit when disabled=false.
-Exact age and residence city are mandatory before searching. Ask for missing values; never infer residence from pickup.
-Call this once the locations, date, outbound time, trip type, age, and residence city are known. Pass only rider facts the rider
+An age range (or a voluntarily supplied exact age) and residence city are needed before searching. Use ask_age_range for missing age information; never infer residence from pickup.
+Call this once the locations, date, outbound time, trip type, age range, and residence city are known. Pass only rider facts the rider
 explicitly stated. Unknown facts must be omitted rather than guessed. After this returns candidates, immediately
 call assess_eligibility with a verdict for every candidate. A candidate with service_hours_known=false has not
 had its requested time confirmed; describe the schedule as needing provider verification, never as available.`,
@@ -117,7 +124,8 @@ had its requested time confirmed; describe the schedule as needing provider veri
           type: 'object',
           description: 'Only facts explicitly supplied by the rider. Omit unknown facts.',
           properties: {
-            age: { type: 'integer', minimum: 0, maximum: 120 },
+            age: { type: 'integer', minimum: 0, maximum: 120, description: 'Only an exact age voluntarily stated by the rider. Never substitute the minimum, maximum, or midpoint of a range.' },
+            age_range: { type: 'string', enum: AGE_RANGES.map(range => range.id), description: 'The age band explicitly selected or stated by the rider. Supply this instead of age for a range.' },
             disabled: { type: 'boolean' },
             ada_paratransit_eligible: {
               type: 'boolean',
@@ -127,7 +135,7 @@ had its requested time confirmed; describe the schedule as needing provider veri
             residence_city: { type: 'string', minLength: 1 },
             declined: { type: 'boolean', description: 'True if the rider declines further eligibility questions.' },
           },
-          required: ['age', 'residence_city'],
+          required: ['residence_city'],
         },
       },
       required: ['source_address', 'destination_address', 'departure_time', 'travel_date', 'trip_type', 'rider_eligibility'],
@@ -137,6 +145,7 @@ had its requested time confirmed; describe the schedule as needing provider veri
     name: 'assess_eligibility',
     description: `Assess every candidate returned by the most recent find_providers call before answering.
 Read the candidate's complete eligibility requirement and compare every AND/OR clause with the structured rider facts.
+For an age range, compare the whole interval with each explicit age cutoff. Never treat a bound or midpoint as an exact age. For example, 60–64 meets 60+ but fails 65+; 50–54 meets 50+ but fails 55+. Disabled (18+) still requires adulthood; preserve senior OR disability OR veteran alternatives. A cutoff inside the range or an unspecified "Senior" requirement needs provider verification, not a guess or a request for an exact age.
 Geographic coverage is already established; do not infer residence from the pickup address.
 - eligible: the known facts match the requirement. This is preliminary screening, so tell the rider they may qualify.
 - ineligible: a known rider fact fails the requirement.
@@ -386,7 +395,7 @@ function isDirectRideProvider(provider: Provider): boolean {
 
 export function missingRequiredRiderFacts(rider: RiderEligibility): Array<'age' | 'residence_city'> {
   const missing: Array<'age' | 'residence_city'> = [];
-  if (!Number.isInteger(rider.age) || Number(rider.age) < 0 || Number(rider.age) > 120) missing.push('age');
+  if (!ageBounds(rider)) missing.push('age');
   if (typeof rider.residence_city !== 'string' || !rider.residence_city.trim()) missing.push('residence_city');
   return missing;
 }
@@ -394,10 +403,10 @@ export function missingRequiredRiderFacts(rider: RiderEligibility): Array<'age' 
 export function requiredRiderQuestion(rider: RiderEligibility): string | null {
   const missing = missingRequiredRiderFacts(rider);
   if (!missing.length) return null;
-  if (rider.declined) return 'Your age and city of residence are required to check trip options. I cannot complete this search without them.';
-  if (missing.length === 2) return 'How old are you, and what city do you live in? Both are required to check transportation options.';
+  if (rider.declined) return 'An age range and city of residence are needed to check trip options. You do not need to share an exact age. I cannot complete this search without those details.';
+  if (missing.length === 2) return `${AGE_RANGE_QUESTION} What city do you live in?`;
   return missing[0] === 'age'
-    ? 'How old are you? Your age is required to check transportation options.'
+    ? AGE_RANGE_QUESTION
     : 'What city do you live in? Your city of residence is required to check transportation options.';
 }
 
@@ -416,7 +425,14 @@ export async function executeFindProviders(
   apiKey: string,
   turn: TurnContext,
 ): Promise<ToolResult> {
-  turn.riderEligibility = { ...turn.riderEligibility, ...(params.rider_eligibility || {}) };
+  // A selected range is authoritative: a model must not replace it with a
+  // fabricated exact age while building a tool call.
+  const suppliedFacts = { ...(params.rider_eligibility || {}) };
+  if (ageBounds(turn.riderEligibility)) {
+    delete suppliedFacts.age;
+    delete suppliedFacts.age_range;
+  }
+  turn.riderEligibility = mergeAgeFacts(turn.riderEligibility, suppliedFacts);
   const requiredQuestion = requiredRiderQuestion(turn.riderEligibility);
   if (requiredQuestion) {
     turn.lastSearch = null;
@@ -625,7 +641,7 @@ function nextEligibilityQuestion(
 ): { field: RiderFact; candidates_if_known: number; provider_names: string[]; why: string } | null {
   if (rider.declined) return null;
   const known: Record<RiderFact, boolean> = {
-    age: Number.isFinite(rider.age),
+    age: Boolean(ageBounds(rider)),
     disabled: typeof rider.disabled === 'boolean',
     ada_paratransit_eligible: typeof rider.ada_paratransit_eligible === 'boolean',
     veteran: typeof rider.veteran === 'boolean',
@@ -714,6 +730,22 @@ export function executeAssessEligibility(
       assessment = { ...assessment, verdict: 'verification_required', missing_fact: null,
         reason: 'Retained as an option for a rider with a disability. The provider must confirm remaining requirements and any application steps.' };
     }
+    if (turn.riderEligibility.age_range && !(turn.riderEligibility.disabled === false && isAdaParatransit(provider))) {
+      const ageCheck = providerAgeCheck(provider.eligibility_requirement || provider.eligibility_reqs, turn.riderEligibility);
+      if (ageCheck === 'below') {
+        assessment = { ...assessment, verdict: 'ineligible', exclusion_basis: 'age', missing_fact: null,
+          reason: 'The selected age range is below the explicit age minimum for each applicable eligibility category.' };
+      } else if (ageCheck === 'overlaps' && assessment.verdict === 'eligible') {
+        assessment = { ...assessment, verdict: 'verification_required', missing_fact: null,
+          reason: 'The provider age cutoff falls within the selected range. The provider must confirm whether this age requirement is met; an exact age is not required in this chat.' };
+      } else if (ageCheck === 'unspecified' && assessment.verdict === 'eligible') {
+        assessment = { ...assessment, verdict: 'verification_required', missing_fact: null,
+          reason: 'The provider lists Senior eligibility without a numeric age cutoff. The provider must confirm its age requirement.' };
+      } else if (ageCheck === 'possible' && assessment.verdict === 'ineligible' && assessment.exclusion_basis === 'age') {
+        assessment = { ...assessment, verdict: 'verification_required', missing_fact: null,
+          reason: 'The selected age range does not rule out all age eligibility pathways. The provider must confirm remaining eligibility requirements.' };
+      }
+    }
     effectiveAssessments.push(assessment);
     const decorated = {
       ...provider,
@@ -765,6 +797,10 @@ export async function executeTool(
   turn: TurnContext,
 ): Promise<ToolResult> {
   switch (toolName) {
+    case 'ask_age_range':
+      return ageBounds(turn.riderEligibility)
+        ? { success: true, data: { known: true, message: 'Age information is already known. Reuse it and ask only for remaining trip details.' } }
+        : { success: true, data: ageChoiceData() };
     case 'find_providers':
       return executeFindProviders(toolInput as FindProvidersParams, googleMapsApiKey, turn);
     case 'assess_eligibility':

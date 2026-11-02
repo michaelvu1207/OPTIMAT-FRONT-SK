@@ -22,6 +22,14 @@ test('empty state explicitly prevents residence inference from pickup', () => {
   assert.match(buildRiderFactsBlock({}), /Do not infer residence/);
 });
 
+test('known age ranges are carried to the model without inventing an exact age', () => {
+  const block = buildRiderFactsBlock({ age_range: '60_64', residence_city: 'Concord' });
+  assert.match(block, /age_range=60_64/);
+  assert.match(block, /minimum 60, maximum 64/);
+  assert.match(block, /exact age is unknown/);
+  assert.doesNotMatch(block, /\bage=\d/);
+});
+
 test('current time block resolves the Pacific date instead of relying on model knowledge', () => {
   const block = buildCurrentTimeBlock(new Date('2026-09-01T06:30:00.000Z'));
   assert.match(block, /2026-08-31/);

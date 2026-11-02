@@ -1,5 +1,6 @@
 import { query, queryOne, TABLES } from '../_shared/db.js';
 import type { RiderEligibility, TurnContext } from './tools.js';
+import { getAgeRange } from './age.js';
 
 type StoredTripState = {
   rider_eligibility?: RiderEligibility;
@@ -32,6 +33,8 @@ export async function loadTurnContext(conversationId: string): Promise<TurnConte
 export function buildRiderFactsBlock(rider: RiderEligibility): string {
   const facts: string[] = [];
   if (Number.isFinite(rider.age)) facts.push(`age=${rider.age}`);
+  const range = getAgeRange(rider.age_range);
+  if (range) facts.push(`age_range=${range.id} (${range.label}; minimum ${range.min}${range.max === null ? ', no upper limit' : `, maximum ${range.max}`}; exact age is unknown and must not be invented)`);
   if (typeof rider.disabled === 'boolean') facts.push(`disabled=${rider.disabled}`);
   if (typeof rider.ada_paratransit_eligible === 'boolean') {
     facts.push(`ada_paratransit_eligible=${rider.ada_paratransit_eligible}`);

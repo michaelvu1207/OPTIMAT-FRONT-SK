@@ -133,6 +133,7 @@ export interface Conversation {
 }
 
 export interface ChatResponse {
+  age_range?: string | null;
   // Chat response text (normalized).
   // Some backends return this as `message`, others as `response`.
   message: string;
@@ -496,13 +497,14 @@ export async function deleteConversation(
 export async function sendChatMessage(
   conversationId: string,
   message: string,
-  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  options: { signal?: AbortSignal; timeoutMs?: number; ageRange?: string } = {},
 ): Promise<{ data: ChatResponse | null; error: Error | null }> {
   const { data, error } = await fetchEdgeFunction<ChatResponse>('chat', {
     method: 'POST',
     body: {
       conversation_id: conversationId,
       message,
+      ...(options.ageRange ? { age_range: options.ageRange } : {}),
     },
     timeoutMs: options.timeoutMs ?? 45000,
     useApiFunctionsHost: true,

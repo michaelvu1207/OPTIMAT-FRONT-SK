@@ -17,10 +17,10 @@ function mockDatabase(t: TestContext, providers: unknown[] = []) {
   })) as any);
 }
 
-async function sendLocalMessage(message: string) {
+async function sendLocalMessage(message: string, age_range?: string) {
   const result = await handler({
     requestContext: { http: { method: 'POST' } }, rawPath: '/chat', headers: {},
-    body: JSON.stringify({ conversation_id: 'local-test', message }),
+    body: JSON.stringify({ conversation_id: 'local-test', message, age_range }),
   } as any) as { statusCode: number; body: string };
   assert.equal(result.statusCode, 200);
   return JSON.parse(result.body);
@@ -40,9 +40,69 @@ test('Walnut Creek full handler asks both mandatory facts even when the model ig
     })
     : { stopReason: 'end_turn', output: { message: { content: [{ text: 'Incorrect model recommendation.' }] } } }) as any);
   const result = await sendLocalMessage('Hi, I am planning a trip from 317 Dogwood Dr in Walnut Creek to 301 Lennon Lane in Walnut Creek and am departing tomorrow at 12pm and returning at 2pm.');
-  assert.match(result.message, /How old.*what city/);
+  assert.match(result.message, /Which age range.*What city/);
   assert.doesNotMatch(result.message, /ADA/);
-  assert.deepEqual(result.attachments, []);
+  assert.equal(result.attachments.length, 1);
+  assert.equal(result.attachments[0].type, 'age_choices');
+  assert.deepEqual(result.attachments[0].data.options.map((x: any) => x.id), ['under_18', '18_49', '50_54', '55_59', '60_64', '65_plus']);
+});
+
+test('button selections are saved as age ranges before the model answers', async (t) => {
+  mockDatabase(t);
+  const queries: Array<{ sql: string; values: any[] }> = [];
+  t.mock.method(pg.Pool.prototype, 'query', (async (sql: string, values: any[]) => {
+    queries.push({ sql, values });
+    return { rows: sql.startsWith('SELECT id FROM') ? [{ id: 'local-test' }] : [] };
+  }) as any);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    const prompt = command.input.system[0].text;
+    assert.match(prompt, /age_range=60_64/);
+    assert.match(prompt, /exact age is unknown/);
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Thanks. What city do you live in?' }] } } };
+  }) as any);
+  const result = await sendLocalMessage('My age range is 60–64.', '60_64');
+  assert.equal(result.attachments.some((x: any) => x.type === 'age_choices'), false);
+  const saved = queries.find(x => x.sql.startsWith('INSERT INTO optimat.chat_trip_state'));
+  assert.deepEqual(JSON.parse(saved!.values[1]), { rider_eligibility: { age_range: '60_64' } });
+});
+
+test('prose age questions get buttons without requiring a tool call', async (t) => {
+  mockDatabase(t);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => ({ stopReason: 'end_turn', output: { message: { content: [{ text: 'Which age range are you in?' }] } } })) as any);
+  const result = await sendLocalMessage('I need a ride.');
+  assert.equal(result.attachments[0].type, 'age_choices');
+});
+
+test('the age-choice tool returns one structured choice set', async (t) => {
+  mockDatabase(t);
+  let calls = 0;
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => ++calls === 1
+    ? toolResponse('ask_age_range', {})
+    : { stopReason: 'end_turn', output: { message: { content: [{ text: 'Choose the age range that applies to you.' }] } } }) as any);
+  const result = await sendLocalMessage('I need to find a ride.');
+  assert.equal(result.attachments.length, 1);
+  assert.equal(result.attachments[0].type, 'age_choices');
+  assert.equal(result.attachments[0].data.options.length, 6);
+});
+
+test('a saved age band is reused on later turns without repeating the age choices', async (t) => {
+  mockDatabase(t);
+  t.mock.method(pg.Pool.prototype, 'query', (async (sql: string) => ({ rows:
+    sql.startsWith('SELECT id FROM') ? [{ id: 'local-test' }] :
+    sql.startsWith('SELECT trip FROM') ? [{ trip: { rider_eligibility: { age_range: '55_59', residence_city: 'Richmond' } } }] : []
+  })) as any);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    assert.match(command.input.system[0].text, /age_range=55_59/);
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'What time would you like to travel?' }] } } };
+  }) as any);
+  const result = await sendLocalMessage('Tomorrow morning.');
+  assert.equal(result.age_range, '55_59');
+  assert.equal(result.attachments.some((x: any) => x.type === 'age_choices'), false);
+});
+
+test('invalid age selections are rejected before using the database or model', async () => {
+  const result = await handler({ requestContext: { http: { method: 'POST' } }, rawPath: '/chat', headers: {}, body: JSON.stringify({ conversation_id: 'local-test', message: 'My age range is 65+.', age_range: 'invalid' }) } as any) as { statusCode: number };
+  assert.equal(result.statusCode, 400);
 });
 
 test('Pinole-Berkeley full handler strips large geometry, assesses candidates and retains ADA options', async (t) => {

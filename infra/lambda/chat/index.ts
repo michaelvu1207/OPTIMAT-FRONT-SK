@@ -14,6 +14,7 @@ import { query, queryRows, queryOne, TABLES } from '../_shared/db.js';
 import { toolDefinitions, executeTool, storeToolCall, requiredRiderQuestion, type ToolResult } from './tools.js';
 import { buildCurrentTimeBlock, buildRiderFactsBlock, loadTurnContext, saveTurnContext } from './state.js';
 import { serializeToolResultForModel, boundConversationHistory, assertModelRequestBudget, ModelContextLimitError } from './model-payload.js';
+import { AGE_RANGE_QUESTION, ageBounds, ageChoiceData, ageRangeFromMessage, exactAgeFromMessage, getAgeRange, mergeAgeFacts } from './age.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -26,15 +27,16 @@ You can find paratransit providers that can serve a trip between an origin (pick
 The find_providers tool filters by source/destination GeoJSON and known service hours. It returns candidates,
 not recommendations. Once it returns candidates, you MUST call assess_eligibility and provide exactly one verdict
 for every candidate before answering. Provider cards are created only from that assessment.
-Before searching or recommending trip options, you MUST know both the rider's exact age and city of residence.
-Ask for both when missing, even if no particular candidate appears to need them. Reuse explicit answers from
+Before searching or recommending trip options, you need the rider's age range and city of residence. A voluntarily stated exact age is also sufficient, but never require an exact age.
+When age information is missing, call ask_age_range to show clickable choices. The choices are Under 18, 18–49, 50–54, 55–59, 60–64, and 65+, based on provider cutoffs at 18, 50, 55, 60, and 65. Explain briefly that age ranges help check eligibility. Ask for residence when missing too. Reuse explicit answers from
 this message or prior turns. If either is declined, explain that the trip search cannot be completed without it;
 do not guess, repeatedly pressure the rider, or offer unassessed providers as recommendations.
 
-Pass eligibility as structured facts: exact age, disability, veteran status,
+Pass eligibility as structured facts: age_range (or a voluntarily supplied exact age), disability, veteran status,
 and residence city. Only ask riders whether they are disabled; do not separately ask about ADA paratransit eligibility status.
 Use only facts the rider explicitly stated. A pickup address is not proof of residence unless
 the rider identifies it as home. Unknown facts stay unknown.
+Never turn a range into an exact age or repeatedly ask for age after a selection. Compare the entire interval to provider cutoffs. For example, 60–64 satisfies 60+ but not 65+, and 50–54 satisfies 50+ but not 55+. Preserve senior OR disability OR veteran alternatives and the 18+ minimum where stated. If a future cutoff lies within a selected range, leave that provider as verification_required and explain the specific threshold. If the provider only says "Senior" without a number, ask the provider to confirm rather than assuming a cutoff. When the rider selects a range, acknowledge it and continue with missing trip details.
 
 For disability information, only ask whether the rider has a disability.
 Never ask about ADA paratransit eligibility.
@@ -98,7 +100,7 @@ When you get the trip information, summarize the trip including:
 7. For each recommended provider, include the eligibility reason and any proof/application step shown in the provider data.
 Format it concisely.
 
-Age and city of residence are always required for trip searches. For other facts, ask only for information that
+An age range (or a voluntarily supplied exact age) and city of residence are needed for trip searches. For other facts, ask only for information that
 changes at least one candidate's eligibility, and never ask about ADA approval. Reuse known rider facts from prior turns.
 If the rider already provided the information, do not ask again.
 
@@ -265,12 +267,15 @@ export const handler = createHandler(async (req) => {
     return errorResponse('Method not allowed', 405, req.origin);
   }
 
-  const body = req.body as { conversation_id?: string; message?: string } | null;
+  const body = req.body as { conversation_id?: string; message?: string; age_range?: unknown } | null;
   if (!body?.conversation_id || !body?.message) {
     return errorResponse('Missing required fields: conversation_id and message', 400, req.origin);
   }
   if (typeof body.message !== 'string' || Buffer.byteLength(body.message, 'utf8') > 16_000) {
     return errorResponse('Please shorten your message to the trip details and rider information.', 400, req.origin);
+  }
+  if (body.age_range !== undefined && !getAgeRange(body.age_range)) {
+    return errorResponse('Please select a valid age range.', 400, req.origin);
   }
 
   const googleMapsApiKey = 'aws-location';
@@ -284,6 +289,12 @@ export const handler = createHandler(async (req) => {
   }
 
   const turn = await loadTurnContext(body.conversation_id);
+  const selectedAgeRange = getAgeRange(body.age_range)?.id || ageRangeFromMessage(body.message);
+  if (selectedAgeRange) turn.riderEligibility = mergeAgeFacts(turn.riderEligibility, { age_range: selectedAgeRange });
+  else {
+    const exactAge = exactAgeFromMessage(body.message);
+    if (exactAge !== null) turn.riderEligibility = mergeAgeFacts(turn.riderEligibility, { age: exactAge });
+  }
   const systemPrompt = `${SYSTEM_PROMPT}\n\n${buildCurrentTimeBlock()}\n\n${buildRiderFactsBlock(turn.riderEligibility)}`;
 
   // Load conversation history
@@ -370,8 +381,9 @@ export const handler = createHandler(async (req) => {
             search_addresses_from_user_query: 'address_search',
             get_provider_info: 'provider_info',
             general_provider_question: 'web_search',
+            ask_age_range: 'age_choices',
           };
-          attachments.push({
+          if (toolUse.name !== 'ask_age_range' || !ageBounds(turn.riderEligibility)) attachments.push({
             type: typeMap[toolUse.name] || 'tool_result',
             data: result.data,
             metadata: { tool_name: toolUse.name, tool_use_id: toolUse.toolUseId, conversation_id: body.conversation_id },
@@ -407,6 +419,14 @@ export const handler = createHandler(async (req) => {
     finalResponse = noProviderResponse;
   }
   if (searchedThisTurn) finalResponse = requiredRiderQuestion(turn.riderEligibility) || finalResponse;
+  // A failed provider tool call still needs usable age buttons. Also cover a
+  // model asking the age question in prose without calling ask_age_range.
+  const asksAge = /(?:which|what|your|select|choose|share|provide|tell me|how old)[^.!?\n]{0,90}\b(?:age|old)\b|\bage[^.!?\n]{0,40}(?:range|group|band|\?)/i.test(finalResponse);
+  if (!ageBounds(turn.riderEligibility) && !turn.riderEligibility.declined &&
+      (searchedThisTurn || asksAge) && !responseAttachments.some(item => item.type === 'age_choices')) {
+    responseAttachments.push({ type: 'age_choices', data: ageChoiceData() });
+  }
+  if (!finalResponse.trim() && responseAttachments.some(item => item.type === 'age_choices')) finalResponse = AGE_RANGE_QUESTION;
   finalResponse = softenEligibilityClaims(finalResponse);
   await saveTurnContext(body.conversation_id, turn);
 
@@ -424,5 +444,5 @@ export const handler = createHandler(async (req) => {
     [body.conversation_id]
   );
 
-  return jsonResponse({ message: finalResponse, attachments: responseAttachments }, 200, req.origin);
+  return jsonResponse({ message: finalResponse, attachments: responseAttachments, age_range: turn.riderEligibility.age_range || null }, 200, req.origin);
 });

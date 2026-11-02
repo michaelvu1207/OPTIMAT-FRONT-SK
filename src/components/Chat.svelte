@@ -183,6 +183,17 @@
         });
     }
 
+    async function selectAgeRange(messageId, option) {
+        if (loading || !serverOnline || initializing || !conversationId || isViewingExample) return;
+        const selectedConversationId = conversationId;
+        const previous = selectedAgeRange;
+        selectedAgeRange = { messageId, id: option.id, pending: true };
+        const sent = await handleSubmit(`My age range is ${option.label}.`, option.id);
+        if (conversationId !== selectedConversationId) return;
+        selectedAgeRange = sent ? { messageId, id: option.id, pending: false } : previous;
+        if (sent) responseAnnouncement = `Age range ${option.label} selected. New response available in the conversation.`;
+    }
+
     function getAttachmentData(messageId, type) {
         const attachments = getMessageAttachments(messageId);
         const attachment = attachments.find(att => att.type === type);
@@ -330,6 +341,7 @@ How can I assist you today?`,
     // Enhanced attachment handling
     let messageAttachments = new Map(); // Map message IDs to their attachments
     let selectedAddresses = new Map(); // Latest explicitly confirmed address for each trip role.
+    let selectedAgeRange = null;
 
     // Service zone state management
     let visibleProviderZones = new Set(); // Track which provider zones are visible
@@ -1252,8 +1264,8 @@ How can I assist you today?`,
       };
     });
 
-    async function handleSubmit(confirmedAddress = null) {
-      const content = typeof confirmedAddress === 'string' ? confirmedAddress : userInput;
+    async function handleSubmit(confirmedChoice = null, ageRange = undefined) {
+      const content = typeof confirmedChoice === 'string' ? confirmedChoice : userInput;
       if (loading || !content.trim() || !serverOnline || initializing || !conversationId) {
         if (!conversationId && !initializing) {
             error = "Conversation not initialized. Please wait or refresh.";
@@ -1277,17 +1289,20 @@ How can I assist you today?`,
         id: `human-${Date.now()}`
       };
       messages = [...messages, newMessage];
-      if (typeof confirmedAddress !== 'string') userInput = '';
+      if (typeof confirmedChoice !== 'string') userInput = '';
       scrollToBottom(false, true);
 
       try {
         const { data: chatResponse, error: apiError } = await sendChatMessage(
           conversationId,
           newMessage.content,
-          { signal: controller.signal, timeoutMs: 45000 }
+          { signal: controller.signal, timeoutMs: 45000, ageRange }
         );
         if (apiError) throw apiError;
         if (!chatResponse) throw new Error('The chat server returned no response.');
+        if (chatResponse.age_range !== undefined && selectedAgeRange && chatResponse.age_range !== selectedAgeRange.id) {
+          selectedAgeRange = null; // A typed correction must not leave a stale button marked selected.
+        }
 
         // Add final message
         const responseContent = chatResponse?.message || chatResponse?.response || '';
@@ -1863,6 +1878,7 @@ How can I assist you today?`,
       }];
       messageAttachments = new Map();
       selectedAddresses = new Map();
+      selectedAgeRange = null;
       // A new chat is a new chance to hear from the tester.
       feedbackClosed = false;
       feedbackSubmittedFor = null;
@@ -2106,8 +2122,30 @@ How can I assist you today?`,
                 {@const addressPlaces = getAddressPlaces(message.id)}
                 {@const providerInfo = getAttachmentData(message.id, 'provider_info')}
                 {@const webSearch = getAttachmentData(message.id, 'web_search')}
+                {@const ageChoices = getAttachmentData(message.id, 'age_choices')}
 
                 <div class="mt-3 space-y-2">
+
+                  {#if Array.isArray(ageChoices?.options) && ageChoices.options.length > 0}
+                    <fieldset class="min-w-0 rounded-lg border border-border bg-background p-3" data-age-choices>
+                      <legend class="px-1 text-sm font-semibold text-foreground">Choose your age range</legend>
+                      <p class="text-sm text-foreground">This helps check provider age requirements. You do not need to share your exact age.</p>
+                      <div class="mt-3 flex flex-wrap gap-2">
+                        {#each ageChoices.options as option (option.id)}
+                          {@const isSelected = selectedAgeRange?.messageId === message.id && selectedAgeRange?.id === option.id}
+                          <button
+                            type="button"
+                            class="min-h-11 rounded-lg border border-primary bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                            disabled={isViewingExample || loading || !serverOnline || initializing || !conversationId || isSelected}
+                            aria-label={`${option.label}${isSelected ? selectedAgeRange.pending ? ', confirming' : ', selected' : ''}`}
+                            onclick={() => selectAgeRange(message.id, option)}
+                          >
+                            {option.label}{isSelected ? selectedAgeRange.pending ? ' · Confirming...' : ' · Selected' : ''}
+                          </button>
+                        {/each}
+                      </div>
+                    </fieldset>
+                  {/if}
 
                   {#if addressPlaces.length > 0}
                     <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">

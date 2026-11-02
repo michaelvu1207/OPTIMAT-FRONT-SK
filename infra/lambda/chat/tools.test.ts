@@ -218,7 +218,7 @@ test('age and residence are mandatory even if the model returns an eligible verd
       provider_name: 'Example', verdict: 'eligible', reason: 'Model overlooked required facts.',
     }] }, turn);
     assert.equal(result.success, false);
-    assert.match(result.error!, /required/);
+    assert.match(result.error!, /age range|city of residence/);
     assert.equal(turn.latestAssessment, null);
   }
 });
@@ -231,16 +231,47 @@ test('Walnut Creek search requests missing age and residence before geocoding or
     rider_eligibility: {},
   }, 'unused', turn);
   assert.equal(result.success, false);
-  assert.match(result.error!, /How old.*what city/);
+  assert.match(result.error!, /Which age range.*What city/);
   assert.equal(turn.riderEligibility.residence_city, undefined);
   assert.equal(turn.lastSearch, null);
 });
 
 test('required questions reuse known answers and a refusal does not permit unassessed recommendations', () => {
   assert.match(requiredRiderQuestion({ age: 65 })!, /What city/);
-  assert.match(requiredRiderQuestion({ residence_city: 'Pinole' })!, /How old/);
+  assert.match(requiredRiderQuestion({ residence_city: 'Pinole' })!, /Which age range/);
   assert.equal(requiredRiderQuestion({ age: 65, residence_city: 'Pinole' }), null);
   assert.match(requiredRiderQuestion({ declined: true })!, /cannot complete/);
+});
+
+test('an age band is sufficient, and interval checks prevent incorrect age verdicts', () => {
+  assert.equal(requiredRiderQuestion({ age_range: '60_64', residence_city: 'Concord' }), null);
+  const turn = turnWithCandidates([
+    { provider_name: 'Age 60 option', eligibility_requirement: 'Eligibility: Senior (60+).' },
+    { provider_name: 'Age 65 option', eligibility_requirement: 'Eligibility: Senior (65+).' },
+    { provider_name: 'Future age 62 option', eligibility_requirement: 'Eligibility: Senior (62+).' },
+    { provider_name: 'Unspecified senior option', eligibility_requirement: 'Eligibility: Senior. Proof: No proof required.' },
+  ], { age: undefined, age_range: '60_64', residence_city: 'Concord' });
+  const result = executeAssessEligibility({ assessments: [
+    { provider_name: 'Age 60 option', verdict: 'eligible', reason: 'Range meets cutoff.' },
+    { provider_name: 'Age 65 option', verdict: 'eligible', reason: 'Incorrect model assumption.' },
+    { provider_name: 'Future age 62 option', verdict: 'eligible', reason: 'Incorrect model assumption.' },
+    { provider_name: 'Unspecified senior option', verdict: 'eligible', reason: 'Incorrect model assumption.' },
+  ] }, turn);
+  assert.equal(result.success, true);
+  const data = result.data as Record<string, any>;
+  assert.deepEqual(data.data.map((p: any) => p.provider_name), ['Age 60 option']);
+  assert.deepEqual(data.excluded_providers.map((p: any) => p.provider_name), ['Age 65 option']);
+  assert.deepEqual(data.verification_required.map((p: any) => p.provider_name), ['Future age 62 option', 'Unspecified senior option']);
+  assert.equal(data.next_question, null);
+});
+
+test('a stored band cannot be replaced by a fabricated exact age in a search tool call', async () => {
+  const turn: TurnContext = { riderEligibility: { age_range: '60_64' }, lastSearch: null, latestAssessment: null };
+  const result = await executeFindProviders({ source_address: 'Origin', destination_address: 'Destination', travel_date: '2026-11-03', departure_time: '10:00', rider_eligibility: { age: 60 } }, 'unused', turn);
+  assert.equal(result.success, false); // Residence is still unknown, so no database/geocoder is used.
+  assert.equal(turn.riderEligibility.age_range, '60_64');
+  assert.equal(turn.riderEligibility.age, undefined);
+  assert.match(result.error!, /What city/);
 });
 
 test('non-disabled riders lose only ADA-classified services, including when the model wrongly recommends one', () => {
