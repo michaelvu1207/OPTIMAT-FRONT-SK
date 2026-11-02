@@ -2127,9 +2127,9 @@ How can I assist you today?`,
                 <div class="mt-3 space-y-2">
 
                   {#if Array.isArray(ageChoices?.options) && ageChoices.options.length > 0}
-                    <fieldset class="min-w-0 rounded-lg border border-border bg-background p-3" data-age-choices>
-                      <legend class="px-1 text-sm font-semibold text-foreground">Choose your age range</legend>
-                      <p class="text-sm text-foreground">This helps check provider age requirements. You do not need to share your exact age.</p>
+                    <div class="min-w-0 rounded-lg border border-border bg-background p-3 pt-4" role="group" aria-labelledby={`age-range-title-${message.id}`} data-age-choices>
+                      <h3 id={`age-range-title-${message.id}`} class="text-sm font-semibold text-foreground">Choose your age range</h3>
+                      <p class="mt-2 text-sm text-foreground">This helps check provider age requirements. You do not need to share your exact age.</p>
                       <div class="mt-3 flex flex-wrap gap-2">
                         {#each ageChoices.options as option (option.id)}
                           {@const isSelected = selectedAgeRange?.messageId === message.id && selectedAgeRange?.id === option.id}
@@ -2144,7 +2144,7 @@ How can I assist you today?`,
                           </button>
                         {/each}
                       </div>
-                    </fieldset>
+                    </div>
                   {/if}
 
                   {#if addressPlaces.length > 0}
