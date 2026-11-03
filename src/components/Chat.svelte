@@ -166,7 +166,26 @@
     function getDestinationVerification(messageId) {
         return getMessageAttachments(messageId).filter(att => att.type === 'address_search')
             .map(att => safeParseAttachmentData(att.data) || {})
-            .find(data => data.role === 'destination' && data.status === 'verification_required');
+            .find(data => data.role === 'destination' && ['verification_required', 'confirmation_required'].includes(data.status));
+    }
+
+    let manualAddressMessageId = null;
+    let manualAddress = '';
+    let manualAddressRole = 'destination';
+
+    async function enterAddress(messageId, places) {
+        manualAddressMessageId = messageId;
+        manualAddressRole = places.length && places.every(place => place.role === 'pickup') ? 'pickup' : 'destination';
+        manualAddress = '';
+        await tick();
+        document.getElementById(`manual-address-${messageId}`)?.focus();
+    }
+
+    async function confirmManualAddress(messageId) {
+        if (!manualAddress.trim()) return;
+        const address = manualAddress.trim();
+        const sent = await handleSubmit(`Use ${address} as my ${manualAddressRole}.`);
+        if (sent) manualAddressMessageId = null;
     }
 
     async function selectAddressPlace(messageId, place, role) {
@@ -1907,6 +1926,8 @@ How can I assist you today?`,
       }];
       messageAttachments = new Map();
       selectedAddresses = new Map();
+      manualAddressMessageId = null;
+      manualAddress = '';
       selectedAgeRange = null;
       selectedBinaryAnswers = new Map();
       // A new chat is a new chance to hear from the tester.
@@ -2201,7 +2222,7 @@ How can I assist you today?`,
                   {#if pendingDestination}
                     <div class="rounded-lg border border-border bg-background p-3 text-sm text-foreground" role="status" data-destination-pending>
                       <h3 class="font-semibold">Destination not yet confirmed</h3>
-                      <p class="mt-2">The exact facility or department address could not be verified. Check your appointment notice or contact the facility before choosing a destination.</p>
+                      <p class="mt-2">Please confirm one of the possible locations below, or enter another address. A map match does not confirm the exact department or building.</p>
                     </div>
                   {/if}
 
@@ -2209,7 +2230,7 @@ How can I assist you today?`,
                     <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
                       <div class="text-sm font-semibold text-foreground mb-1">Choose a location</div>
                       <div class="flex flex-col gap-2">
-                        {#each addressPlaces.slice(0, 3) as place (`${place.name}|${place.address}`)}
+                        {#each addressPlaces.slice(0, 5) as place (`${place.name}|${place.address}`)}
                           <div class="rounded-md bg-muted/60 p-3 text-sm text-foreground" data-address-choice={place.address}>
                             {#if place.name && place.name !== place.address}
                               <div class="font-semibold break-words">{place.name}</div>
@@ -2217,7 +2238,7 @@ How can I assist you today?`,
                             <div class="break-words">{place.address}</div>
                             {#if place.building}<div class="mt-1">{place.building}</div>{/if}
                             {#if place.verificationStatus === 'official' && place.sourceUrl}
-                              <a class="mt-2 inline-block text-primary underline" href={place.sourceUrl} target="_blank" rel="noopener noreferrer">Verified official department address</a>
+                              <a class="mt-2 inline-block text-primary underline" href={place.sourceUrl} target="_blank" rel="noopener noreferrer">Official address source — please confirm</a>
                             {/if}
                             {#if ['Street', 'Locality', 'PostalCode', 'Region', 'Country', 'District', 'SubDistrict', 'SubRegion'].includes(place.placeType)}
                               <p class="mt-2">This is an area or road, not a specific pickup or destination. Enter a full street address or search for a specific facility.</p>
@@ -2245,6 +2266,26 @@ How can I assist you today?`,
                           </div>
                         {/each}
                       </div>
+                    </div>
+                  {/if}
+
+                  {#if (addressPlaces.length > 0 || pendingDestination) && !isViewingExample}
+                    <div class="rounded-lg border border-border bg-background p-3 text-sm">
+                      <button type="button" class="min-h-11 rounded-lg border border-primary px-3 py-2 font-medium text-foreground hover:bg-muted disabled:opacity-60" disabled={loading || !serverOnline || initializing} onclick={() => enterAddress(message.id, addressPlaces)}>
+                        {addressPlaces.some(place => place.selectable) ? 'None of these — enter an address' : 'Enter an address'}
+                      </button>
+                      {#if manualAddressMessageId === message.id}
+                        <form class="mt-3 flex flex-col gap-2" onsubmit={(event) => { event.preventDefault(); confirmManualAddress(message.id); }}>
+                          <label class="font-medium" for={`manual-role-${message.id}`}>Use this address as</label>
+                          <select id={`manual-role-${message.id}`} class="min-h-11 rounded border border-border bg-background px-3 text-foreground" bind:value={manualAddressRole}>
+                            <option value="pickup">Pickup</option>
+                            <option value="destination">Destination</option>
+                          </select>
+                          <label class="font-medium" for={`manual-address-${message.id}`}>Full street address and city</label>
+                          <input id={`manual-address-${message.id}`} class="min-h-11 w-full rounded border border-border bg-background px-3 text-foreground" bind:value={manualAddress} required placeholder="Street number, street name, city, state" />
+                          <button type="submit" class="min-h-11 self-start rounded-lg border border-primary px-3 py-2 font-medium text-foreground disabled:opacity-60" disabled={loading || !serverOnline || !manualAddress.trim()}>Confirm address</button>
+                        </form>
+                      {/if}
                     </div>
                   {/if}
 

@@ -1,43 +1,23 @@
-# Destination verification — November 3, 2026
+# Address choices and optional official lookup — November 3, 2026
 
-The reproduced Kaiser case exposed two separate issues: destination queries lost the organization or borrowed the pickup city, and campus search results were treated as department addresses. A rider who did not know the building was repeatedly asked to guess between addresses.
+## Final behavior
 
-## Behavior
+Amazon Location is the primary address service. Medical department searches preserve the rider's organization, campus and destination city, then offer specific AWS map matches as candidates. Multiple candidates remain available for the rider to select; a map match is not represented as proof of the appointment's department or building. Road-only and city-only results have no selection action.
 
-- Trip address searches carry independent pickup/destination roles. Destination queries reuse the rider's named organization and specialty, and reject a structured city that was not supplied for the destination. The conversation instructions preserve medical appointment context and clarify ambiguous abbreviations rather than assuming an apartment.
-- `verify_destination_address` searches official publishers using the existing Tavily key, without the general transportation-query prefix. It requires a structured destination city or facility, a matching department title where relevant, one unambiguous street address, and agreement with an Amazon Location result. Building instructions and the official source link accompany the destination card.
-- The official publisher registry initially supports Kaiser Permanente (`kaiserpermanente.org`, `kp.org`) and Town of Danville (`danville.ca.gov`). This is a source-trust registry, not a destination-address database. It does not establish verified department support for every medical organization. Unsupported publishers, missing credentials, network failures, conflicting addresses, ambiguous departments, and inconsistent map locations remain unconfirmed.
-- Roads, city results, and unrelated organizations are not selectable as the requested medical facility. Specific medical department searches invoke official verification instead of presenting generic campus results as verified departments.
-- A pending destination prevents provider searches. A verified street address cannot be silently replaced by another building. An explicit rider-provided destination can resolve an uncertainty, but is labeled in state as user-provided rather than official verification. A clearly new trip clears the previous destination lock.
-- A verified card offers the destination action, shows building information and the official link, and preserves draft text during confirmation. Independent pickup and destination attachments survive compaction, and a verified result is prioritized in the displayed choices.
-- When verification fails, the chat states that the destination is unconfirmed and directs the rider to the appointment notice or facility. It does not claim either building is acceptable or that the driver will know. Raw official page content is used only for extraction, not as model instructions.
+The rider can choose an address or select **None of these — enter an address**. When no candidate exists, **Enter an address** opens the same form. The form accepts a full street address and city, with a pickup/destination selector and an explicit confirmation button. Choosing an address preserves any draft in the main chat input. Candidate display and official-source results never imply rider confirmation. Destination-dependent provider searches remain blocked until explicit rider confirmation; confirmation records the selected or manually supplied address as user-provided.
 
-The minimal verification status is stored in the existing chat trip-state JSON. No provider-table change, new destination table, database migration, or stored official-page body is required. The address in the official source is not a guarantee of an individual patient's appointment; the rider still confirms it against appointment details.
+Tavily is optional. A normal address question makes no third-party request, even when a key is configured. Available AWS candidates suppress external lookup even when the rider asks for official verification. Only when AWS finds no specific candidate and the latest rider message explicitly requests checking an official website, online research or department-address verification can the service make one basic Tavily request. General provider web lookup has the same explicit-request requirement; both tools share a one-request-per-turn budget. Provider database information remains the first source for provider questions. There is no extraction API, advanced search, new paid service, destination database, or database migration. Missing credentials, exhausted credits and search failures leave manual entry available.
+
+If the optional official lookup succeeds, the department title, stated city, unambiguous street address and AWS map result must agree. The official source and building instructions accompany the candidate, and the rider must still confirm it. Unsupported official publishers fall back to AWS choices or manual entry. The existing trust registry supports Kaiser Permanente and Town of Danville. Official page bodies and API credentials are never shown in the chat.
 
 ## Validation
 
-- Backend type check and 76 chat/location tests passed, covering query grounding, official source identity, specialty matching, conflicting buildings, wrong cities and street numbers, lookup failures, pending-state persistence, provider-search blocking, rider corrections, and independent attachments.
-- Frontend type check completed with zero errors/warnings, and the static production build passed.
-- `tests/chat/destination-verification.mjs` passed at 1280px and 320px, including pending state, disabled unsafe choices, official source/building display, role-specific buttons, keyboard confirmation, draft preservation, and reset.
-- Existing address, age, and yes/no browser regressions passed at both widths. The regression run caught an unintended age-handler guard introduced during implementation; the guard was corrected and the original age test passed unchanged.
-- External services were mocked for the new automated regressions. Fresh live Bedrock/Tavily behavior after deployment remains to be validated. These local changes have not been deployed.
+Backend tests cover zero external calls during normal address search, multiple AWS candidates, disabled road results, manual confirmation, official results requiring rider confirmation, the optional single basic search, query grounding, conflicting source addresses, wrong cities/buildings, and shared web-search gating. Browser regression checks desktop (1280px) and mobile (320px), including manual entry, source/building display, independent pickup/destination roles, keyboard confirmation, draft preservation and New Chat reset.
 
-## After-deployment comparison
+## Manual comparison
 
-Start a fresh chat:
+Start a new chat:
 
 > I need a ride from downtown Danville to Kaiser optometry in Shadelands, Walnut Creek. I don't know the address. Can you find it?
 
-Then, if the department remains uncertain:
-
-> I don't know which building. My appointment is with Kaiser Optometry at Park Shadelands. Can you verify the department's address instead of asking me to choose between these two locations?
-
-The result should be a sourced official department address that agrees with geocoding, or a clear pending state without a forced choice. Separately test `What is the address of Kaiser in Concord?`; a road or city result must not be presented as a confirmed Kaiser facility.
-
-## Full-trip follow-up
-
-The direct department lookup passed after the Tavily credential was configured, but the complete Danville-to-Kaiser question still failed: the first search results were physician profiles and an Optical Center, rather than the requested Optometry department. Search now prioritizes the official Kaiser facilities host/path and quotes the requested specialty. One bounded fallback may include the official Spanish-language host; each request has an eight-second timeout. Both requests still require the original department, facility, city, street-address, and map checks. Conflicting addresses remain pending. Building text is separated from an address when extracted content is flattened onto one line.
-
-The regression suite includes noisy physician/Optical Center results, the retry limit, and the exact complete user question with an imprecise pickup independent of the verified destination. All 83 backend tests passed.
-
-A second full-query check found the correct English department page but still returned pending. The extraction boundary previously retained only the first 16 KB of an official page, which can be occupied by navigation links before the Location section. Location evidence is now selected before applying that bound, with Markdown emphasis and nonbreaking spaces normalized. A long-navigation fixture protects this boundary; all 84 backend tests pass.
+Expect specific AWS address candidates when available, with destination buttons and the option to enter a different address. The assistant must not choose a building or search providers automatically. Selecting an address confirms that trip role. An official lookup, if explicitly requested when there are no AWS candidates, remains a suggestion requiring the same confirmation.

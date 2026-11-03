@@ -15,6 +15,7 @@ export interface DestinationState {
   address?: string;
 }
 export interface LocationContext {
+  webSearchUsed?: boolean;
   locationMessages?: string[];
   destinationVerification?: DestinationState;
 }
@@ -65,13 +66,18 @@ export function buildAddressQuery(input: AddressSearchInput, context: LocationCo
   // Reject a city invented from a pickup or residence. The model can retry
   // without a city when the rider has not supplied one for the destination.
   if (input.city && !compactEvidence.includes(normalized(input.city))) throw new Error('Destination city is not stated by the rider. Do not copy the pickup or residence city; retry without a city or ask for clarification.');
-  if (!input.city) {
+  {
     for (const city of ['Danville', 'Walnut Creek', 'Concord']) {
       if (normalized(input.user_query).includes(normalized(city)) && !compactEvidence.includes(normalized(city))) throw new Error('Do not add the pickup city to a destination search. Retry using only the stated destination details.');
     }
   }
   const parts = [input.organization, input.facility, input.department, input.city].filter((value): value is string => Boolean(value?.trim()));
-  let query = parts.length ? parts.join(' ') : input.user_query.trim();
+  let query = input.user_query.trim();
+  for (const part of parts) if (!normalized(query).includes(normalized(part))) query += ` ${part}`;
+  // Preserve the named site in 'in Shadelands, Walnut Creek' even if the model
+  // supplies organization/specialty/city but omits its structured facility.
+  const campus = evidence.match(/\b(?:at|in)[ \t]+([A-Za-z][A-Za-z0-9 '-]{1,70}),/i)?.[1]?.trim();
+  if (campus && !normalized(query).includes(normalized(campus))) query += ` ${campus}`;
   if (/\bkaiser\b/i.test(evidence) && !/\bkaiser\b/i.test(query)) query = `Kaiser ${query}`;
   if (/\boptometr(?:y|ist|ists)\b/i.test(evidence) && !/\boptometr/i.test(query)) query += ' Optometry';
   if (/\bkaiser\b/i.test(query) && !/\bkaiser\b/i.test(evidence)) throw new Error('Do not substitute Kaiser for an organization the rider has not named.');
@@ -97,7 +103,7 @@ function extractLocation(source: { title: string; content: string }, query: stri
   if (needsDepartmentVerification(query) && (!specialty || !title.includes(specialty.startsWith('optometr') ? 'optometr' : specialty.startsWith('ophthalmolog') ? 'ophthalmolog' : specialty))) return null;
   if (/\bshadelands\b/i.test(query) && !/\bshadelands\b/i.test(source.title)) return null;
   const content = source.content.replace(/\r\n?/g, '\n').replace(/[\u00a0\u202f]/g, ' ').replace(/\*\*/g, '');
-  const section = content.match(/(?:^|\n)[ \t]*#{0,4}[ \t]*Location[ \t]*\n([\s\S]*?)(?=\n[ \t]*#{1,4}[ \t]|$)/i)?.[1] || content;
+  const section = content.match(/(?:^|\n)[ \t]*#{0,4}[ \t]*(?:Location|Ubicación)[ \t]*\n([\s\S]*?)(?=\n[ \t]*#{1,4}[ \t]|$)/i)?.[1] || content;
   // Require a single distinct street address. Multiple buildings stay pending.
   const streets = [...new Set((section.match(STREET) || []).map(street => street.trim()))];
   if (streets.length !== 1) return null;
@@ -114,13 +120,28 @@ function extractLocation(source: { title: string; content: string }, query: stri
   return { street: streets[0], city, address: `${streets[0]}, ${city}, CA ${cityMatch[2]}`, ...(building ? { building } : {}) };
 }
 
+export function explicitlyRequestedWebSearch(context: LocationContext): boolean {
+  return /\b(?:official (?:website|source)|search (?:the )?web|look (?:it )?up online|verify.{0,50}(?:department|address))\b/i.test(context.locationMessages?.at(-1) || '');
+}
+
 export async function verifyDestination(input: AddressSearchInput, context: LocationContext) {
   const query = buildAddressQuery({ ...input, role: 'destination' }, context);
   context.destinationVerification = { status: 'pending', query };
-  const pending = (reason: string, sources: unknown[] = []) => ({
-    status: 'verification_required', query, role: 'destination', places: [], sources,
-    message: `Destination not yet confirmed. ${reason} Do not ask the rider to choose between unverified buildings, suggest either address, assume the driver knows, or search providers for this destination. Ask the rider to check their appointment notice or contact the facility if official verification remains unavailable.`,
-  });
+  let mapPlaces: Awaited<ReturnType<typeof searchPlaces>> | undefined;
+  const pending = async (_reason: string, sources: unknown[] = []) => {
+    const mapQuery = query.replace(/\b(?:optometr\w*|ophthalmolog\w*|cardiology|oncology|radiology|occupational health|department)\b/gi, '').replace(/\s+/g, ' ').trim();
+    if (!mapPlaces) {
+      try { mapPlaces = await searchPlaces(mapQuery); } catch { mapPlaces = []; }
+    }
+    const candidates = mapPlaces.filter(place => selectablePlace(place) && (!/\bkaiser\b/i.test(query) || /\bkaiser\b/i.test(place.name))).slice(0, 5);
+    return {
+      status: candidates.length ? 'confirmation_required' : 'verification_required', query, role: 'destination', sources,
+      places: candidates.map(place => ({ name: place.name, address: place.address, location: { lat: place.lat, lng: place.lng }, place_id: place.placeId, place_type: place.placeType, role: 'destination', selectable: true, verification_status: 'candidate' })),
+      message: candidates.length ? 'These are possible destination matches, not confirmed department addresses. Ask the rider to choose a location or select None of these to enter another address. Do not search providers until the rider confirms a destination.' : 'No specific destination match was found. Ask the rider to enter a full destination address. Never choose a road or city as the destination.',
+    };
+  };
+  const mapResult = await pending('');
+  if (mapResult.places.length || !explicitlyRequestedWebSearch(context) || context.webSearchUsed) return mapResult;
   if (!input.city?.trim() && !input.facility?.trim()) return pending('A destination city or specific facility is needed. If the rider already supplied it, retry with that structured field; do not ask for the same information again.');
   const domains = officialDomains(query);
   if (!domains.length) return pending('An official source for this organization is not configured.');
@@ -130,29 +151,36 @@ export async function verifyDestination(input: AddressSearchInput, context: Loca
     const specialty = query.match(/\b(optometr\w*|ophthalmolog\w*|cardiology|oncology|radiology|occupational health)\b/i)?.[1];
     const department = specialty?.toLowerCase().startsWith('optometr') ? 'Optometry' : specialty?.toLowerCase().startsWith('ophthalmolog') ? 'Ophthalmology' : specialty;
     const focused = Boolean(department && /\bkaiser\b/i.test(query));
-    const searches = focused ? [
-      { query: `${query} "${department}" department address site:healthy.kaiserpermanente.org/northern-california/facilities`, domains: ['healthy.kaiserpermanente.org'] },
-      { query: `${query} "${department}" department location address`, domains: ['healthy.kaiserpermanente.org', 'espanol.kaiserpermanente.org'] },
-    ] : [{ query: `${query} official department location address`, domains }];
+    const searches = [{ query: focused ? `${query} "${department}" department location address` : `${query} official location address`, domains }];
     type Source = { title: string; url: string; content: string };
     let sources: Source[] = [];
     let candidates: Array<{ street: string; city: string; address: string; building?: string; source: Source }> = [];
-    for (const search of searches) {
+    for (const [searchIndex, search] of searches.entries()) {
+      const discoveredDepartment = sources.find(source => department && source.title.toLowerCase().includes(department.toLowerCase()) && (!/\bshadelands\b/i.test(query) || /\bshadelands\b/i.test(source.title)));
+      const searchQuery = searchIndex && discoveredDepartment ? `${discoveredDepartment.title} ${input.city || ''} official department location address` : search.query;
+      context.webSearchUsed = true;
       const response = await fetch('https://api.tavily.com/search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(8_000),
-        body: JSON.stringify({ api_key: keys.TAVILY_API_KEY, query: search.query, search_depth: 'advanced', max_results: 6, include_domains: search.domains, include_answer: false, include_raw_content: true }),
+        body: JSON.stringify({ api_key: keys.TAVILY_API_KEY, query: searchQuery, search_depth: 'basic', max_results: 4, include_domains: search.domains, include_answer: false, include_raw_content: true }),
       });
       if (!response.ok) return pending('Official web search did not succeed.');
       const data = await response.json() as { results?: { title?: unknown; url?: unknown; content?: unknown; raw_content?: unknown }[] };
-      const batch = (Array.isArray(data.results) ? data.results : []).slice(0, 6).flatMap(result => {
+      const batch = (Array.isArray(data.results) ? data.results : []).slice(0, 4).flatMap(result => {
         const url = officialUrl(result.url, domains);
         if (!url || typeof result.title !== 'string') return [];
         const content = typeof result.raw_content === 'string' && result.raw_content ? result.raw_content : typeof result.content === 'string' ? result.content : '';
         const normalizedContent = content.replace(/\r\n?/g, '\n').replace(/[\u00a0\u202f]/g, ' ').replace(/\*\*/g, '');
         // Navigation can precede the department body by more than 16 KB. Find
         // the location heading before bounding the evidence, not afterwards.
-        const locationOffset = normalizedContent.search(/(?:^|\n)[ \t]*#{0,4}[ \t]*Location[ \t]*\n/i);
-        const evidence = normalizedContent.slice(Math.max(0, locationOffset), Math.max(0, locationOffset) + 16_000);
+        const locationOffset = normalizedContent.search(/(?:^|\n)[ \t]*#{0,4}[ \t]*(?:Location|Ubicación)[ \t]*\n/i);
+        let evidence = normalizedContent.slice(Math.max(0, locationOffset), Math.max(0, locationOffset) + 16_000);
+        const locationSection = evidence.match(/(?:^|\n)[ \t]*#{0,4}[ \t]*(?:Location|Ubicación)[ \t]*\n([\s\S]*?)(?=\n[ \t]*#{1,4}[ \t]|$)/i)?.[1];
+        // Some dynamically rendered official pages have an empty Location in
+        // raw_content. An address-bearing excerpt from this exact same official
+        // URL is usable evidence; unrelated footer addresses are not.
+        if (locationSection !== undefined && !(locationSection.match(STREET) || []).length && typeof result.content === 'string' && result.content.match(STREET)) {
+          evidence = result.content.replace(/[\u00a0\u202f]/g, ' ').replace(/\*\*/g, '').slice(0, 16_000);
+        }
         return [{ title: result.title.slice(0, 300), url, content: evidence }];
       });
       sources = [...new Map([...sources, ...batch].map(source => [source.url, source])).values()];
@@ -190,7 +218,7 @@ export function destinationAddressAllowed(context: LocationContext, address: str
   const state = context.destinationVerification;
   if (!state) return true;
   if (typeof address !== 'string') return false;
-  if (state.status === 'pending' || !state.address) return false;
+  if (state.status !== 'user_provided' || !state.address) return false;
   const street = state.address.match(STREET)?.[0];
   if (!street || !(address.match(STREET) || []).some(candidate => streetKey(candidate) === streetKey(street))) return false;
   const tail = state.address.slice(state.address.indexOf(street) + street.length);

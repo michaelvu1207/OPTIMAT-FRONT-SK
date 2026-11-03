@@ -201,7 +201,7 @@ test('unverified destination results override model advice to choose either buil
     ? toolResponse('verify_destination_address', { user_query: 'Kaiser Optometry Shadelands Walnut Creek', city: 'Walnut Creek', department: 'Optometry' })
     : { stopReason: 'end_turn', output: { message: { content: [{ text: 'Either address is fine; the driver knows the complex. Which building do you choose?' }] } } }) as any);
   const result = await sendLocalMessage('I need Kaiser Optometry in Shadelands, Walnut Creek. I do not know which building.');
-  assert.match(result.message, /not yet confirmed/);
+  assert.match(result.message, /Enter an address/);
   assert.doesNotMatch(result.message, /Either address|driver knows|Which building/);
   assert.equal(result.attachments[0].data.status, 'verification_required');
   assert.deepEqual(result.attachments[0].data.places, []);
@@ -247,7 +247,7 @@ test('provider detail attachments do not return raw metadata or geometry to the 
   assert.doesNotMatch(JSON.stringify(details), /internal-|provider_id|created_at|FeatureCollection|coordinates|metadata/);
 });
 
-test('complete Danville-to-Kaiser query keeps a vague pickup separate from a verified department destination', async t => {
+test('complete Danville-to-Kaiser query offers AWS destination choices without third-party search', async t => {
   mockDatabase(t);
   const previousKey = process.env.TAVILY_API_KEY; const previousArn = process.env.API_KEYS_SECRET_ARN;
   process.env.TAVILY_API_KEY = 'synthetic-test-key'; delete process.env.API_KEYS_SECRET_ARN;
@@ -255,14 +255,10 @@ test('complete Danville-to-Kaiser query keeps a vague pickup separate from a ver
     if (previousKey === undefined) delete process.env.TAVILY_API_KEY; else process.env.TAVILY_API_KEY = previousKey;
     if (previousArn === undefined) delete process.env.API_KEYS_SECRET_ARN; else process.env.API_KEYS_SECRET_ARN = previousArn;
   });
-  t.mock.method(GeoPlacesClient.prototype, 'send', (async (command: any) => ({ ResultItems: [command.input.QueryText.includes('320')
-    ? { Title: '320 Lennon Ln', Address: { Label: '320 Lennon Ln, Walnut Creek, CA 94598' }, Position: [-122.029, 37.927], PlaceType: 'PointAddress' }
+  t.mock.method(GeoPlacesClient.prototype, 'send', (async (command: any) => ({ ResultItems: [command.input.QueryText.includes('Kaiser')
+    ? { Title: 'Kaiser Park Shadelands', Address: { Label: '320 Lennon Ln, Walnut Creek, CA 94598' }, Position: [-122.029, 37.927], PlaceType: 'PointAddress' }
     : { Title: 'Danville', Address: { Label: 'Danville, CA, United States' }, Position: [-122, 37.8], PlaceType: 'Locality' }] })) as any);
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ results: [{
-    title: 'Vision Essentials - Optometry at Park Shadelands Medical Offices',
-    url: 'https://healthy.kaiserpermanente.org/northern-california/facilities/park-shadelands/departments/optometry',
-    raw_content: '## Location\nBuilding 4 - Shasta\n320 Lennon Ln\nWalnut Creek, CA 94598\n## Hours\nMonday',
-  }] }), { status: 200 }));
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('Third-party search must not run for normal address choices'); });
   let calls = 0;
   t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => {
     calls++;
@@ -271,10 +267,10 @@ test('complete Danville-to-Kaiser query keeps a vague pickup separate from a ver
     return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Please confirm the destination.' }] } } };
   }) as any);
   const result = await sendLocalMessage('I need a ride from downtown Danville to Kaiser optometry in Shadelands, Walnut Creek. I don’t know the address. Can you find it?');
-  assert.match(result.message, /official destination address/);
+  assert.match(result.message, /possible locations/);
   assert.doesNotMatch(result.message, /could not verify/);
   const searches = result.attachments.filter((item: any) => item.type === 'address_search');
   assert.equal(searches.length, 2);
   assert.equal(searches.find((item: any) => item.data.role === 'pickup').data.places[0].place_type, 'Locality');
-  assert.equal(searches.find((item: any) => item.data.role === 'destination').data.status, 'verified');
+  assert.equal(searches.find((item: any) => item.data.role === 'destination').data.status, 'confirmation_required');
 });

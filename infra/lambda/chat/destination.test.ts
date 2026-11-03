@@ -8,7 +8,7 @@ const url = 'https://healthy.kaiserpermanente.org/northern-california/facilities
 const title = 'Vision Essentials - Optometry at Park Shadelands Medical Offices';
 const content = '# ' + title + '\n\n## Location\nBuilding 4 - Shasta\n320 Lennon Ln, Left side of building\nWalnut Creek, CA 94598\n\n## Hours\nMonday through Friday';
 const input = { user_query: 'Kaiser optometry Shadelands Walnut Creek', organization: 'Kaiser', facility: 'Shadelands', department: 'Optometry', city: 'Walnut Creek' };
-const context = (): TurnContext => ({ riderEligibility: {}, lastSearch: null, latestAssessment: null, locationMessages: ['I need a ride from downtown Danville to Kaiser optometry in Shadelands, Walnut Creek.'] });
+const context = (): TurnContext => ({ riderEligibility: {}, lastSearch: null, latestAssessment: null, locationMessages: ['I need a ride from downtown Danville to Kaiser optometry in Shadelands, Walnut Creek.', 'Please check the official website to verify the department address.'] });
 function mocks(t: TestContext, results: unknown[] = [{ title, url, raw_content: content }], address = 'Park Shadelands Medical Offices, 320 Lennon Lane, Walnut Creek, CA 94598, USA') {
   const previousKey = process.env.TAVILY_API_KEY;
   const previousArn = process.env.API_KEYS_SECRET_ARN;
@@ -55,8 +55,9 @@ test('official department address and matching map location produce one sourced 
   assert.equal(place.role, 'destination');
   assert.equal(place.name, title, 'Do not replace an official department title with the map vendor occupational-health label');
   assert.equal(turn.destinationVerification?.status, 'verified');
-  assert.deepEqual(requests[0].include_domains, ['healthy.kaiserpermanente.org']);
-  assert.match(requests[0].query, /"Optometry".*site:healthy\.kaiserpermanente\.org\/northern-california\/facilities/);
+  assert.deepEqual(requests[0].include_domains, ['kaiserpermanente.org', 'kp.org']);
+  assert.equal(requests[0].search_depth, 'basic');
+  assert.match(requests[0].query, /"Optometry".*department location address/);
   assert.equal(requests[0].include_raw_content, true);
   assert.equal(requests[0].include_answer, false);
   assert.doesNotMatch(requests[0].query, /paratransit|transportation/);
@@ -84,7 +85,7 @@ test('conflicting official addresses stay pending rather than asking the rider t
   const result = await verifyDestination(input, context());
   assert.equal(result.status, 'verification_required');
   assert.deepEqual(result.places, []);
-  assert.match(result.message, /disagree/);
+  assert.match(result.message, /enter a full destination address/);
 });
 
 test('a map result for a different building cannot confirm an official address', async t => {
@@ -92,7 +93,7 @@ test('a map result for a different building cannot confirm an official address',
   const result = await verifyDestination(input, context());
   assert.equal(result.status, 'verification_required');
   assert.deepEqual(result.places, []);
-  assert.match(result.message, /map/);
+  assert.match(result.message, /enter a full destination address/);
 });
 
 test('a missing street number or a wrong source city stays pending', async t => {
@@ -147,7 +148,7 @@ test('provider search cannot proceed with a pending or mismatched destination', 
   assert.equal(destinationAddressAllowed(turn, '370 Lennon Ln, Walnut Creek'), false);
   assert.equal(destinationAddressAllowed(turn, '1320 Lennon Ln, Walnut Creek'), false);
   assert.equal(destinationAddressAllowed(turn, '320 Lennon Ln, Danville'), false);
-  assert.equal(destinationAddressAllowed(turn, '320 Lennon Lane, Walnut Creek'), true);
+  assert.equal(destinationAddressAllowed(turn, '320 Lennon Lane, Walnut Creek'), false, 'Official lookup still needs rider confirmation');
   applyUserDestination(turn, 'Use 370 Lennon Ln, Walnut Creek, CA 94598 as my destination.');
   assert.equal(turn.destinationVerification.status, 'user_provided');
   assert.equal(destinationAddressAllowed(turn, '370 Lennon Lane, Walnut Creek'), true);
@@ -186,33 +187,14 @@ test('a free-form query alone cannot verify an unanchored department in another 
   const result = await verifyDestination({ user_query: 'Kaiser Optometry Walnut Creek' }, context());
   assert.equal(result.status, 'verification_required');
   assert.equal(requests.length, 0);
-  assert.match(result.message, /structured field/);
+  assert.match(result.message, /enter a full destination address/);
 });
 
 
-test('full-trip lookup retries doctor-profile and Optical Center noise with department-focused search', async t => {
-  const requests = mocks(t);
-  let calls = 0;
-  t.mock.method(globalThis, 'fetch', (async (_endpoint: string, options: RequestInit) => {
-    requests.push(JSON.parse(String(options.body)));
-    calls++;
-    return new Response(JSON.stringify({ results: calls === 1 ? [
-      { title: 'My Doctor Online | Helen Lee', url: 'https://mydoctor.kaiserpermanente.org/ncal/doctor/helenlee', raw_content: content },
-      { title: 'Optical Center at Park Shadelands Medical Offices', url: url.replace('102926', '102861'), raw_content: content.replace('320 Lennon Ln', '370 Lennon Ln') },
-    ] : [{ title, url, raw_content: content }] }), { status: 200 });
-  }) as any);
-  const turn = context();
-  const result = await verifyDestination({ ...input, facility: 'Shadelands' }, turn);
-  assert.equal(result.status, 'verified');
-  assert.equal(calls, 2);
-  assert.equal(result.places[0].address, '320 Lennon Ln, Walnut Creek, CA 94598');
-  assert.deepEqual(requests[1].include_domains, ['healthy.kaiserpermanente.org', 'espanol.kaiserpermanente.org']);
-});
-
-test('unsuccessful official department lookups stop after two searches', async t => {
+test('explicit official department fallback stops after one search', async t => {
   const requests = mocks(t, [{ title: 'Optical Center at Park Shadelands', url, raw_content: content }]);
   assert.equal((await verifyDestination(input, context())).status, 'verification_required');
-  assert.equal(requests.length, 2);
+  assert.equal(requests.length, 1);
 });
 
 
@@ -222,4 +204,71 @@ test('official location extraction survives long navigation before the departmen
   const result = await verifyDestination(input, context());
   assert.equal(result.status, 'verified', JSON.stringify(result));
   assert.equal(result.places[0].address, '320 Lennon Ln, Walnut Creek, CA 94598');
+});
+
+
+test('partial structured fields cannot erase the campus from the full rider query', () => {
+  const result = buildAddressQuery({ user_query: 'Kaiser optometry Shadelands Walnut Creek', role: 'destination', organization: 'Kaiser', department: 'optometry', city: 'Walnut Creek' }, context());
+  assert.match(result, /Shadelands/);
+  const missingInToolQuery = buildAddressQuery({ user_query: 'Kaiser optometry Walnut Creek', role: 'destination', organization: 'Kaiser', department: 'optometry', city: 'Walnut Creek' }, context());
+  assert.match(missingInToolQuery, /Shadelands/);
+});
+
+
+test('empty dynamic Location text can use address evidence from the exact official page excerpt', async t => {
+  mocks(t, [{ title, url, raw_content: '## Location\n\n## Hours\nMonday to Friday\n## Corporate offices\n3495 Piedmont Road\nAtlanta, GA 30305', content: 'Building 4 - Shasta\n320 Lennon Ln, Left side of building\nWalnut Creek, CA 94598' }]);
+  const result = await verifyDestination(input, context());
+  assert.equal(result.status, 'verified');
+  assert.equal(result.places[0].address, '320 Lennon Ln, Walnut Creek, CA 94598');
+  assert.equal((result.places[0] as any).source_url, url);
+});
+
+test('empty dynamic Location cannot be replaced by a different department excerpt', async t => {
+  mocks(t, [{ title: 'Optical Center at Park Shadelands', url, raw_content: '## Location\n\n## Hours\nMonday', content: '320 Lennon Ln, Walnut Creek, CA 94598' }]);
+  assert.equal((await verifyDestination(input, context())).status, 'verification_required');
+});
+
+test('localized official Location headings retain the same department and address checks', async t => {
+  mocks(t, [{ title, url, raw_content: content.replace('## Location', '## Ubicación') }]);
+  assert.equal((await verifyDestination(input, context())).status, 'verified');
+});
+
+
+test('normal address lookup offers AWS choices and never calls Tavily, even with a configured key', async t => {
+  const requests = mocks(t);
+  t.mock.method(GeoPlacesClient.prototype, 'send', (async () => ({ ResultItems: [
+    { Title: 'Kaiser Park Shadelands', Address: { Label: '370 Lennon Ln, Walnut Creek, CA 94598' }, Position: [-122.02, 37.92], PlaceType: 'PointOfInterest' },
+    { Title: 'Kaiser Medical Offices', Address: { Label: '320 Lennon Ln, Walnut Creek, CA 94598' }, Position: [-122.03, 37.93], PlaceType: 'PointOfInterest' },
+    { Title: 'Kaiser Road', Address: { Label: 'Kaiser Road, Walnut Creek' }, Position: [-122.03, 37.93], PlaceType: 'Street' },
+  ] })) as any);
+  const turn = context();
+  const result = await verifyDestination(input, turn);
+  assert.equal(result.status, 'confirmation_required');
+  assert.equal(result.places.length, 2);
+  assert.equal(requests.length, 0, 'Even an explicit official lookup must use available AWS choices first');
+  assert.equal(destinationAddressAllowed(turn, '320 Lennon Ln, Walnut Creek'), false);
+  applyUserDestination(turn, 'Use 320 Lennon Ln, Walnut Creek as my destination.');
+  assert.equal(destinationAddressAllowed(turn, '320 Lennon Ln, Walnut Creek'), true);
+});
+
+test('empty AWS results without explicit official-site request allow manual entry with zero third-party calls', async t => {
+  const requests = mocks(t);
+  const turn = context(); turn.locationMessages = ['I need Kaiser optometry in Shadelands, Walnut Creek. Can you find the address?'];
+  const result = await verifyDestination(input, turn);
+  assert.equal(result.status, 'verification_required');
+  assert.equal(result.places.length, 0);
+  assert.equal(requests.length, 0);
+  assert.match(result.message, /enter a full destination address/);
+});
+
+
+test('general provider tool cannot silently bypass the third-party search consent and turn budget', async t => {
+  const requests = mocks(t);
+  const turn = context(); turn.locationMessages = [context().locationMessages![0], 'What options can help me?'];
+  assert.equal((await executeTool('general_provider_question', { question: 'Transportation options' }, '', turn)).success, false);
+  turn.locationMessages.push('Please check the official website.');
+  turn.webSearchUsed = true;
+  assert.equal((await executeTool('general_provider_question', { question: 'Transportation options' }, '', turn)).success, false);
+  await verifyDestination(input, turn);
+  assert.equal(requests.length, 0);
 });

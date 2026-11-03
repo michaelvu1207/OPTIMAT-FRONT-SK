@@ -17,6 +17,10 @@ try {
       if (url.pathname.endsWith('/chat')) {
         const body = route.request().postDataJSON(); requests.push(body);
         if (body.message.startsWith('Use ')) return route.fulfill({ json: { message: 'Destination saved. What date would you like to travel?', attachments: [] } });
+        if (body.message === 'Show possible matches') return route.fulfill({ json: { message: 'Choose a possible destination.', attachments: [{ type: 'address_search', data: { role: 'destination', status: 'confirmation_required', places: [
+          { ...verifiedPlace, verification_status: 'candidate', source_url: undefined, building: undefined },
+          { ...verifiedPlace, name: 'Kaiser Park Shadelands', address: '370 Lennon Ln, Walnut Creek, CA 94598', verification_status: 'candidate', source_url: undefined, building: undefined },
+        ] } }] } });
         if (body.message === 'Try official verification') return route.fulfill({ json: {
           message: 'Please confirm the official department address.',
           attachments: [
@@ -42,13 +46,27 @@ try {
     const pending = page.locator('[data-destination-pending]');
     await pending.waitFor();
     assert.equal(await page.locator('[data-address-choice]').getByRole('button').count(), 0, 'Roads and mismatched organizations must never have selection buttons');
+    await page.getByRole('button', { name: 'Enter an address', exact: true }).click();
+    const manual = page.getByRole('textbox', { name: 'Full street address and city', exact: true });
+    await manual.fill('123 Main St, Walnut Creek, CA 94598');
+    await page.getByRole('button', { name: 'Confirm address', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('#chat-question')?.disabled);
+    assert.match(requests.at(-1).message, /Use 123 Main St, Walnut Creek, CA 94598 as my destination/);
+    await input.fill('Show possible matches'); await send.click();
+    const choices = page.locator('[data-address-choice="370 Lennon Ln, Walnut Creek, CA 94598"]');
+    await choices.getByRole('button', { name: 'Use as destination', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'None of these — enter an address', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Full street address and city', exact: true }).fill('456 Oak Rd, Walnut Creek, CA 94598');
+    await page.getByRole('button', { name: 'Confirm address', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('#chat-question')?.disabled);
+    assert.match(requests.at(-1).message, /Use 456 Oak Rd, Walnut Creek, CA 94598 as my destination/);
     await input.fill('Try official verification'); await send.click();
-    const destination = page.locator('[data-address-choice="320 Lennon Ln, Walnut Creek, CA 94598"]');
+    const destination = page.locator('[data-address-choice="320 Lennon Ln, Walnut Creek, CA 94598"]').last();
     await destination.waitFor();
     assert.equal(await destination.getByRole('button', { name: 'Use as pickup', exact: true }).count(), 0);
     const select = destination.getByRole('button', { name: 'Use as destination', exact: true });
     await select.waitFor();
-    assert.equal(await destination.getByRole('link', { name: 'Verified official department address' }).getAttribute('href'), officialUrl);
+    assert.equal(await destination.getByRole('link', { name: 'Official address source — please confirm' }).getAttribute('href'), officialUrl);
     await destination.getByText('Building 4 - Shasta', { exact: true }).waitFor();
     const pickup = page.locator('[data-address-choice="420 Front St, Danville, CA 94526"]');
     assert.equal(await pickup.getByRole('button', { name: 'Use as pickup', exact: true }).count(), 1);

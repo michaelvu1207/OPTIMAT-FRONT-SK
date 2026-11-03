@@ -4,7 +4,7 @@
  */
 
 import { eligibilityField, registerQuestion, YES_NO_OPTIONS, type BinaryQuestion } from './yes-no.js';
-import { destinationAddressAllowed, buildAddressQuery, needsDepartmentVerification, selectablePlace, verifyDestination, type AddressSearchInput, type LocationContext } from './destination.js';
+import { explicitlyRequestedWebSearch, destinationAddressAllowed, buildAddressQuery, needsDepartmentVerification, selectablePlace, verifyDestination, type AddressSearchInput, type LocationContext } from './destination.js';
 import { riderProviderDetails } from './provider-details.js';
 import { queryRows, TABLES } from '../_shared/db.js';
 import { getApiKeys } from '../_shared/secrets.js';
@@ -198,7 +198,7 @@ The server rejects incomplete assessments, invented provider names, and omitted 
   },
   {
     name: 'verify_destination_address',
-    description: 'Verify the exact destination facility or department using official sources, then geocode that street address. Use when a rider does not know which building, department results are ambiguous, or map results do not match the named institution. Never tell a rider to pick an unverified building. Pass the named organization, facility, specialty, and destination city from user messages; never the pickup city. Include at least a structured city or facility so the official page can be checked against the intended destination. This tool currently recognizes official Kaiser and Town of Danville sources; unsupported sources remain pending.',
+    description: 'Find destination candidates with Amazon Location first. Tavily is an optional last resort: only when AWS has no specific candidate and the rider explicitly requests checking the official website or department address; at most one basic web search. Never call third-party search routinely. Use when a rider does not know which building, department results are ambiguous, or map results do not match the named institution. Return possible map candidates if official verification fails. Let the rider choose or enter another address; never claim an unverified result is a confirmed department. All results require rider confirmation before provider search. Pass the named organization, facility, specialty, and destination city from user messages; never the pickup city. Include at least a structured city or facility so the official page can be checked against the intended destination. This tool currently recognizes official Kaiser and Town of Danville sources; unsupported sources fall back to map candidates or manual entry.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -209,7 +209,7 @@ The server rejects incomplete assessments, invented provider names, and omitted 
   },
   {
     name: 'search_addresses_from_user_query',
-    description: "Find candidate addresses using Amazon Location Service. Separate pickup and destination searches with their role. Preserve the named organization and specialty. Do not add a destination city from pickup or residence. Specific medical departments require verify_destination_address; a campus listing is not department verification.",
+    description: "Find candidate addresses using Amazon Location Service. Separate pickup and destination searches with their role. Preserve the named organization and specialty. Do not add a destination city from pickup or residence. Medical department queries use AWS candidates first. A campus listing is a possible match, not confirmed department evidence; the rider must select or enter the destination.",
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -233,7 +233,7 @@ The server rejects incomplete assessments, invented provider names, and omitted 
   },
   {
     name: 'general_provider_question',
-    description: 'Search the web to answer general questions about transportation providers or paratransit services.',
+    description: 'Optional last-resort web lookup only when recorded provider data cannot answer and the rider explicitly requests online or official-source research. Do not use for routine questions or address choices. At most one basic external search per turn.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -596,10 +596,11 @@ async function executeSearchAddresses(params: SearchAddressesParams, apiKey: str
     if (params.role === 'destination' && !selectable.length && /\bkaiser\b/i.test(searchQuery)) {
       return { success: true, data: await verifyDestination({ ...params, user_query: searchQuery }, turn) };
     }
-    if (params.role === 'destination' && !selectable.length) {
+    if (params.role === 'destination') {
       turn.destinationVerification = { status: 'pending', query: searchQuery };
     }
     return { success: true, data: { places, query: searchQuery, ...(params.role ? { role: params.role } : {}),
+      ...(selectable.length && params.role === 'destination' ? { status: 'confirmation_required', message: 'Ask the rider to choose a destination or enter another address. Do not search providers before confirmation.' } : {}),
       ...(selectable.length ? {} : { status: 'verification_required', message: 'No matching facility with a full street address was found. Road, city, and unrelated organization results are not confirmed destinations. Use verify_destination_address; never recommend either address or assume the driver knows.' }) } };
   } catch (error) {
     return { success: false, error: `Error searching addresses: ${error}` };
@@ -628,7 +629,8 @@ async function executeGetProviderInfo(params: GetProviderInfoParams): Promise<To
   }
 }
 
-async function executeGeneralProviderQuestion(params: GeneralProviderQuestionParams): Promise<ToolResult> {
+async function executeGeneralProviderQuestion(params: GeneralProviderQuestionParams, turn: TurnContext): Promise<ToolResult> {
+  if (!explicitlyRequestedWebSearch(turn) || turn.webSearchUsed) return { success: false, error: 'Use recorded provider information first. External web search is only available when the rider explicitly requests an online or official-source lookup, at most once per turn.' };
   try {
     const keys = await getApiKeys();
     const tavilyApiKey = keys.TAVILY_API_KEY;
@@ -636,13 +638,15 @@ async function executeGeneralProviderQuestion(params: GeneralProviderQuestionPar
       return { success: false, error: 'Web search is not configured.', data: { query: params.question } };
     }
 
+    turn.webSearchUsed = true;
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
+      signal: AbortSignal.timeout(8_000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: tavilyApiKey,
         query: `paratransit transportation ${params.question}`,
-        search_depth: 'advanced',
+        search_depth: 'basic',
         max_results: 5,
         include_answer: true,
         include_raw_content: false,
@@ -874,7 +878,7 @@ export async function executeTool(
     case 'get_provider_info':
       return executeGetProviderInfo(toolInput as GetProviderInfoParams);
     case 'general_provider_question':
-      return executeGeneralProviderQuestion(toolInput as GeneralProviderQuestionParams);
+      return executeGeneralProviderQuestion(toolInput as GeneralProviderQuestionParams, turn);
     default:
       return { success: false, error: `Unknown tool: ${toolName}` };
   }
