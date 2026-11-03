@@ -214,3 +214,12 @@ test('unsuccessful official department lookups stop after two searches', async t
   assert.equal((await verifyDestination(input, context())).status, 'verification_required');
   assert.equal(requests.length, 2);
 });
+
+
+test('official location extraction survives long navigation before the department and nonbreaking spaces', async t => {
+  const longContent = '# Official page\n' + 'Navigation and account links\n'.repeat(1200) + content.replace('## Location', '## **Location**').replace('CA 94598', 'CA\u00a094598');
+  mocks(t, [{ title, url, raw_content: longContent }]);
+  const result = await verifyDestination(input, context());
+  assert.equal(result.status, 'verified', JSON.stringify(result));
+  assert.equal(result.places[0].address, '320 Lennon Ln, Walnut Creek, CA 94598');
+});

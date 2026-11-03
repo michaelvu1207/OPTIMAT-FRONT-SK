@@ -96,7 +96,8 @@ function extractLocation(source: { title: string; content: string }, query: stri
   const specialty = query.match(/\b(optometr\w*|ophthalmolog\w*|cardiology|oncology|radiology|occupational health)\b/i)?.[1].toLowerCase();
   if (needsDepartmentVerification(query) && (!specialty || !title.includes(specialty.startsWith('optometr') ? 'optometr' : specialty.startsWith('ophthalmolog') ? 'ophthalmolog' : specialty))) return null;
   if (/\bshadelands\b/i.test(query) && !/\bshadelands\b/i.test(source.title)) return null;
-  const section = source.content.match(/(?:^|\n)\s*#{0,4}\s*Location\s*\n([\s\S]*?)(?=\n\s*#{1,4}\s|$)/i)?.[1] || source.content;
+  const content = source.content.replace(/\r\n?/g, '\n').replace(/[\u00a0\u202f]/g, ' ').replace(/\*\*/g, '');
+  const section = content.match(/(?:^|\n)[ \t]*#{0,4}[ \t]*Location[ \t]*\n([\s\S]*?)(?=\n[ \t]*#{1,4}[ \t]|$)/i)?.[1] || content;
   // Require a single distinct street address. Multiple buildings stay pending.
   const streets = [...new Set((section.match(STREET) || []).map(street => street.trim()))];
   if (streets.length !== 1) return null;
@@ -147,7 +148,12 @@ export async function verifyDestination(input: AddressSearchInput, context: Loca
         const url = officialUrl(result.url, domains);
         if (!url || typeof result.title !== 'string') return [];
         const content = typeof result.raw_content === 'string' && result.raw_content ? result.raw_content : typeof result.content === 'string' ? result.content : '';
-        return [{ title: result.title.slice(0, 300), url, content: content.slice(0, 16_000) }];
+        const normalizedContent = content.replace(/\r\n?/g, '\n').replace(/[\u00a0\u202f]/g, ' ').replace(/\*\*/g, '');
+        // Navigation can precede the department body by more than 16 KB. Find
+        // the location heading before bounding the evidence, not afterwards.
+        const locationOffset = normalizedContent.search(/(?:^|\n)[ \t]*#{0,4}[ \t]*Location[ \t]*\n/i);
+        const evidence = normalizedContent.slice(Math.max(0, locationOffset), Math.max(0, locationOffset) + 16_000);
+        return [{ title: result.title.slice(0, 300), url, content: evidence }];
       });
       sources = [...new Map([...sources, ...batch].map(source => [source.url, source])).values()];
       // Doctor profiles and other departments are discovery results, not proof
