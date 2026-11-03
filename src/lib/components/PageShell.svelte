@@ -246,6 +246,8 @@
   .fit-mobile-viewport {
     height: 100svh;
     height: var(--mobile-viewport-height, 100dvh);
+    /* Rotation can update CSS viewport units before the visualViewport event. */
+    max-height: 100dvh;
     width: 100%;
     padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
     padding-top: env(safe-area-inset-top);

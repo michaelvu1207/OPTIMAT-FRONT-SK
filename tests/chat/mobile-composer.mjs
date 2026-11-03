@@ -129,13 +129,34 @@ try {
 
     // Crossing the tablet/desktop breakpoint preserves both the conversation and draft.
     await page.locator('#chat-question').fill('Keep this draft');
+    const readingReply = page.getByRole('article', { name: 'OPTIMAT response', exact: true }).last();
+    await readingReply.focus();
+    await history.evaluate(el => { el.scrollTop = 100; });
+    const readingNode = await readingReply.elementHandle();
     const resized = { width: compact ? 1280 : 820, height: 800 };
+    // Some browsers report the previous visual height briefly during rotation or
+    // resize. Keep it stale deliberately so this does not depend on event timing.
+    const staleVisualHeight = viewport.height > resized.height;
+    if (staleVisualHeight) await page.evaluate(height => {
+      Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: height });
+    }, viewport.height);
     await page.setViewportSize(resized);
     await page.waitForFunction(width => innerWidth === width, resized.width);
     assert.equal(await page.locator('#chat-question').inputValue(), 'Keep this draft');
     assert.equal(await page.getByText('Travel advice 30.', { exact: true }).count(), 1);
     await assertComposerVisible(page, resized.height);
-    console.log(`PASS ${viewport.width}x${viewport.height}: controls, history, long content, keyboard, pinch zoom, resize state`);
+    assert.equal(await readingNode.evaluate(el => el.isConnected && el === document.activeElement), true,
+      'Resize must retain the existing response and reading focus');
+    assert.ok(await history.evaluate(el => el.scrollTop < el.scrollHeight - el.clientHeight - 48),
+      'Resize must not force a reader to the latest message');
+    if (staleVisualHeight) {
+      await page.evaluate(() => {
+        delete window.visualViewport.height;
+        window.visualViewport.dispatchEvent(new Event('resize'));
+      });
+      await assertComposerVisible(page, resized.height);
+    }
+    console.log(`PASS ${viewport.width}x${viewport.height}: controls, history, long content, keyboard, pinch zoom, resize state and reading focus${staleVisualHeight ? ', stale visual height' : ''}`);
     await page.close();
   }
 } finally {
