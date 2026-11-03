@@ -108,7 +108,8 @@ function extractLocation(source: { title: string; content: string }, query: stri
   for (const expected of ['Walnut Creek', 'Concord', 'Danville']) {
     if (normalized(query).includes(normalized(expected)) && normalized(city) !== normalized(expected)) return null;
   }
-  const building = section.match(/\bBuilding\s+\d+[^\n]{0,80}/i)?.[0];
+  const buildingLine = section.match(/\bBuilding\s+\d+[^\n]{0,80}/i)?.[0];
+  const building = buildingLine?.split(streets[0])[0].trim().replace(/[,;]$/, '');
   return { street: streets[0], city, address: `${streets[0]}, ${city}, CA ${cityMatch[2]}`, ...(building ? { building } : {}) };
 }
 
@@ -125,26 +126,40 @@ export async function verifyDestination(input: AddressSearchInput, context: Loca
   try {
     const keys = await getApiKeys();
     if (!keys.TAVILY_API_KEY) return pending('Official web search is unavailable.');
-    const response = await fetch('https://api.tavily.com/search', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(12_000),
-      body: JSON.stringify({ api_key: keys.TAVILY_API_KEY, query: `${query} official department location address`, search_depth: 'advanced', max_results: 4, include_domains: domains, include_answer: false, include_raw_content: true }),
-    });
-    if (!response.ok) return pending('Official web search did not succeed.');
-    const data = await response.json() as { results?: { title?: unknown; url?: unknown; content?: unknown; raw_content?: unknown }[] };
-    const sources = (Array.isArray(data.results) ? data.results : []).slice(0, 4).flatMap(result => {
-      const url = officialUrl(result.url, domains);
-      if (!url || typeof result.title !== 'string') return [];
-      const content = typeof result.raw_content === 'string' && result.raw_content ? result.raw_content : typeof result.content === 'string' ? result.content : '';
-      return [{ title: result.title.slice(0, 300), url, content: content.slice(0, 16_000) }];
-    });
-    // Source content is evidence, never instructions. Extract only conservative
-    // address candidates; do not pass remote prose into the model's system text.
-    const candidates = sources.flatMap(source => {
-      const location = extractLocation(source, query);
-      if (!location || (input.city && normalized(location.city) !== normalized(input.city))) return [];
-      if (input.facility && !words(input.facility).filter(word => !['medical', 'offices', 'center', 'park', 'the'].includes(word)).every(word => source.title.toLowerCase().includes(word))) return [];
-      return [{ ...location, source }];
-    });
+    const specialty = query.match(/\b(optometr\w*|ophthalmolog\w*|cardiology|oncology|radiology|occupational health)\b/i)?.[1];
+    const department = specialty?.toLowerCase().startsWith('optometr') ? 'Optometry' : specialty?.toLowerCase().startsWith('ophthalmolog') ? 'Ophthalmology' : specialty;
+    const focused = Boolean(department && /\bkaiser\b/i.test(query));
+    const searches = focused ? [
+      { query: `${query} "${department}" department address site:healthy.kaiserpermanente.org/northern-california/facilities`, domains: ['healthy.kaiserpermanente.org'] },
+      { query: `${query} "${department}" department location address`, domains: ['healthy.kaiserpermanente.org', 'espanol.kaiserpermanente.org'] },
+    ] : [{ query: `${query} official department location address`, domains }];
+    type Source = { title: string; url: string; content: string };
+    let sources: Source[] = [];
+    let candidates: Array<{ street: string; city: string; address: string; building?: string; source: Source }> = [];
+    for (const search of searches) {
+      const response = await fetch('https://api.tavily.com/search', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(8_000),
+        body: JSON.stringify({ api_key: keys.TAVILY_API_KEY, query: search.query, search_depth: 'advanced', max_results: 6, include_domains: search.domains, include_answer: false, include_raw_content: true }),
+      });
+      if (!response.ok) return pending('Official web search did not succeed.');
+      const data = await response.json() as { results?: { title?: unknown; url?: unknown; content?: unknown; raw_content?: unknown }[] };
+      const batch = (Array.isArray(data.results) ? data.results : []).slice(0, 6).flatMap(result => {
+        const url = officialUrl(result.url, domains);
+        if (!url || typeof result.title !== 'string') return [];
+        const content = typeof result.raw_content === 'string' && result.raw_content ? result.raw_content : typeof result.content === 'string' ? result.content : '';
+        return [{ title: result.title.slice(0, 300), url, content: content.slice(0, 16_000) }];
+      });
+      sources = [...new Map([...sources, ...batch].map(source => [source.url, source])).values()];
+      // Doctor profiles and other departments are discovery results, not proof
+      // of the requested department. Retry once without weakening validation.
+      candidates = sources.flatMap(source => {
+        const location = extractLocation(source, query);
+        if (!location || (input.city && normalized(location.city) !== normalized(input.city))) return [];
+        if (input.facility && !words(input.facility).filter(word => !['medical', 'offices', 'center', 'park', 'the'].includes(word)).every(word => source.title.toLowerCase().includes(word))) return [];
+        return [{ ...location, source }];
+      });
+      if (candidates.length) break;
+    }
     const distinct = new Set(candidates.map(candidate => streetKey(candidate.address)));
     const sourceLinks = sources.map(({ title, url }) => ({ title, url }));
     if (distinct.size !== 1) return pending(distinct.size ? 'Official pages disagree about the address.' : 'No unambiguous department address was found on the official pages.', sourceLinks);

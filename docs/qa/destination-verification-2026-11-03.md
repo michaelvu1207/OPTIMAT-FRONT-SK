@@ -33,3 +33,9 @@ Then, if the department remains uncertain:
 > I don't know which building. My appointment is with Kaiser Optometry at Park Shadelands. Can you verify the department's address instead of asking me to choose between these two locations?
 
 The result should be a sourced official department address that agrees with geocoding, or a clear pending state without a forced choice. Separately test `What is the address of Kaiser in Concord?`; a road or city result must not be presented as a confirmed Kaiser facility.
+
+## Full-trip follow-up
+
+The direct department lookup passed after the Tavily credential was configured, but the complete Danville-to-Kaiser question still failed: the first search results were physician profiles and an Optical Center, rather than the requested Optometry department. Search now prioritizes the official Kaiser facilities host/path and quotes the requested specialty. One bounded fallback may include the official Spanish-language host; each request has an eight-second timeout. Both requests still require the original department, facility, city, street-address, and map checks. Conflicting addresses remain pending. Building text is separated from an address when extracted content is flattened onto one line.
+
+The regression suite includes noisy physician/Optical Center results, the retry limit, and the exact complete user question with an imprecise pickup independent of the verified destination. All 83 backend tests passed.

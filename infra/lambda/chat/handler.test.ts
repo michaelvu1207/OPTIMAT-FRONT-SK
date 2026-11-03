@@ -246,3 +246,35 @@ test('provider detail attachments do not return raw metadata or geometry to the 
   assert.equal(details.booking.details, '(925) 284-6161');
   assert.doesNotMatch(JSON.stringify(details), /internal-|provider_id|created_at|FeatureCollection|coordinates|metadata/);
 });
+
+test('complete Danville-to-Kaiser query keeps a vague pickup separate from a verified department destination', async t => {
+  mockDatabase(t);
+  const previousKey = process.env.TAVILY_API_KEY; const previousArn = process.env.API_KEYS_SECRET_ARN;
+  process.env.TAVILY_API_KEY = 'synthetic-test-key'; delete process.env.API_KEYS_SECRET_ARN;
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.TAVILY_API_KEY; else process.env.TAVILY_API_KEY = previousKey;
+    if (previousArn === undefined) delete process.env.API_KEYS_SECRET_ARN; else process.env.API_KEYS_SECRET_ARN = previousArn;
+  });
+  t.mock.method(GeoPlacesClient.prototype, 'send', (async (command: any) => ({ ResultItems: [command.input.QueryText.includes('320')
+    ? { Title: '320 Lennon Ln', Address: { Label: '320 Lennon Ln, Walnut Creek, CA 94598' }, Position: [-122.029, 37.927], PlaceType: 'PointAddress' }
+    : { Title: 'Danville', Address: { Label: 'Danville, CA, United States' }, Position: [-122, 37.8], PlaceType: 'Locality' }] })) as any);
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ results: [{
+    title: 'Vision Essentials - Optometry at Park Shadelands Medical Offices',
+    url: 'https://healthy.kaiserpermanente.org/northern-california/facilities/park-shadelands/departments/optometry',
+    raw_content: '## Location\nBuilding 4 - Shasta\n320 Lennon Ln\nWalnut Creek, CA 94598\n## Hours\nMonday',
+  }] }), { status: 200 }));
+  let calls = 0;
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => {
+    calls++;
+    if (calls === 1) return toolResponse('search_addresses_from_user_query', { user_query: 'downtown Danville', role: 'pickup' });
+    if (calls === 2) return toolResponse('verify_destination_address', { user_query: 'Kaiser Shadelands Optometry Walnut Creek', organization: 'Kaiser', facility: 'Shadelands', department: 'Optometry', city: 'Walnut Creek' });
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Please confirm the destination.' }] } } };
+  }) as any);
+  const result = await sendLocalMessage('I need a ride from downtown Danville to Kaiser optometry in Shadelands, Walnut Creek. I don’t know the address. Can you find it?');
+  assert.match(result.message, /official destination address/);
+  assert.doesNotMatch(result.message, /could not verify/);
+  const searches = result.attachments.filter((item: any) => item.type === 'address_search');
+  assert.equal(searches.length, 2);
+  assert.equal(searches.find((item: any) => item.data.role === 'pickup').data.places[0].place_type, 'Locality');
+  assert.equal(searches.find((item: any) => item.data.role === 'destination').data.status, 'verified');
+});

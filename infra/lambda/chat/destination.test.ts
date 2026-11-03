@@ -55,7 +55,8 @@ test('official department address and matching map location produce one sourced 
   assert.equal(place.role, 'destination');
   assert.equal(place.name, title, 'Do not replace an official department title with the map vendor occupational-health label');
   assert.equal(turn.destinationVerification?.status, 'verified');
-  assert.deepEqual(requests[0].include_domains, ['kaiserpermanente.org', 'kp.org']);
+  assert.deepEqual(requests[0].include_domains, ['healthy.kaiserpermanente.org']);
+  assert.match(requests[0].query, /"Optometry".*site:healthy\.kaiserpermanente\.org\/northern-california\/facilities/);
   assert.equal(requests[0].include_raw_content, true);
   assert.equal(requests[0].include_answer, false);
   assert.doesNotMatch(requests[0].query, /paratransit|transportation/);
@@ -186,4 +187,30 @@ test('a free-form query alone cannot verify an unanchored department in another 
   assert.equal(result.status, 'verification_required');
   assert.equal(requests.length, 0);
   assert.match(result.message, /structured field/);
+});
+
+
+test('full-trip lookup retries doctor-profile and Optical Center noise with department-focused search', async t => {
+  const requests = mocks(t);
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', (async (_endpoint: string, options: RequestInit) => {
+    requests.push(JSON.parse(String(options.body)));
+    calls++;
+    return new Response(JSON.stringify({ results: calls === 1 ? [
+      { title: 'My Doctor Online | Helen Lee', url: 'https://mydoctor.kaiserpermanente.org/ncal/doctor/helenlee', raw_content: content },
+      { title: 'Optical Center at Park Shadelands Medical Offices', url: url.replace('102926', '102861'), raw_content: content.replace('320 Lennon Ln', '370 Lennon Ln') },
+    ] : [{ title, url, raw_content: content }] }), { status: 200 });
+  }) as any);
+  const turn = context();
+  const result = await verifyDestination({ ...input, facility: 'Shadelands' }, turn);
+  assert.equal(result.status, 'verified');
+  assert.equal(calls, 2);
+  assert.equal(result.places[0].address, '320 Lennon Ln, Walnut Creek, CA 94598');
+  assert.deepEqual(requests[1].include_domains, ['healthy.kaiserpermanente.org', 'espanol.kaiserpermanente.org']);
+});
+
+test('unsuccessful official department lookups stop after two searches', async t => {
+  const requests = mocks(t, [{ title: 'Optical Center at Park Shadelands', url, raw_content: content }]);
+  assert.equal((await verifyDestination(input, context())).status, 'verification_required');
+  assert.equal(requests.length, 2);
 });
