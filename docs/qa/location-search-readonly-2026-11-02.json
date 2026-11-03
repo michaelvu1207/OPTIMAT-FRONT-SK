@@ -1,0 +1,74 @@
+[
+  {
+    "query": "Kaiser Concord",
+    "result": {
+      "success": true,
+      "formatted_address": "Kaiser Quarry Rd, Concord, CA 94521, United States",
+      "lat": 37.93427,
+      "lng": -121.95706
+    }
+  },
+  {
+    "query": "Kaiser in Concord",
+    "result": {
+      "success": true,
+      "formatted_address": "Concord, CA, United States",
+      "lat": 37.98165,
+      "lng": -122.02583
+    }
+  },
+  {
+    "query": "Kaiser Optometrists Danville California",
+    "result": {
+      "success": true,
+      "formatted_address": "Danville Optometric Group, 3464 Camino Tassajara, Danville, CA 94506-4680, United States",
+      "lat": 37.79864,
+      "lng": -121.91853
+    }
+  },
+  {
+    "query": "Kaiser optometry Shadelands Walnut Creek",
+    "result": {
+      "success": true,
+      "formatted_address": "Kaiser Park Shadelands, 370 Lennon Ln, Walnut Creek, CA 94598-2419, United States",
+      "lat": 37.92835,
+      "lng": -122.02949
+    }
+  },
+  {
+    "query": "Kaiser Shadelands Walnut Creek",
+    "result": {
+      "success": true,
+      "formatted_address": "Kaiser Park Shadelands, 370 Lennon Ln, Walnut Creek, CA 94598-2419, United States",
+      "lat": 37.92835,
+      "lng": -122.02949
+    }
+  },
+  {
+    "query": "Danville Senior Center address",
+    "result": {
+      "success": true,
+      "formatted_address": "Danville Brewing, 115 E Prospect Ave, Danville, CA 94526-3811, United States",
+      "lat": 37.82162,
+      "lng": -121.99959
+    }
+  },
+  {
+    "query": "Shadelands Medical Center Danville California",
+    "result": {
+      "success": true,
+      "formatted_address": "Shadelands Surgery Center, 100 N Wiget Ln, Walnut Creek, CA 94598-2402, United States",
+      "lat": 37.92523,
+      "lng": -122.02325
+    }
+  },
+  {
+    "query": "Shadelands Medical Center Walnut Creek California",
+    "result": {
+      "success": true,
+      "formatted_address": "Shadelands Surgery Center, 100 N Wiget Ln, Walnut Creek, CA 94598-2402, United States",
+      "lat": 37.92523,
+      "lng": -122.02325
+    }
+  }
+]

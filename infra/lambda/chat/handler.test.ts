@@ -152,3 +152,97 @@ test('an oversized non-geometry tool result is handled without another Bedrock r
   assert.match(result.message, /too many search details/);
   assert.deepEqual(result.attachments, []);
 });
+
+test('binary tool groups survive compaction and prose fallback deduplicates them', async (t) => {
+  mockDatabase(t);
+  let calls = 0;
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => {
+    calls++;
+    if (calls === 1) return toolResponse('ask_yes_no', { question: 'Do you have a disability?' });
+    if (calls === 2) return toolResponse('ask_yes_no', { question: 'Are you a veteran?' });
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Do you have a disability? Are you a veteran?' }] } } };
+  }) as any);
+  const result = await sendLocalMessage('Help me check eligibility.');
+  assert.equal(result.attachments.length, 1);
+  assert.equal(result.attachments[0].type, 'yes_no_choices');
+  assert.equal(result.attachments[0].data.questions.length, 2);
+});
+
+test('structured refusal is saved before inference and is never interpreted as No', async (t) => {
+  mockDatabase(t);
+  let stored: any;
+  const question = { id: 'stored-question', question: 'Do you have a disability?' };
+  t.mock.method(pg.Pool.prototype, 'query', (async (sql: string, values: any[]) => {
+    if (sql.startsWith('INSERT INTO optimat.chat_trip_state')) stored = JSON.parse(values[1]);
+    return { rows: sql.startsWith('SELECT id FROM') ? [{ id: 'local-test' }] : sql.startsWith('SELECT trip FROM') ? [{ trip: { rider_eligibility: {}, binary_questions: [question] } }] : [] };
+  }) as any);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    assert.match(command.input.system[0].text, /"answer":"declined"/);
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'You can confirm eligibility directly with the provider.' }] } } };
+  }) as any);
+  const result = await handler({ requestContext: { http: { method: 'POST' } }, rawPath: '/chat', headers: {}, body: JSON.stringify({ conversation_id: 'local-test', message: 'ignored', yes_no_answer: { question_id: question.id, answer: 'declined' } }) } as any) as { statusCode: number; body: string };
+  assert.equal(result.statusCode, 200);
+  assert.equal(stored.rider_eligibility.disabled, null);
+  assert.deepEqual(stored.rider_eligibility.declined_facts, ['disabled']);
+  assert.equal(JSON.parse(result.body).binary_answers[0].answer, 'declined');
+});
+
+test('unverified destination results override model advice to choose either building and persist pending state', async t => {
+  mockDatabase(t);
+  let saved: any;
+  t.mock.method(pg.Pool.prototype, 'query', (async (sql: string, values: any[]) => {
+    if (sql.startsWith('INSERT INTO optimat.chat_trip_state')) saved = JSON.parse(values[1]);
+    return { rows: sql.startsWith('SELECT id FROM') ? [{ id: 'local-test' }] : [] };
+  }) as any);
+  // No real web request is allowed in this regression, even if a developer has a key configured.
+  t.mock.method(globalThis, 'fetch', async () => new Response('{}', { status: 503 }));
+  let calls = 0;
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => ++calls === 1
+    ? toolResponse('verify_destination_address', { user_query: 'Kaiser Optometry Shadelands Walnut Creek', city: 'Walnut Creek', department: 'Optometry' })
+    : { stopReason: 'end_turn', output: { message: { content: [{ text: 'Either address is fine; the driver knows the complex. Which building do you choose?' }] } } }) as any);
+  const result = await sendLocalMessage('I need Kaiser Optometry in Shadelands, Walnut Creek. I do not know which building.');
+  assert.match(result.message, /not yet confirmed/);
+  assert.doesNotMatch(result.message, /Either address|driver knows|Which building/);
+  assert.equal(result.attachments[0].data.status, 'verification_required');
+  assert.deepEqual(result.attachments[0].data.places, []);
+  assert.equal(saved.destination_verification.status, 'pending');
+});
+
+test('separate pickup and destination address searches survive attachment compaction', async t => {
+  mockDatabase(t);
+  t.mock.method(GeoPlacesClient.prototype, 'send', (async (command: any) => ({ ResultItems: [{
+    Title: command.input.QueryText.includes('Danville') ? 'Danville Community Center' : 'Walnut Creek Library',
+    Address: { Label: command.input.QueryText.includes('Danville') ? '420 Front St, Danville, CA 94526' : '1644 N Broadway, Walnut Creek, CA 94596' },
+    Position: [-122, 37.9], PlaceType: 'PointOfInterest',
+  }] })) as any);
+  let calls = 0;
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => {
+    calls++;
+    if (calls === 1) return toolResponse('search_addresses_from_user_query', { user_query: 'Danville Community Center', role: 'pickup' });
+    if (calls === 2) return toolResponse('search_addresses_from_user_query', { user_query: 'Walnut Creek Library', role: 'destination', city: 'Walnut Creek' });
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Please confirm the trip locations.' }] } } };
+  }) as any);
+  const result = await sendLocalMessage('I need a ride from Danville Community Center to Walnut Creek Library.');
+  const attachments = result.attachments.filter((item: any) => item.type === 'address_search');
+  assert.equal(attachments.length, 2);
+  assert.deepEqual(attachments.map((item: any) => item.data.role), ['pickup', 'destination']);
+});
+
+test('provider detail attachments do not return raw metadata or geometry to the chat client', async t => {
+  mockDatabase(t, [{
+    provider_name: 'Mobility Matters', id: 'internal-id-sentinel', provider_id: 4021,
+    created_at: 'internal-time-sentinel', raw_data: { note: 'internal-import-sentinel' },
+    service_area_geojson: { type: 'FeatureCollection', coordinates: [[-122, 37]] },
+    booking: { method: 'call', details: '(925) 284-6161', metadata: 'internal-booking-sentinel' },
+    eligibility_reqs: 'Senior (60+) or veteran, and a county resident.',
+  }]);
+  let calls = 0;
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => ++calls === 1
+    ? toolResponse('get_provider_info', { provider_name: 'Mobility Matters' })
+    : { stopReason: 'end_turn', output: { message: { content: [{ text: 'Contact the provider to confirm application requirements.' }] } } }) as any);
+  const result = await sendLocalMessage('Do I need to apply before using Mobility Matters?');
+  const details = result.attachments.find((item: any) => item.type === 'provider_info').data;
+  assert.equal(details.provider_name, 'Mobility Matters');
+  assert.equal(details.booking.details, '(925) 284-6161');
+  assert.doesNotMatch(JSON.stringify(details), /internal-|provider_id|created_at|FeatureCollection|coordinates|metadata/);
+});

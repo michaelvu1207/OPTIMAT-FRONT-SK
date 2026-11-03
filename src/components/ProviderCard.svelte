@@ -1,5 +1,5 @@
 <script>
-  import { isFixedRouteProvider } from '$lib/providers/providerFields';
+  import { formatEligibilityReqs, isFixedRouteProvider } from '$lib/providers/providerFields';
   import ProviderTimeline from './ProviderTimeline.svelte';
 
   /**
@@ -60,7 +60,8 @@
   function eligibilityLines(entry) {
     const reqs = entry?.eligibility_reqs;
     if (!reqs) return [];
-    const text = typeof reqs === 'string' ? reqs : JSON.stringify(reqs);
+    const text = formatEligibilityReqs(reqs);
+    if (!text || /^[\s]*[\[{]/.test(text)) return [];
     return text
       .split(/\.\s+|\s*·\s*/)
       .map((part) => part.trim())

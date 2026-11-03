@@ -6,6 +6,7 @@
     import SquareIcon from '@lucide/svelte/icons/square';
     import { serviceZoneManager } from '../lib/serviceZoneManager.js';
     import ProviderCard from './ProviderCard.svelte';
+    import ProviderDetails from './ProviderDetails.svelte';
     import TransitCard from './TransitCard.svelte';
     import FeedbackPrompt from './FeedbackPrompt.svelte';
     import { marked } from 'marked';
@@ -141,23 +142,35 @@
 
     function getAddressPlaces(messageId) {
         const attachments = getMessageAttachments(messageId);
-        const addressAttachment = attachments.find(att => att.type === 'address_search');
-        if (!addressAttachment?.data) return [];
-        const data = safeParseAttachmentData(addressAttachment.data) || {};
-        const places = Array.isArray(data.places) ? data.places : [];
+        const places = attachments.filter(att => att.type === 'address_search').flatMap(att => {
+            const data = safeParseAttachmentData(att.data) || {};
+            return Array.isArray(data.places) ? data.places : [];
+        });
         const normalized = places.map((place) => ({
             address: place?.formattedAddress || place?.address || '',
             name: place?.displayName?.text || place?.name || '',
             location: place?.location || null,
-            placeType: place?.place_type || null
+            placeType: place?.place_type || null,
+            selectable: place?.selectable !== false,
+            role: place?.role || null,
+            building: place?.building || '',
+            sourceUrl: typeof place?.source_url === 'string' && /^https:\/\//i.test(place.source_url) ? place.source_url : null,
+            verificationStatus: place?.verification_status || null
         })).filter((p) => p.address);
+        normalized.sort((a, b) => Number(b.verificationStatus === 'official') - Number(a.verificationStatus === 'official'));
         return normalized.filter((place, index) =>
             normalized.findIndex((candidate) => candidate.address === place.address && candidate.name === place.name) === index
         );
     }
 
+    function getDestinationVerification(messageId) {
+        return getMessageAttachments(messageId).filter(att => att.type === 'address_search')
+            .map(att => safeParseAttachmentData(att.data) || {})
+            .find(data => data.role === 'destination' && data.status === 'verification_required');
+    }
+
     async function selectAddressPlace(messageId, place, role) {
-        if (loading || !serverOnline || initializing || !conversationId || isViewingExample) return;
+        if (loading || !serverOnline || initializing || !conversationId || isViewingExample || !place.selectable) return;
         const selectedConversationId = conversationId;
         const previous = selectedAddresses.get(role);
         selectedAddresses = new Map(selectedAddresses).set(role, { messageId, address: place.address, pending: true });
@@ -342,6 +355,21 @@ How can I assist you today?`,
     let messageAttachments = new Map(); // Map message IDs to their attachments
     let selectedAddresses = new Map(); // Latest explicitly confirmed address for each trip role.
     let selectedAgeRange = null;
+    let selectedBinaryAnswers = new Map();
+    async function selectBinaryAnswer(question, option) {
+      if (loading || !serverOnline || initializing || !conversationId || isViewingExample) return;
+      const cid = conversationId;
+      const previous = selectedBinaryAnswers.get(question.id);
+      selectedBinaryAnswers = new Map(selectedBinaryAnswers).set(question.id, { value: option.value, pending: true });
+      const sent = await handleSubmit(`Question: ${question.question} Answer: ${option.label}.`, undefined, { question_id: question.id, answer: option.value });
+      if (cid !== conversationId) return;
+      const next = new Map(selectedBinaryAnswers);
+      if (sent) next.set(question.id, { value: option.value, pending: false });
+      else if (previous) next.set(question.id, previous);
+      else next.delete(question.id);
+      selectedBinaryAnswers = next;
+      responseAnnouncement = sent ? `${option.label} selected.` : 'Unable to send your answer. Please try again.';
+    }
 
     // Service zone state management
     let visibleProviderZones = new Set(); // Track which provider zones are visible
@@ -1264,7 +1292,7 @@ How can I assist you today?`,
       };
     });
 
-    async function handleSubmit(confirmedChoice = null, ageRange = undefined) {
+    async function handleSubmit(confirmedChoice = null, ageRange = undefined, yesNoAnswer = undefined) {
       const content = typeof confirmedChoice === 'string' ? confirmedChoice : userInput;
       if (loading || !content.trim() || !serverOnline || initializing || !conversationId) {
         if (!conversationId && !initializing) {
@@ -1296,10 +1324,11 @@ How can I assist you today?`,
         const { data: chatResponse, error: apiError } = await sendChatMessage(
           conversationId,
           newMessage.content,
-          { signal: controller.signal, timeoutMs: 45000, ageRange }
+          { signal: controller.signal, timeoutMs: 45000, ageRange, yesNoAnswer }
         );
         if (apiError) throw apiError;
         if (!chatResponse) throw new Error('The chat server returned no response.');
+        if (chatResponse.binary_answers) selectedBinaryAnswers = new Map(chatResponse.binary_answers.map(item => [item.id, { value: item.answer, pending: false }]));
         if (chatResponse.age_range !== undefined && selectedAgeRange && chatResponse.age_range !== selectedAgeRange.id) {
           selectedAgeRange = null; // A typed correction must not leave a stale button marked selected.
         }
@@ -1879,6 +1908,7 @@ How can I assist you today?`,
       messageAttachments = new Map();
       selectedAddresses = new Map();
       selectedAgeRange = null;
+      selectedBinaryAnswers = new Map();
       // A new chat is a new chance to hear from the tester.
       feedbackClosed = false;
       feedbackSubmittedFor = null;
@@ -2120,11 +2150,32 @@ How can I assist you today?`,
               {#if hasAttachments(message.id)}
                 {@const providerSearchProgress = getProviderSearchProgress(message.id)}
                 {@const addressPlaces = getAddressPlaces(message.id)}
+                {@const pendingDestination = getDestinationVerification(message.id)}
                 {@const providerInfo = getAttachmentData(message.id, 'provider_info')}
                 {@const webSearch = getAttachmentData(message.id, 'web_search')}
+                {@const binaryChoices = getAttachmentData(message.id, 'yes_no_choices')}
                 {@const ageChoices = getAttachmentData(message.id, 'age_choices')}
 
                 <div class="mt-3 space-y-2">
+
+                  {#each binaryChoices?.questions || [] as question (question.id)}
+                    <div class="min-w-0 rounded-lg border border-border bg-background p-3 pt-4" role="group" aria-label={question.question} data-yes-no-choices>
+                      <h3 class="text-sm font-semibold text-foreground">{question.question}</h3>
+                      <div class="mt-3 flex flex-wrap gap-2">
+                        {#each binaryChoices.options || [] as option (option.value)}
+                          {@const selected = selectedBinaryAnswers.get(question.id)}
+                          {@const active = selected?.value === option.value}
+                          <button type="button"
+                            class="min-h-11 rounded-lg border border-primary bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                            aria-pressed={active}
+                            disabled={isViewingExample || loading || !serverOnline || initializing || !conversationId || active}
+                            onclick={() => selectBinaryAnswer(question, option)}>
+                            {option.label}{active ? selected.pending ? ' · Confirming...' : ' · Selected' : ''}
+                          </button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/each}
 
                   {#if Array.isArray(ageChoices?.options) && ageChoices.options.length > 0}
                     <div class="min-w-0 rounded-lg border border-border bg-background p-3 pt-4" role="group" aria-labelledby={`age-range-title-${message.id}`} data-age-choices>
@@ -2147,6 +2198,13 @@ How can I assist you today?`,
                     </div>
                   {/if}
 
+                  {#if pendingDestination}
+                    <div class="rounded-lg border border-border bg-background p-3 text-sm text-foreground" role="status" data-destination-pending>
+                      <h3 class="font-semibold">Destination not yet confirmed</h3>
+                      <p class="mt-2">The exact facility or department address could not be verified. Check your appointment notice or contact the facility before choosing a destination.</p>
+                    </div>
+                  {/if}
+
                   {#if addressPlaces.length > 0}
                     <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
                       <div class="text-sm font-semibold text-foreground mb-1">Choose a location</div>
@@ -2157,11 +2215,17 @@ How can I assist you today?`,
                               <div class="font-semibold break-words">{place.name}</div>
                             {/if}
                             <div class="break-words">{place.address}</div>
+                            {#if place.building}<div class="mt-1">{place.building}</div>{/if}
+                            {#if place.verificationStatus === 'official' && place.sourceUrl}
+                              <a class="mt-2 inline-block text-primary underline" href={place.sourceUrl} target="_blank" rel="noopener noreferrer">Verified official department address</a>
+                            {/if}
                             {#if ['Street', 'Locality', 'PostalCode', 'Region', 'Country', 'District', 'SubDistrict', 'SubRegion'].includes(place.placeType)}
                               <p class="mt-2">This is an area or road, not a specific pickup or destination. Enter a full street address or search for a specific facility.</p>
+                            {:else if !place.selectable}
+                              <p class="mt-2">Destination not yet confirmed. This result does not verify the requested facility or department.</p>
                             {:else if !isViewingExample}
                               <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label={`${place.name && place.name !== place.address ? `${place.name}, ` : ''}${place.address}`}>
-                                {#each ['pickup', 'destination'] as role}
+                                {#each place.role ? [place.role] : ['pickup', 'destination'] as role}
                                   {@const selected = selectedAddresses.get(role)}
                                   {@const isSelected = selected?.messageId === message.id && selected?.address === place.address}
                                   <button
@@ -2185,12 +2249,7 @@ How can I assist you today?`,
                   {/if}
 
                   {#if providerInfo}
-                    <details class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <summary class="cursor-pointer text-sm text-foreground select-none">
-                        Provider details
-                      </summary>
-                      <pre class="mt-2 text-sm whitespace-pre-wrap break-words text-foreground">{JSON.stringify(providerInfo, null, 2)}</pre>
-                    </details>
+                    <ProviderDetails info={providerInfo} />
                   {/if}
 
                   {#if webSearch}
@@ -2198,24 +2257,21 @@ How can I assist you today?`,
                       <summary class="cursor-pointer text-sm text-foreground select-none">
                         Web search
                       </summary>
-                      {#if typeof webSearch === 'object' && webSearch?.answer}
+                      {#if typeof webSearch?.answer === 'string' && webSearch.answer.trim() && !/^[\s]*[\[{]/.test(webSearch.answer)}
                         <div class="mt-2 text-sm text-foreground whitespace-pre-wrap">{webSearch.answer}</div>
-                        {#if Array.isArray(webSearch.sources) && webSearch.sources.length > 0}
-                          <div class="mt-2 space-y-1">
-                            {#each webSearch.sources.slice(0, 5) as source, idx (source.url || `${idx}`)}
-                              <a
-                                class="block text-sm text-primary hover:underline line-clamp-1"
-                                href={source.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                {source.title || source.url}
-                              </a>
-                            {/each}
-                          </div>
-                        {/if}
                       {:else}
-                        <pre class="mt-2 text-sm whitespace-pre-wrap break-words text-foreground">{JSON.stringify(webSearch, null, 2)}</pre>
+                        <p class="mt-2 text-sm text-foreground">No additional source summary is available.</p>
+                      {/if}
+                      {#if Array.isArray(webSearch?.sources)}
+                        <div class="mt-2 space-y-1">
+                          {#each webSearch.sources.slice(0, 5) as source, idx}
+                            {#if typeof source?.url === 'string' && /^https?:\/\//i.test(source.url)}
+                              <a class="block break-words text-sm text-primary underline" href={source.url} target="_blank" rel="noopener noreferrer">
+                                {typeof source.title === 'string' && source.title.trim() && !/^[\s]*[\[{]/.test(source.title) ? source.title : `Source ${idx + 1}`}
+                              </a>
+                            {/if}
+                          {/each}
+                        </div>
                       {/if}
                     </details>
                   {/if}

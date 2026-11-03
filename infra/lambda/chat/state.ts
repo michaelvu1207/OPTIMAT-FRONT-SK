@@ -1,9 +1,13 @@
 import { query, queryOne, TABLES } from '../_shared/db.js';
 import type { RiderEligibility, TurnContext } from './tools.js';
+import type { DestinationState } from './destination.js';
+import type { BinaryQuestion } from './yes-no.js';
 import { getAgeRange } from './age.js';
 
 type StoredTripState = {
   rider_eligibility?: RiderEligibility;
+  binary_questions?: BinaryQuestion[];
+  destination_verification?: DestinationState;
   [key: string]: unknown;
 };
 
@@ -19,6 +23,8 @@ export async function loadTurnContext(conversationId: string): Promise<TurnConte
     }
     return {
       riderEligibility: (trip as StoredTripState).rider_eligibility || {},
+      binaryQuestions: (trip as StoredTripState).binary_questions || [],
+      destinationVerification: (trip as StoredTripState).destination_verification,
       lastSearch: null,
       latestAssessment: null,
     };
@@ -91,7 +97,7 @@ export async function saveTurnContext(conversationId: string, turn: TurnContext)
          updated_at = NOW()`,
       [
         conversationId,
-        JSON.stringify({ rider_eligibility: turn.riderEligibility }),
+        JSON.stringify({ rider_eligibility: turn.riderEligibility, ...(turn.binaryQuestions?.length ? { binary_questions: turn.binaryQuestions } : {}), ...(turn.destinationVerification ? { destination_verification: turn.destinationVerification } : {}) }),
         turn.latestAssessment ? JSON.stringify(turn.latestAssessment) : null,
       ],
     );

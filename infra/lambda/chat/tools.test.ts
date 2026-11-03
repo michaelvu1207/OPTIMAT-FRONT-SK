@@ -308,3 +308,20 @@ test('Pinole rider retains options regardless of ADA status but independent resi
     assert.equal(data.next_question, null);
   }
 });
+
+test('a declined disability fact stays unknown without excluding providers or asking it again', () => {
+  const turn = turnWithCandidates([
+    { provider_name: 'ADA option', provider_type: 'ADA Paratransit', eligibility_requirement: 'Disability required.' },
+    { provider_name: 'Senior option', eligibility_requirement: 'Age 60+.' },
+  ], { disabled: null, declined_facts: ['disabled'] });
+  assert.equal(filterByDisability(turn.lastSearch!.candidates as any, turn.riderEligibility).length, 2);
+  const result = executeAssessEligibility({ assessments: [
+    { provider_name: 'ADA option', verdict: 'ineligible', reason: 'Disability unknown.', exclusion_basis: 'disability', missing_fact: 'disabled' },
+    { provider_name: 'Senior option', verdict: 'eligible', reason: 'Age requirement met.' },
+  ] }, turn);
+  const data = result.data as any;
+  assert.equal(data.verification_required.length, 1);
+  assert.equal(data.excluded_providers.length, 0);
+  assert.equal(data.next_question, null);
+  assert.equal(data.data.length, 1, 'Independent age eligibility remains intact');
+});

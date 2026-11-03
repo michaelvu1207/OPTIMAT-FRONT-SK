@@ -3,6 +3,9 @@
  * Lambda version — uses raw SQL via pg instead of Supabase JS client.
  */
 
+import { eligibilityField, registerQuestion, YES_NO_OPTIONS, type BinaryQuestion } from './yes-no.js';
+import { destinationAddressAllowed, buildAddressQuery, needsDepartmentVerification, selectablePlace, verifyDestination, type AddressSearchInput, type LocationContext } from './destination.js';
+import { riderProviderDetails } from './provider-details.js';
 import { queryRows, TABLES } from '../_shared/db.js';
 import { getApiKeys } from '../_shared/secrets.js';
 import { geocodePlace, searchPlaces } from '../_shared/location.js';
@@ -30,6 +33,7 @@ export interface RiderEligibility {
   veteran?: boolean | null;
   residence_city?: string | null;
   declined?: boolean;
+  declined_facts?: RiderFact[];
 }
 
 export interface EligibilityAssessment {
@@ -44,7 +48,8 @@ export interface AssessEligibilityParams {
   assessments: EligibilityAssessment[];
 }
 
-export interface TurnContext {
+export interface TurnContext extends LocationContext {
+  binaryQuestions?: BinaryQuestion[];
   riderEligibility: RiderEligibility;
   lastSearch: null | {
     candidates: Record<string, unknown>[];
@@ -53,9 +58,7 @@ export interface TurnContext {
   latestAssessment: Record<string, unknown> | null;
 }
 
-export interface SearchAddressesParams {
-  user_query: string;
-}
+export interface SearchAddressesParams extends AddressSearchInput {}
 
 export interface GetProviderInfoParams {
   provider_name: string;
@@ -85,6 +88,8 @@ interface Provider {
 }
 
 export interface ToolResult {
+  /** Internal audit linkage; never included in attachment data or model context. */
+  providerId?: number;
   success: boolean;
   data?: unknown;
   error?: string;
@@ -94,16 +99,21 @@ export interface ToolResult {
 
 export const toolDefinitions = [
   {
+    name: 'ask_yes_no',
+    description: 'Show Yes, No, and Would rather not say buttons for any binary question. Ask one fact per question. Use a complete standalone question. For disability use exactly "Do you have a disability?"; for veteran status use exactly "Are you a veteran?". Never ask ADA certification status. Do not use for open-ended details, age ranges, or address selection.',
+    input_schema: { type: 'object' as const, properties: { question: { type: 'string' } }, required: ['question'] },
+  },
+  {
     name: 'ask_age_range',
     description: 'Show clickable age-range choices when age information is needed and neither a range nor an exact age is known. Use this instead of asking for an exact age. Do not call for unrelated questions or when age information is already known.',
     input_schema: { type: 'object' as const, properties: {} },
   },
   {
     name: 'find_providers',
-    description: `Find paratransit providers that can serve a round trip between origin and destination.
+    description: `Find paratransit providers that can serve a one-way or round trip between origin and destination.
 The server filters by source/destination GeoJSON, known operating hours, and excludes ADA Paratransit when disabled=false.
 An age range (or a voluntarily supplied exact age) and residence city are needed before searching. Use ask_age_range for missing age information; never infer residence from pickup.
-Call this once the locations, date, outbound time, trip type, age range, and residence city are known. Pass only rider facts the rider
+Call this once the locations, date, outbound time, trip type, age range, and residence city are known. For a round trip, collect the return time too; for a one-way trip, omit return_time. Preserve the rider's requested times without adding an automatic buffer. Do not require contact information, driver instructions, or optional travel needs before searching. Pass only rider facts the rider
 explicitly stated. Unknown facts must be omitted rather than guessed. After this returns candidates, immediately
 call assess_eligibility with a verdict for every candidate. A candidate with service_hours_known=false has not
 had its requested time confirmed; describe the schedule as needing provider verification, never as available.`,
@@ -187,12 +197,25 @@ The server rejects incomplete assessments, invented provider names, and omitted 
     },
   },
   {
+    name: 'verify_destination_address',
+    description: 'Verify the exact destination facility or department using official sources, then geocode that street address. Use when a rider does not know which building, department results are ambiguous, or map results do not match the named institution. Never tell a rider to pick an unverified building. Pass the named organization, facility, specialty, and destination city from user messages; never the pickup city. Include at least a structured city or facility so the official page can be checked against the intended destination. This tool currently recognizes official Kaiser and Town of Danville sources; unsupported sources remain pending.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        user_query: { type: 'string', description: 'The destination query, preserving organization, facility, department, and stated destination city.' },
+        organization: { type: 'string' }, facility: { type: 'string' }, department: { type: 'string' }, city: { type: 'string' },
+      }, required: ['user_query'],
+    },
+  },
+  {
     name: 'search_addresses_from_user_query',
-    description: "Find addresses from a user query using Amazon Location Service.",
+    description: "Find candidate addresses using Amazon Location Service. Separate pickup and destination searches with their role. Preserve the named organization and specialty. Do not add a destination city from pickup or residence. Specific medical departments require verify_destination_address; a campus listing is not department verification.",
     input_schema: {
       type: 'object' as const,
       properties: {
         user_query: { type: 'string', description: 'The search query for finding addresses' },
+        role: { type: 'string', enum: ['pickup', 'destination'] },
+        organization: { type: 'string' }, facility: { type: 'string' }, department: { type: 'string' }, city: { type: 'string' },
       },
       required: ['user_query'],
     },
@@ -425,12 +448,20 @@ export async function executeFindProviders(
   apiKey: string,
   turn: TurnContext,
 ): Promise<ToolResult> {
+  if (!destinationAddressAllowed(turn, params.destination_address)) {
+    return { success: false, error: 'The destination is pending or does not match its confirmed street address. Use verify_destination_address or the explicit rider-provided address. Do not search providers using another building.' };
+  }
   // A selected range is authoritative: a model must not replace it with a
   // fabricated exact age while building a tool call.
   const suppliedFacts = { ...(params.rider_eligibility || {}) };
+  delete suppliedFacts.declined_facts; // Field refusals are owned by explicit rider answers.
+  if (turn.riderEligibility.declined_facts?.length) delete suppliedFacts.declined;
   if (ageBounds(turn.riderEligibility)) {
     delete suppliedFacts.age;
     delete suppliedFacts.age_range;
+  }
+  for (const field of ['disabled', 'veteran'] as const) {
+    if (turn.riderEligibility.declined_facts?.includes(field) || turn.binaryQuestions?.some(question => question.answer && eligibilityField(question.question) === field)) delete suppliedFacts[field];
   }
   turn.riderEligibility = mergeAgeFacts(turn.riderEligibility, suppliedFacts);
   const requiredQuestion = requiredRiderQuestion(turn.riderEligibility);
@@ -544,16 +575,32 @@ export async function executeFindProviders(
   }
 }
 
-async function executeSearchAddresses(params: SearchAddressesParams, apiKey: string): Promise<ToolResult> {
+async function executeSearchAddresses(params: SearchAddressesParams, apiKey: string, turn: TurnContext): Promise<ToolResult> {
   try {
-    const places = (await searchPlaces(params.user_query)).map((place) => ({
+    if (!params?.role && /\bkaiser\b|\b(?:medical|health|surgery) (?:center|offices)\b/i.test(params?.user_query || '')) params = { ...params, role: 'destination' };
+    const searchQuery = buildAddressQuery(params, turn);
+    const departmentQuery = needsDepartmentVerification(searchQuery);
+    if (departmentQuery && params.role !== 'pickup') {
+      return { success: true, data: await verifyDestination({ ...params, user_query: searchQuery }, turn) };
+    }
+    const places = (await searchPlaces(searchQuery)).map((place) => ({
       name: place.name,
       address: place.address,
       location: { lat: place.lat, lng: place.lng },
       place_id: place.placeId,
       place_type: place.placeType,
+      ...(params.role ? { role: params.role } : {}),
+      selectable: selectablePlace(place) && (!/\bkaiser\b/i.test(searchQuery) || /\bkaiser\b/i.test(place.name)),
     }));
-    return { success: true, data: { places, query: params.user_query } };
+    const selectable = places.filter(place => place.selectable);
+    if (params.role === 'destination' && !selectable.length && /\bkaiser\b/i.test(searchQuery)) {
+      return { success: true, data: await verifyDestination({ ...params, user_query: searchQuery }, turn) };
+    }
+    if (params.role === 'destination' && !selectable.length) {
+      turn.destinationVerification = { status: 'pending', query: searchQuery };
+    }
+    return { success: true, data: { places, query: searchQuery, ...(params.role ? { role: params.role } : {}),
+      ...(selectable.length ? {} : { status: 'verification_required', message: 'No matching facility with a full street address was found. Road, city, and unrelated organization results are not confirmed destinations. Use verify_destination_address; never recommend either address or assume the driver knows.' }) } };
   } catch (error) {
     return { success: false, error: `Error searching addresses: ${error}` };
   }
@@ -572,8 +619,10 @@ async function executeGetProviderInfo(params: GetProviderInfoParams): Promise<To
         data: { suggestion: 'Please check the provider name.' },
       };
     }
-    const sanitized = providers.map(({ service_zone, ...rest }: any) => rest);
-    return { success: true, data: sanitized.length === 1 ? sanitized[0] : sanitized };
+    const sanitized = providers.map(riderProviderDetails);
+    const providerId = providers.length === 1 ? Number(providers[0].provider_id) : NaN;
+    return { success: true, data: sanitized.length === 1 ? sanitized[0] : sanitized,
+      ...(Number.isSafeInteger(providerId) ? { providerId } : {}) };
   } catch (error) {
     return { success: false, error: `Error getting provider info: ${error}` };
   }
@@ -654,7 +703,7 @@ function nextEligibilityQuestion(
     // Older model outputs may still name ADA approval as a missing fact. It is
     // a provider verification requirement, never a question for the rider.
     if (assessment.missing_fact === 'ada_paratransit_eligible') continue;
-    if (known[assessment.missing_fact]) continue;
+    if (known[assessment.missing_fact] || rider.declined_facts?.includes(assessment.missing_fact)) continue;
     const names = byFact.get(assessment.missing_fact) || [];
     if (!names.includes(assessment.provider_name)) names.push(assessment.provider_name);
     byFact.set(assessment.missing_fact, names);
@@ -721,6 +770,13 @@ export function executeAssessEligibility(
   for (const originalAssessment of assessments) {
     let assessment = originalAssessment;
     const provider = candidateByName.get(providerNameKey(assessment.provider_name))!;
+    const declined = turn.riderEligibility.declined_facts || [];
+    if ((assessment.missing_fact && declined.includes(assessment.missing_fact)) ||
+        (assessment.exclusion_basis === 'disability' && declined.includes('disabled')) ||
+        (assessment.exclusion_basis === 'veteran' && declined.includes('veteran'))) {
+      assessment = { ...assessment, verdict: 'verification_required', missing_fact: null,
+        reason: 'The rider chose not to share this information. Eligibility remains unknown; confirm the relevant requirements directly with the provider.' };
+    }
     // Enforce the policy even for stale candidates or an incorrect model verdict.
     if (turn.riderEligibility.disabled === false && isAdaParatransit(provider)) {
       assessment = { ...assessment, verdict: 'ineligible', missing_fact: null, exclusion_basis: 'disability',
@@ -797,6 +853,11 @@ export async function executeTool(
   turn: TurnContext,
 ): Promise<ToolResult> {
   switch (toolName) {
+    case 'ask_yes_no': {
+      const question = registerQuestion(turn, (toolInput as { question?: unknown })?.question);
+      return question ? { success: true, data: { questions: [question], options: YES_NO_OPTIONS } }
+        : { success: true, data: { questions: [], message: 'This question is already answered or is not a valid binary question. Continue without asking it again.' } };
+    }
     case 'ask_age_range':
       return ageBounds(turn.riderEligibility)
         ? { success: true, data: { known: true, message: 'Age information is already known. Reuse it and ask only for remaining trip details.' } }
@@ -805,8 +866,11 @@ export async function executeTool(
       return executeFindProviders(toolInput as FindProvidersParams, googleMapsApiKey, turn);
     case 'assess_eligibility':
       return executeAssessEligibility(toolInput as AssessEligibilityParams, turn);
+    case 'verify_destination_address':
+      try { return { success: true, data: await verifyDestination(toolInput as AddressSearchInput, turn) }; }
+      catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Invalid destination query.' }; }
     case 'search_addresses_from_user_query':
-      return executeSearchAddresses(toolInput as SearchAddressesParams, googleMapsApiKey);
+      return executeSearchAddresses(toolInput as SearchAddressesParams, googleMapsApiKey, turn);
     case 'get_provider_info':
       return executeGetProviderInfo(toolInput as GetProviderInfoParams);
     case 'general_provider_question':
@@ -846,8 +910,7 @@ export async function storeToolCall(
         );
         break;
       case 'get_provider_info': {
-        const rd = toolResult.data as any;
-        const providerId = rd?.provider_id || rd?.id || null;
+        const providerId = toolResult.providerId || null;
         await dbQuery(
           `INSERT INTO ${TABLES.GET_PROVIDER_INFO_CALLS}
            (conversation_id, provider_id, provider_info, message_timestamp)
