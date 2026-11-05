@@ -274,3 +274,23 @@ test('complete Danville-to-Kaiser query offers AWS destination choices without t
   assert.equal(searches.find((item: any) => item.data.role === 'pickup').data.places[0].place_type, 'Locality');
   assert.equal(searches.find((item: any) => item.data.role === 'destination').data.status, 'confirmation_required');
 });
+
+test('named municipal pass pricing is loaded before an answer even when the model skips tools', async t => {
+  mockDatabase(t, [{
+    provider_id: 5032, provider_name: 'Walnut Creek Lyft Concierge Pass',
+    fare: { type: 'fixed', cost: '$60 annual membership fee. 10 one-way rides per month. $5 within a city; $10 between cities.' },
+    booking: { method: 'call', details: '(925) 256-3533' }, id: 'internal-pass-id',
+  }]);
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('No external lookup needed'); });
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    const prompt = command.input.system[0].text;
+    assert.match(prompt, /\$60 annual membership fee/);
+    assert.match(prompt, /10 one-way rides per month/);
+    assert.match(prompt, /not ordinary Lyft or Lyft Pink/);
+    assert.doesNotMatch(prompt, /internal-pass-id/);
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'The membership fee is $60 annually. Rides are not free.' }] } } };
+  }) as any);
+  const result = await sendLocalMessage('How much does the Walnut Creek Lyft Concierge Pass cost? Is the $60 membership fee monthly or annual, and are the 10 rides each month free? How much would a one-way ride from Concord to Walnut Creek cost?');
+  assert.equal(result.attachments.find((item: any) => item.type === 'provider_info').data.fare.cost.startsWith('$60 annual'), true);
+  assert.equal(result.attachments.some((item: any) => item.type === 'age_choices' || item.type === 'web_search'), false);
+});

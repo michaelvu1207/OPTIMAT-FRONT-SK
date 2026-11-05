@@ -55,3 +55,12 @@ test('typed answers and corrections work without binding ambiguous short replies
   applyTypedBinaryAnswer(turn, 'Yes');
   assert.equal(turn.riderEligibility.disabled, undefined);
 });
+
+test('compound follow-ups cannot become a single yes/no choice', () => {
+  const turn = context();
+  const question = "Is there a different transportation provider or service you'd like help finding, or do you have a specific trip you need assistance with?";
+  assert.equal(registerQuestion(turn, question), null);
+  assert.deepEqual(questionsFromText(turn, question), []);
+  assert.equal(registerQuestion(turn, 'Are you a veteran and do you have a disability?'), null);
+  assert.ok(registerQuestion(turn, 'Is this your destination?'));
+});

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatBooking, formatEligibilityReqs, formatFare, formatRoutingType, tryParseJson } from '$lib/providers/providerFields';
+  import { formatBooking, formatEligibilityReqs, formatFare, membershipBillingNotice, formatRoutingType, tryParseJson } from '$lib/providers/providerFields';
   import { formatProcessingTime } from '$lib/providers/providerTimeline';
   import ProviderTimeline from './ProviderTimeline.svelte';
 
@@ -88,7 +88,7 @@
     </div>
     <dl class="mt-3 space-y-3">
       <div><dt class="font-semibold">Eligibility</dt><dd class="whitespace-pre-line break-words">{eligibility || 'Contact the provider to confirm eligibility requirements.'}</dd></div>
-      {#if fare}<div><dt class="font-semibold">Fare</dt><dd>{fare}</dd></div>{/if}
+      {#if fare}<div><dt class="font-semibold">Fare</dt><dd>{fare}</dd>{#if membershipBillingNotice(provider.fare)}<dd data-membership-notice>{membershipBillingNotice(provider.fare)}</dd>{/if}</div>{/if}
       {#if booking}<div><dt class="font-semibold">How to book</dt><dd class="whitespace-pre-line break-words">{booking}</dd></div>{/if}
       <div><dt class="font-semibold">Service hours</dt><dd>{serviceHours.length ? serviceHours.join('; ') : 'Contact the provider to confirm service hours.'}</dd></div>
       {#if cities.length}<div><dt class="font-semibold">Service area</dt><dd class="break-words">{cities.join(', ')}</dd></div>{/if}

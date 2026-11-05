@@ -7,6 +7,7 @@
     import { serviceZoneManager } from '../lib/serviceZoneManager.js';
     import ProviderCard from './ProviderCard.svelte';
     import ProviderDetails from './ProviderDetails.svelte';
+    import RoutePlanner from './RoutePlanner.svelte';
     import TransitCard from './TransitCard.svelte';
     import FeedbackPrompt from './FeedbackPrompt.svelte';
     import { marked } from 'marked';
@@ -2114,7 +2115,7 @@ How can I assist you today?`,
               <p class="text-sm whitespace-pre-wrap">{message.content}</p>
             {:else if isPhone && isGreeting}
               <div class="chat-markdown" data-testid="mobile-greeting">
-                <p>Hi! I can help you find a ride or answer transportation questions.</p>
+                <p>Hi! I help seniors and people with disabilities find transportation in Contra Costa County.</p>
                 <p><strong>Where are you starting, and where do you want to go?</strong> Type below to get started.</p>
               </div>
             {:else}
@@ -2176,6 +2177,8 @@ How can I assist you today?`,
                 {@const webSearch = getAttachmentData(message.id, 'web_search')}
                 {@const binaryChoices = getAttachmentData(message.id, 'yes_no_choices')}
                 {@const ageChoices = getAttachmentData(message.id, 'age_choices')}
+                {@const timeChoices = getAttachmentData(message.id, 'time_choices')}
+                {@const routePlanner = getAttachmentData(message.id, 'route_planner')}
 
                 <div class="mt-3 space-y-2">
 
@@ -2289,8 +2292,22 @@ How can I assist you today?`,
                     </div>
                   {/if}
 
+                  {#if timeChoices?.options?.length}
+                    <div role="group" aria-label={timeChoices.question} class="rounded-lg border border-border bg-background p-3" data-time-choices>
+                      <p class="text-sm font-semibold">{timeChoices.question}</p>
+                      <div class="mt-2 flex flex-wrap gap-2">
+                        {#each timeChoices.options as option}
+                          <button type="button" class="min-h-11 rounded-lg border border-primary px-3 py-2 text-sm font-medium" disabled={loading || !serverOnline} onclick={() => handleSubmit(option.message)}>{option.label}</button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                  {#if routePlanner}<RoutePlanner plan={routePlanner} />{/if}
                   {#if providerInfo}
-                    <ProviderDetails info={providerInfo} />
+                    <details class="rounded-lg border border-border bg-background p-3" data-provider-details-disclosure>
+                      <summary class="cursor-pointer text-sm font-semibold">View provider details</summary>
+                      <div class="mt-3"><ProviderDetails info={providerInfo} /></div>
+                    </details>
                   {/if}
 
                   {#if webSearch}
@@ -2475,6 +2492,7 @@ How can I assist you today?`,
             class="min-w-0 w-full resize-none rounded-lg border-2 border-primary/60 bg-background px-3 py-2 text-base shadow-sm placeholder:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[120px]"
             disabled={!serverOnline || initializing}
             aria-busy={loading}
+            aria-describedby="chat-booking-notice"
 	            onkeydown={(e) => {
 	              if (e.key === 'Enter' && !e.shiftKey) {
 	                e.preventDefault();
@@ -2491,7 +2509,7 @@ How can I assist you today?`,
             aria-busy={isTranscribing}
             aria-describedby="voice-input-status"
             title={isTranscribing ? 'Transcribing voice input' : isRecording ? 'Stop voice recording' : 'Start voice input'}
-            class={`voice-button self-end min-h-14 shrink-0 rounded-lg border-2 px-4 py-3 text-base font-semibold transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
+            class={`composer-action voice-button self-end shrink-0 rounded-lg border-2 px-4 py-2 text-base font-semibold transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed ${
               isRecording
                 ? 'border-destructive bg-destructive text-white hover:bg-destructive/90'
                 : 'border-primary bg-primary/10 text-foreground hover:bg-primary/20'
@@ -2514,7 +2532,7 @@ How can I assist you today?`,
             onclick={loading ? cancelActiveRequest : handleSubmit}
             disabled={!loading && (!serverOnline || !userInput.trim())}
             aria-label={loading ? 'Stop generating response' : 'Send message'}
-            class="self-end min-h-11 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+            class="composer-action self-end px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
           >
             {#if loading}
               <div class="flex items-center gap-2">
@@ -2526,6 +2544,9 @@ How can I assist you today?`,
             {/if}
           </button>
         </div>
+        <p id="chat-booking-notice" class="mt-2 text-sm leading-5 text-foreground">
+          OPTIMAT does not book rides.<span class="booking-contact">{' '}Contact the provider to book.</span>
+        </p>
         {#if serverOnline}
           <div id="voice-input-status" role="status" aria-live="polite" aria-atomic="true" class="text-sm text-foreground mt-2 px-1">
             {#if isRecording}
@@ -2809,6 +2830,11 @@ How can I assist you today?`,
       grid-column: 1 / -1;
     }
 
+    .composer-action {
+      height: 3rem;
+      min-height: 3rem;
+    }
+
     @container chat (min-width: 600px) {
       .composer-controls {
         grid-template-columns: minmax(0, 1fr) auto auto;
@@ -2837,11 +2863,11 @@ How can I assist you today?`,
       }
 
       .voice-button {
-        min-height: 3rem;
         padding: 0.5rem;
       }
 
       .voice-button span,
+      .booking-contact,
       .composer-label,
       .composer-hint {
         position: absolute;

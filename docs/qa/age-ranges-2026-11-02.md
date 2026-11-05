@@ -19,3 +19,9 @@ The chat provides an `age_choices` attachment through `ask_age_range`, with a fa
 Eligibility still depends on residence, disability, veteran status, geography, schedules, and provider decisions. Numeric checks compare the entire interval and preserve alternative age-category pathways. A future cutoff within a band remains subject to provider verification. Unrecognized rules are not automatically converted to exclusions. An unnumbered “Senior” rule, such as Seniors Around Town's, must not be assigned an invented cutoff.
 
 Validation: backend age-boundary, alternate-category, stored-state, and handler tests; browser checks for keyboard/button selection, draft preservation, retries, narrow screens, and new-chat reset; existing address-selection and accessibility regressions; frontend/backend type checks and production build.
+
+## Exact-age follow-up — November 3, 2026
+
+The final eligibility guard previously ran only for age-band selections. A deliberately incorrect model verdict could therefore retain a senior-only service for a rider who volunteered an exact age below its minimum. The guard now uses the existing age bounds for both input forms. It still preserves disability and veteran alternatives, leaves unspecified senior thresholds for provider confirmation, and does not override exclusions based on independent residence requirements.
+
+Regression cases reproduced the failure before the fix and now cover exact ages 55, 59, 60, 64 and 65, adult minimums on disability alternatives, known and unknown alternative facts, and unspecified senior requirements. All 93 backend tests and the backend TypeScript check passed. This follow-up is local and has not yet been deployed.

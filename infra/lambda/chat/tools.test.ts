@@ -265,6 +265,57 @@ test('an age band is sufficient, and interval checks prevent incorrect age verdi
   assert.equal(data.next_question, null);
 });
 
+test('exact ages override incorrect senior-only verdicts at the age boundary', () => {
+  for (const age of [55, 59, 60, 64, 65]) {
+    const candidates = [60, 65].map(minimum => ({
+      provider_name: `Senior ${minimum}+`, eligibility_requirement: `Eligibility: Senior (${minimum}+).`,
+    }));
+    const turn = turnWithCandidates(candidates, { age, disabled: false, veteran: false });
+    const result = executeAssessEligibility({ assessments: candidates.map(provider => ({
+      provider_name: provider.provider_name, verdict: 'eligible', reason: 'Synthetic model verdict requiring an independent age check.',
+    })) }, turn);
+    assert.equal(result.success, true);
+    const data = result.data as Record<string, any>;
+    assert.deepEqual(data.data.map((provider: any) => provider.provider_name), [60, 65].filter(minimum => age >= minimum).map(minimum => `Senior ${minimum}+`), `Age ${age}`);
+    assert.deepEqual(data.excluded_providers.map((provider: any) => provider.provider_name), [60, 65].filter(minimum => age < minimum).map(minimum => `Senior ${minimum}+`), `Age ${age}`);
+  }
+});
+
+test('exact-age checks retain disability and veteran alternatives and unknown facts', () => {
+  const candidates = [
+    { provider_name: 'Senior or disability', eligibility_requirement: 'Eligibility: Senior (60+) or disabled (18+).' },
+    { provider_name: 'Senior or veteran', eligibility_requirement: 'Eligibility: Senior (60+) or veteran.' },
+  ];
+  for (const facts of [{ disabled: true, veteran: true }, { disabled: null, veteran: null }]) {
+    const turn = turnWithCandidates(candidates, { age: 55, ...facts });
+    const verdict = facts.disabled === true ? 'eligible' as const : 'verification_required' as const;
+    const result = executeAssessEligibility({ assessments: candidates.map(provider => ({
+      provider_name: provider.provider_name, verdict, reason: 'Known alternatives qualify; unknown alternatives need confirmation.',
+    })) }, turn);
+    const data = result.data as Record<string, any>;
+    assert.deepEqual(data.excluded_providers, []);
+    assert.equal(verdict === 'eligible' ? data.data.length : data.verification_required.length, 2);
+  }
+  const turn = turnWithCandidates([candidates[0]], { age: 17, disabled: true });
+  const result = executeAssessEligibility({ assessments: [{ provider_name: candidates[0].provider_name, verdict: 'eligible', reason: 'Incorrectly ignored the adult minimum.' }] }, turn);
+  assert.equal((result.data as Record<string, any>).excluded_providers.length, 1);
+});
+
+test('an exact age does not invent an unspecified senior cutoff or guarantee another requirement', () => {
+  const turn = turnWithCandidates([
+    { provider_name: 'Unspecified senior', eligibility_requirement: 'Eligibility: Senior. Proof: ID.' },
+    { provider_name: 'Senior with residence requirement', eligibility_requirement: 'Eligibility: Senior (60+). And must be a Walnut Creek resident.' },
+  ], { age: 65, residence_city: 'Concord' });
+  const result = executeAssessEligibility({ assessments: [
+    { provider_name: 'Unspecified senior', verdict: 'eligible', reason: 'Incorrectly assumed a senior cutoff.' },
+    { provider_name: 'Senior with residence requirement', verdict: 'ineligible', exclusion_basis: 'residence_city', reason: 'The rider does not live in Walnut Creek.' },
+  ] }, turn);
+  const data = result.data as Record<string, any>;
+  assert.deepEqual(data.data, []);
+  assert.deepEqual(data.verification_required.map((provider: any) => provider.provider_name), ['Unspecified senior']);
+  assert.deepEqual(data.excluded_providers.map((provider: any) => provider.provider_name), ['Senior with residence requirement']);
+});
+
 test('a stored band cannot be replaced by a fabricated exact age in a search tool call', async () => {
   const turn: TurnContext = { riderEligibility: { age_range: '60_64' }, lastSearch: null, latestAssessment: null };
   const result = await executeFindProviders({ source_address: 'Origin', destination_address: 'Destination', travel_date: '2026-11-03', departure_time: '10:00', rider_eligibility: { age: 60 } }, 'unused', turn);
@@ -324,4 +375,43 @@ test('a declined disability fact stays unknown without excluding providers or as
   assert.equal(data.excluded_providers.length, 0);
   assert.equal(data.next_question, null);
   assert.equal(data.data.length, 1, 'Independent age eligibility remains intact');
+});
+
+test('cross-city explanation requires recorded cities and both actual geography checks', () => {
+  const passed = [{ label: 'Origin inside service area' }, { label: 'Destination inside service area' }];
+  const cases = [
+    { name: 'covered trip', cities: ['Walnut Creek', 'Concord'], passed, expected: true },
+    { name: 'legacy serialized city list', cities: '["Walnut Creek","Concord"]', passed, expected: true },
+    { name: 'Concord not recorded', cities: ['Walnut Creek', 'Martinez'], passed, expected: false },
+    { name: 'single city', cities: ['Walnut Creek'], passed, expected: false },
+    { name: 'missing city data', cities: null, passed, expected: false },
+    { name: 'invalid city data', cities: '{invalid}', passed, expected: false },
+    { name: 'no geography evidence', cities: ['Walnut Creek', 'Concord'], passed: [], expected: false },
+    { name: 'pickup only', cities: ['Walnut Creek', 'Concord'], passed: passed.slice(0, 1), expected: false },
+  ];
+  for (const item of cases) {
+    const provider = { provider_name: 'Walnut Creek Lyft Concierge Pass', eligibility_requirement: 'Eligibility: Senior (60+).', service_area_cities: item.cities, match_criteria: { passed: item.passed } };
+    const turn = turnWithCandidates([provider], { age: 65, residence_city: 'Concord' });
+    turn.lastSearch!.result.source_address = '123 Main St, Concord, CA 94520';
+    turn.lastSearch!.result.destination_address = '456 Oak St, Concord, CA 94520';
+    const result = executeAssessEligibility({ assessments: [{ provider_name: provider.provider_name, verdict: 'verification_required', reason: 'Provider must confirm remaining requirements.' }] }, turn);
+    const data = result.data as Record<string, any>;
+    const entry = data.verification_required[0];
+    assert.equal(entry.service_area_explanation, item.expected ? 'Also serves Concord. Your pickup and destination matched its recorded service area.' : null, item.name);
+    assert.equal(entry.eligibility_status, 'verification_required', 'Coverage must not turn unknown eligibility into approval');
+    assert.deepEqual(data.data, []);
+  }
+});
+
+test('cross-city explanation does not infer a city from a street name or override residence exclusions', () => {
+  const provider = { provider_name: 'Walnut Creek Example', service_area_cities: ['Walnut Creek', 'Concord'], match_criteria: { passed: [{ label: 'Origin inside service area' }, { label: 'Destination inside service area' }] } };
+  const turn = turnWithCandidates([provider], { residence_city: 'Walnut Creek' });
+  turn.lastSearch!.result.source_address = '10 Concord Rd, Walnut Creek, CA 94598';
+  turn.lastSearch!.result.destination_address = '20 Main St, Walnut Creek, CA 94598';
+  let result = executeAssessEligibility({ assessments: [{ provider_name: provider.provider_name, verdict: 'eligible', reason: 'All recorded requirements match.' }] }, turn);
+  assert.equal((result.data as any).data[0].service_area_explanation, null);
+  turn.riderEligibility.residence_city = 'Concord';
+  result = executeAssessEligibility({ assessments: [{ provider_name: provider.provider_name, verdict: 'ineligible', exclusion_basis: 'residence_city', reason: 'Synthetic additional residence condition is not met.' }] }, turn);
+  assert.deepEqual((result.data as any).data, []);
+  assert.equal((result.data as any).excluded_providers.length, 1);
 });

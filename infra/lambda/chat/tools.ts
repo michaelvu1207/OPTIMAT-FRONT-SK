@@ -1,3 +1,4 @@
+import { clarifyTripTime, routePlanner } from './tripChoices.js';
 /**
  * Tool definitions and execution logic for the OPTIMAT chat service.
  * Lambda version — uses raw SQL via pg instead of Supabase JS client.
@@ -98,6 +99,16 @@ export interface ToolResult {
 // ─── Tool Definitions ───────────────────────────────────────────────────────
 
 export const toolDefinitions = [
+  {
+    name: 'clarify_trip_time',
+    description: 'Show Pickup time and Arrival time buttons when a rider states a time without specifying its meaning. Do not ask again if already explicit or clarified.',
+    input_schema: { type: 'object' as const, properties: { time: { type: 'string', maxLength: 80 } }, required: ['time'] },
+  },
+  {
+    name: 'open_route_planner',
+    description: 'Offer a Google Maps link for bus/train directions (transit) or bicycle directions (bicycling). This is a handoff, not a calculated route. Use only explicitly provided locations; omit missing locations. Do not collect age, residence, disability or trip dates for route-only requests. Requires no external search.',
+    input_schema: { type: 'object' as const, properties: { mode: { type: 'string', enum: ['transit', 'bicycling'] }, origin: { type: 'string', maxLength: 300 }, destination: { type: 'string', maxLength: 300 } }, required: ['mode'] },
+  },
   {
     name: 'ask_yes_no',
     description: 'Show Yes, No, and Would rather not say buttons for any binary question. Ask one fact per question. Use a complete standalone question. For disability use exactly "Do you have a disability?"; for veteran status use exactly "Are you a veteran?". Never ask ADA certification status. Do not use for open-ended details, age ranges, or address selection.',
@@ -222,7 +233,7 @@ The server rejects incomplete assessments, invented provider names, and omitted 
   },
   {
     name: 'get_provider_info',
-    description: 'Get detailed information about a specific transportation provider.',
+    description: 'Look up recorded fees, membership terms, eligibility and application details for a named provider. Call before claiming details are unavailable. Use the complete municipal program name, such as Walnut Creek Lyft Concierge Pass, rather than generic Lyft.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -533,6 +544,7 @@ export async function executeFindProviders(
       ...rest,
       eligibility_requirement: rest.eligibility_reqs || rest.eligibility_requirements || 'None stated',
       service_hours_known: hasKnownServiceHours(rest as Provider),
+      service_area_explanation: serviceAreaExplanation(rest, riderEligibility.residence_city, sourceLocation.formatted_address, destLocation.formatted_address),
     }));
 
     let transitData = null;
@@ -681,6 +693,25 @@ function providerNameKey(value: unknown): string {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+function serviceAreaExplanation(provider: Record<string, unknown>, residence: unknown, origin: unknown, destination: unknown): string | null {
+  const passed = (provider.match_criteria as { passed?: Array<{ label?: string }> } | undefined)?.passed;
+  if (!Array.isArray(passed) || !['Origin inside service area', 'Destination inside service area'].every(label => passed.some(item => item?.label === label))) return null;
+  let rawCities = provider.service_area_cities;
+  if (typeof rawCities === 'string') {
+    try { rawCities = JSON.parse(rawCities); } catch { return null; }
+  }
+  if (!Array.isArray(rawCities)) return null;
+  const cities = rawCities.filter((city): city is string => typeof city === 'string' && /^[A-Za-z][A-Za-z .'-]{0,79}$/.test(city.trim())).map(city => city.trim());
+  const words = (value: unknown) => ` ${String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+  const inText = (value: unknown, city: string) => words(value).includes(words(city));
+  const namedCities = cities.filter(city => inText(providerName(provider), city));
+  if (!namedCities.length) return null;
+  const otherCities = cities.filter(city => !namedCities.some(named => words(named) === words(city)));
+  const addressHasCity = (address: unknown, city: string) => typeof address === 'string' && address.split(',').some(part => words(part) === words(city));
+  const city = otherCities.find(city => addressHasCity(origin, city) || addressHasCity(destination, city)) || otherCities.find(city => words(residence) === words(city));
+  return city ? `Also serves ${city}. Your pickup and destination matched its recorded service area.` : null;
+}
+
 const RIDER_FACT_ORDER: RiderFact[] = [
   'residence_city',
   'age',
@@ -790,11 +821,11 @@ export function executeAssessEligibility(
       assessment = { ...assessment, verdict: 'verification_required', missing_fact: null,
         reason: 'Retained as an option for a rider with a disability. The provider must confirm remaining requirements and any application steps.' };
     }
-    if (turn.riderEligibility.age_range && !(turn.riderEligibility.disabled === false && isAdaParatransit(provider))) {
+    if (ageBounds(turn.riderEligibility) && !(turn.riderEligibility.disabled === false && isAdaParatransit(provider))) {
       const ageCheck = providerAgeCheck(provider.eligibility_requirement || provider.eligibility_reqs, turn.riderEligibility);
       if (ageCheck === 'below') {
         assessment = { ...assessment, verdict: 'ineligible', exclusion_basis: 'age', missing_fact: null,
-          reason: 'The selected age range is below the explicit age minimum for each applicable eligibility category.' };
+          reason: 'The rider\'s age information is below the explicit age minimum for each applicable eligibility category.' };
       } else if (ageCheck === 'overlaps' && assessment.verdict === 'eligible') {
         assessment = { ...assessment, verdict: 'verification_required', missing_fact: null,
           reason: 'The provider age cutoff falls within the selected range. The provider must confirm whether this age requirement is met; an exact age is not required in this chat.' };
@@ -803,7 +834,7 @@ export function executeAssessEligibility(
           reason: 'The provider lists Senior eligibility without a numeric age cutoff. The provider must confirm its age requirement.' };
       } else if (ageCheck === 'possible' && assessment.verdict === 'ineligible' && assessment.exclusion_basis === 'age') {
         assessment = { ...assessment, verdict: 'verification_required', missing_fact: null,
-          reason: 'The selected age range does not rule out all age eligibility pathways. The provider must confirm remaining eligibility requirements.' };
+          reason: 'The rider\'s age information does not rule out all age eligibility pathways. The provider must confirm remaining eligibility requirements.' };
       }
     }
     effectiveAssessments.push(assessment);
@@ -811,6 +842,7 @@ export function executeAssessEligibility(
       ...provider,
       eligibility_status: assessment.verdict,
       eligibility_reason: assessment.reason,
+      service_area_explanation: serviceAreaExplanation(provider, turn.riderEligibility.residence_city, turn.lastSearch.result.source_address, turn.lastSearch.result.destination_address),
       ...(assessment.missing_fact ? { missing_facts: [assessment.missing_fact] } : {}),
     };
     if (assessment.verdict === 'eligible') eligible.push(decorated);
@@ -857,6 +889,8 @@ export async function executeTool(
   turn: TurnContext,
 ): Promise<ToolResult> {
   switch (toolName) {
+    case 'clarify_trip_time': return clarifyTripTime(toolInput);
+    case 'open_route_planner': return routePlanner(toolInput);
     case 'ask_yes_no': {
       const question = registerQuestion(turn, (toolInput as { question?: unknown })?.question);
       return question ? { success: true, data: { questions: [question], options: YES_NO_OPTIONS } }

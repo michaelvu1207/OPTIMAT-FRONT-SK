@@ -40,6 +40,8 @@ try {
     await input.fill('Do I need to apply for Mobility Matters first?');
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     const details = page.locator('[data-provider-details]').first();
+    assert.equal(await details.isVisible(), false, 'Provider details start collapsed');
+    await page.getByText('View provider details', { exact: true }).click();
     await details.waitFor();
     await details.getByRole('heading', { name: 'Mobility Matters', exact: true }).waitFor();
     assert.equal(await details.getByRole('link', { name: 'Call (925) 284-6161', exact: true }).getAttribute('href'), 'tel:9252846161');
@@ -57,6 +59,8 @@ try {
     await page.screenshot({ path: `/tmp/optimat-provider-details-${viewport.width}.png` });
     await input.fill('Multiple services');
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll('[data-provider-details-disclosure]').length === 2);
+    await page.getByText('View provider details', { exact: true }).last().click();
     await page.getByRole('heading', { name: 'Another service', exact: true }).waitFor();
     assert.equal(await page.locator('[data-provider-details]').count(), 3);
     assert.doesNotMatch(await page.locator('body').textContent(), /internal-|\[object Object\]|FeatureCollection|metadata/);

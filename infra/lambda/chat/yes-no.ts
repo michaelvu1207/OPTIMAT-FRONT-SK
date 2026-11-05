@@ -22,6 +22,9 @@ export function registerQuestion(turn: TurnContext, raw: unknown): BinaryQuestio
   // An open-ended request for details is not a binary question.
   if (!/^(?:do|does|did|are|is|was|were|have|has|will|would|should|can|could)\b/i.test(question) ||
       /^(?:can|could|would|will) you (?:please )?(?:tell|share|provide|give|enter|select|choose)\b/i.test(question)) return null;
+  // A single answer cannot identify which branch of a compound question applies.
+  if ((question.match(/\?/g) || []).length !== 1 ||
+      /\b(?:or|and)\s+(?:do|does|did|are|is|was|were|have|has|will|would|should|can|could)\b/i.test(question)) return null;
   const field = eligibilityField(question);
   if (field && (typeof turn.riderEligibility[field] === 'boolean' || turn.riderEligibility.declined_facts?.includes(field))) return null;
   const id = createHash('sha256').update(question.toLowerCase()).digest('hex').slice(0, 24);

@@ -348,3 +348,14 @@ export function formatServiceAreaSummary(provider: ProviderServiceAreaSummary | 
   if (!parts.length) parts.push('No mapped service area');
   return parts.join('\n');
 }
+
+/** A monthly ride allowance does not establish the membership billing period. */
+export function membershipBillingNotice(value: unknown): string | null {
+  const parsed = tryParseJson(value);
+  const cost = typeof parsed === 'string' ? parsed : parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? String((parsed as Record<string, unknown>).cost ?? '') : '';
+  if (!/membership/i.test(cost)) return null;
+  const period = '(?:annual|annually|yearly|monthly|quarterly|one[- ]time|per (?:year|month|quarter)|/(?:year|month|yr|mo))';
+  const amount = '(?:\\$?\\d+(?:\\.\\d{1,2})?\\s*)?';
+  const known = new RegExp(`\\b${period}\\s+membership|${amount}${period}\\s+membership|membership(?: fee)?\\s*(?:of|:|is|costs)?\\s*${amount}${period}`, 'i');
+  return known.test(cost) ? null : 'Membership fee period is not recorded. Confirm with the provider.';
+}

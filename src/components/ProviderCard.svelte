@@ -1,5 +1,5 @@
 <script>
-  import { formatEligibilityReqs, isFixedRouteProvider } from '$lib/providers/providerFields';
+  import { formatEligibilityReqs, isFixedRouteProvider, membershipBillingNotice } from '$lib/providers/providerFields';
   import ProviderTimeline from './ProviderTimeline.svelte';
 
   /**
@@ -135,6 +135,10 @@
     {/if}
   </div>
 
+  {#if typeof provider?.service_area_explanation === 'string' && provider.service_area_explanation.trim()}
+    <p class="mt-2 text-sm leading-relaxed text-foreground" data-service-area-explanation>{provider.service_area_explanation}</p>
+  {/if}
+
   <!-- The number is the point of the card, so it is the largest thing on it. -->
   <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
     {#if phone}
@@ -154,7 +158,11 @@
     {/if}
   </div>
 
+  {#if membershipBillingNotice(provider?.fare)}
+    <p class="mt-2 text-sm text-foreground" data-membership-notice>{membershipBillingNotice(provider.fare)}</p>
+  {/if}
   <ProviderTimeline {provider} />
+  {#if !fixedRoute}<p class="mt-2 text-sm text-foreground">Contact the provider to confirm ride availability, especially for same-day trips.</p>{/if}
 
   {#if !fixedRoute && !qualified}
     <div class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
