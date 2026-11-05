@@ -13,6 +13,7 @@
   export let fitMobileViewport = false;
 
   let mobileViewportHeight: number | null = null;
+  let mobileViewportTop = 0;
 
   onMount(() => {
     if (!fitMobileViewport) return;
@@ -21,12 +22,17 @@
       // Pinch zoom should magnify the page rather than resize its layout.
       if (viewport && viewport.scale !== 1) return;
       mobileViewportHeight = viewport?.height ?? window.innerHeight;
+      // iOS can pan the visual viewport when focusing an input. Follow its
+      // origin as well as its height so the chat stays above the keyboard.
+      mobileViewportTop = viewport?.offsetTop ?? 0;
     };
     updateViewportHeight();
     viewport?.addEventListener('resize', updateViewportHeight);
+    viewport?.addEventListener('scroll', updateViewportHeight);
     window.addEventListener('resize', updateViewportHeight);
     return () => {
       viewport?.removeEventListener('resize', updateViewportHeight);
+      viewport?.removeEventListener('scroll', updateViewportHeight);
       window.removeEventListener('resize', updateViewportHeight);
     };
   });
@@ -90,6 +96,7 @@
 <div
   class="page-shell h-screen w-screen bg-background text-foreground flex flex-col"
   class:fit-mobile-viewport={fitMobileViewport}
+  style:--mobile-viewport-top={`${mobileViewportTop}px`}
   style:--mobile-viewport-height={mobileViewportHeight === null ? undefined : `${mobileViewportHeight}px`}
 >
   <!-- Compact header bar - desktop app style -->
@@ -244,6 +251,11 @@
 
 <style>
   .fit-mobile-viewport {
+    position: fixed;
+    top: var(--mobile-viewport-top, 0px);
+    left: 0;
+    right: 0;
+    overflow: hidden;
     height: 100svh;
     height: var(--mobile-viewport-height, 100dvh);
     /* Rotation can update CSS viewport units before the visualViewport event. */
