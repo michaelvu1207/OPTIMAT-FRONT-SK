@@ -1,3 +1,4 @@
+import { ambiguousTripTime, clarifyTripTime } from './tripChoices.js';
 import { namedMunicipalPass } from './named-provider.js';
 /**
  * Chat Lambda Function
@@ -369,10 +370,15 @@ export const handler = createHandler(async (req) => {
   let finalResponse = '';
   let contextLimited = false;
   let searchedThisTurn = false;
+  const ambiguousTime = ambiguousTripTime(body.message);
+  if (ambiguousTime) {
+    finalResponse = `Please choose whether ${ambiguousTime} is your pickup time or arrival time.`;
+    attachments.push({ type: 'time_choices', data: clarifyTripTime({ time: ambiguousTime }).data });
+  }
 
   try {
     currentMessages = convertMessagesToBedrockFormat(boundConversationHistory(messageHistory));
-    while (iterations < MAX_TOOL_ITERATIONS) {
+    while (!ambiguousTime && iterations < MAX_TOOL_ITERATIONS) {
       iterations++;
 
       const modelRequest = {

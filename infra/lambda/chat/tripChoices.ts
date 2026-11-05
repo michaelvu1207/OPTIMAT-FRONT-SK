@@ -19,3 +19,13 @@ export function routePlanner(input: unknown) {
   }
   return { success: true, data: { mode: args.mode, url: `https://www.google.com/maps/dir/?${params}` } };
 }
+
+// Recognize the common explicit trip-request form without interpreting dates,
+// provider hours or route-only questions as a rider's requested time.
+export function ambiguousTripTime(message: string): string | null {
+  if (!/\b(?:need|want|looking for|find)\b[^.!?\n]{0,80}\b(?:ride|transportation)\b/i.test(message) || /\b(?:bicycle|cycling|bike|bus|train) directions\b/i.test(message)) return null;
+  const match = /\bat\s+(noon|midnight|\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\b/i.exec(message);
+  if (!match) return null;
+  if (/\b(?:pick(?:ed)?\s*up|pickup|depart(?:ure|ing)?|leave|arriv(?:e|al|ing)|appointment)\b/i.test(message)) return null;
+  return match[1].trim();
+}

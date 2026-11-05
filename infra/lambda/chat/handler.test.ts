@@ -294,3 +294,11 @@ test('named municipal pass pricing is loaded before an answer even when the mode
   assert.equal(result.attachments.find((item: any) => item.type === 'provider_info').data.fare.cost.startsWith('$60 annual'), true);
   assert.equal(result.attachments.some((item: any) => item.type === 'age_choices' || item.type === 'web_search'), false);
 });
+
+test('ambiguous noon trip gets time buttons before the model can search or guess a weekday', async t => {
+  mockDatabase(t);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => { throw new Error('No model call before time meaning is chosen'); }) as any);
+  const result = await sendLocalMessage('I need a ride from Danville Community Center to 320 Lennon Lane, Walnut Creek, on November 12, 2026 at noon.');
+  assert.deepEqual(result.attachments.map((item: any) => item.type), ['time_choices']);
+  assert.match(result.message, /pickup time or arrival time/);
+});
