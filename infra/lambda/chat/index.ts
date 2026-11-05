@@ -504,6 +504,12 @@ export const handler = createHandler(async (req) => {
     }
     if (!finalResponse.trim()) finalResponse = questions.length ? 'Please choose an answer below.' : 'Please share any remaining trip details.';
   }
+  // Route-planner controls render below the assistant prose. Use stable UI copy
+  // for route-only handoffs rather than a model-generated positional reference.
+  if (responseAttachments.length > 0 && responseAttachments.every(item =>
+      item.type === 'route_planner' && ['transit', 'bicycling'].includes(String((item.data as { mode?: unknown })?.mode)))) {
+    finalResponse = 'Use the button below to plan your trip in Google Maps.';
+  }
   finalResponse = softenEligibilityClaims(finalResponse);
   await saveTurnContext(body.conversation_id, turn);
 
