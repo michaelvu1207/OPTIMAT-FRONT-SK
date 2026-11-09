@@ -101,7 +101,6 @@
   }
 
   $: points = locationView === 'paired' ? data?.paired_analysis?.points ?? [] : data?.heat_points ?? [];
-  $: mapColor = applied.mode === 'origins' ? '#2563eb' : applied.mode === 'destinations' ? '#ea580c' : '#7c3aed';
   $: displayedWindow = `${String(applied.hour_from ?? '0').padStart(2, '0')}:00–${String(applied.hour_to ?? '24').padStart(2, '0')}:00`;
 </script>
 
@@ -110,7 +109,7 @@
     <section class="visuals" aria-label="Demand map and service summary">
       <div class="map-panel">
         {#if data && points.length}
-          <OperationsDemandMap {points} color={mapColor} {focusedCity} paired={locationView === 'paired'} />
+          <OperationsDemandMap {points} {focusedCity} paired={locationView === 'paired'} />
         {:else}
           <div class="map-empty">
             <strong>{loading ? 'Loading agency records…' : error ? 'Operational data unavailable' : 'No mapped events'}</strong>
@@ -214,7 +213,7 @@
 <style>
   .operations { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(340px,1fr); height:100%; min-height:0; overflow:hidden; background:#f8fafc; color:#0f172a; }
   .visuals { display:flex; flex-direction:column; min-height:0; overflow:auto; border-right:1px solid #dbe3ef; }
-  .map-panel { position:relative; height:48vh; min-height:300px; flex-shrink:0; overflow:hidden; background:#e8eef2; }
+  .map-panel { position:relative; display:flex; flex-direction:column; height:54vh; min-height:400px; flex-shrink:0; overflow:hidden; background:#e8eef2; }
   .map-empty { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; text-align:center; }
   .summary { padding:20px; }
   .section-heading { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:10px; }
