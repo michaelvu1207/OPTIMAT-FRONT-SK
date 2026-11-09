@@ -44,7 +44,8 @@
 
 	  const brandOptions = [
 	    { label: 'OPTIMAT', href: '/' },
-	    { label: 'OPTIMAT Provider', href: '/provider-portal' }
+	    { label: 'OPTIMAT Provider', href: '/provider-portal' },
+	    { label: 'Universal Dashboard', href: '/provider-portal/universal-service-dashboard' }
 	  ];
 	  const developerResourceOptions = [
 	    { label: 'Architecture', href: '/architecture' },
