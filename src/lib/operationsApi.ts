@@ -6,7 +6,7 @@ export interface OperationsFilters {
   hour_from?: string; hour_to?: string; mode?: OperationsMode; offset?: string;
 }
 export interface PairChart {
-  id: 'outbound_time' | 'return_time' | 'outbound_travel' | 'return_travel' | 'activity_duration';
+  id: 'outbound_time' | 'return_time' | 'outbound_travel' | 'return_travel' | 'activity_duration' | 'record_departure' | 'record_travel';
   n: number; mean: number; min: number; max: number;
   bins: { start: number; count: number }[];
 }
@@ -20,6 +20,19 @@ export interface PairedAnalysis {
   events: { total: number; mapped: number; unmapped: number };
 }
 export interface OperationsResult {
+  spatial_analysis?: {
+    cell_size_m: number; minimum_events: number; minimum_locations: number;
+    geocoded_events: number; displayed_events: number; total_events: number;
+    cells: { lat: number; lng: number; count: number }[];
+  };
+  record_analysis?: {
+    records: number;
+    daily: { label: string; count: number }[];
+    statuses: { label: string; count: number }[];
+    cities: { label: string; count: number; kind: string }[];
+    departure: PairChart;
+    travel: PairChart;
+  };
   paired_analysis?: PairedAnalysis;
   imports: { id: string; provider_id: number; provider_name: string; filename: string; date_from: string; date_to: string; row_count: number; imported_at: string; source?: string; record_unit?: string; pairing_note?: string | null; time_note?: string | null }[];
   statuses: string[];
@@ -32,6 +45,15 @@ export interface OperationsResult {
 }
 
 export async function getOperations(filters: OperationsFilters, signal?: AbortSignal) {
+  // Explicit local development only; this branch is removed from production builds.
+  if (import.meta.env.DEV && import.meta.env.VITE_OPERATIONS_PREVIEW === '1') {
+    try {
+      const query = new URLSearchParams(Object.entries(filters).filter(([,v]) => v != null && v !== ''));
+      const response = await fetch(`http://127.0.0.1:43112/operations?${query}`, { signal });
+      if (!response.ok) throw new Error('Local operations preview could not be loaded.');
+      return { data: await response.json() as OperationsResult, error: null };
+    } catch (error) { return { data: null, error: error as Error }; }
+  }
   if (getApiBackend() !== 'aws') return { data: null, error: new Error('Operational data requires the AWS API backend.') };
   return fetchEdgeFunction<OperationsResult>('trip-records/operations', {
     params: Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '' && value != null)),

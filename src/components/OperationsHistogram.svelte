@@ -5,6 +5,7 @@
   export let chart: PairChart | undefined;
   export let unit: 'clock' | 'minutes' | 'hours';
   export let color = '#2563eb';
+  export let emptyMessage = 'No validated round trips match this selection.';
   let selected: number | null = null;
   const number = (value: number) => value.toLocaleString('en-US');
   const format = (value: number) => unit === 'clock'
@@ -54,7 +55,7 @@
     <div class="readout" aria-live="polite">{selected === null ? `${width}-${unit === 'minutes' ? 'minute' : 'hour'} bins · Hover or focus a bar for its count` : `${binLabel(bins[selected].start)}: ${number(bins[selected].count)} ${unit === 'hours' ? 'activities' : 'trips'}`}</div>
     <details><summary>View counts</summary><div class="table-scroll"><table><thead><tr><th>Interval</th><th>Count</th></tr></thead><tbody>{#each bins as bin}<tr><td>{binLabel(bin.start)}</td><td>{number(bin.count)}</td></tr>{/each}</tbody></table></div></details>
   {:else}
-    <div class="empty">No validated round trips match this selection.</div>
+    <div class="empty">{emptyMessage}</div>
   {/if}
 </article>
 

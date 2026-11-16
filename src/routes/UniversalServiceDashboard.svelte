@@ -2,7 +2,9 @@
   import { onMount, onDestroy } from 'svelte';
   import PageShell from '$lib/components/PageShell.svelte';
   import OperationsDemandMap from '../components/OperationsDemandMap.svelte';
+  import OperationsHeatMap from '../components/OperationsHeatMap.svelte';
   import PairedTripAnalysis from '../components/PairedTripAnalysis.svelte';
+  import RecordActivityCharts from '../components/RecordActivityCharts.svelte';
   import { providerPortalNavItems } from '$lib/providerPortalNav';
   import { getOperations, type OperationsResult, type OperationsMode, type OperationsFilters } from '$lib/operationsApi';
 
@@ -25,6 +27,7 @@
   let filterTimer: ReturnType<typeof setTimeout> | undefined;
   let focusedCity = '';
   let locationView: 'endpoints' | 'paired' = 'endpoints';
+  let mapStyle: 'heat' | 'counts' = 'heat';
   const count = (value: number) => value.toLocaleString('en-US');
   const clock = (value: string | null) => value?.slice(0, 5) ?? 'Unknown time';
   const modes: { value: OperationsMode; label: string }[] = [
@@ -104,11 +107,13 @@
   $: displayedWindow = `${String(applied.hour_from ?? '0').padStart(2, '0')}:00–${String(applied.hour_to ?? '24').padStart(2, '0')}:00`;
 </script>
 
-<PageShell title="Universal Service Dashboard" description="Agency operational records · City activity and paired journeys" appMode={true} navItems={providerPortalNavItems}>
+<PageShell title="Universal Service Dashboard" description="Agency operational records · Demand and service activity" appMode={true} navItems={providerPortalNavItems}>
   <div class="operations">
     <section class="visuals" aria-label="Demand map and service summary">
       <div class="map-panel">
-        {#if data && points.length}
+        {#if data?.spatial_analysis && mapStyle === 'heat' && locationView === 'endpoints'}
+          <OperationsHeatMap analysis={data.spatial_analysis} {points} {focusedCity} />
+        {:else if data && points.length}
           <OperationsDemandMap {points} {focusedCity} paired={locationView === 'paired'} />
         {:else}
           <div class="map-empty">
@@ -127,9 +132,13 @@
           <div><span>Mapped endpoint events</span><strong>{data ? count(data.event_summary.mapped) : '—'}</strong></div>
           <div><span>Unmapped endpoint events</span><strong>{data ? count(data.event_summary.unmapped) : '—'}</strong></div>
         </div>
-        <p class="note">Circles use Census place reference points, not passenger addresses. LINK destination cities use an unambiguous address and ZIP match; other agencies supply cities directly. Unrecognized city spellings stay unmapped. Both mode counts two endpoint slots per record, including unmapped endpoints.</p>
+        <p class="note">Summary mapping counts describe city-level coverage. City circles use Census place reference points. The heatmap separately uses address-based 1 km cells, with low-volume areas withheld. Both mode counts two endpoint slots per record, including unmapped endpoints.</p>
+        {#if data?.spatial_analysis}<p class="note">Heatmap coverage: {count(data.spatial_analysis.geocoded_events)} of {count(data.spatial_analysis.total_events)} endpoint events located before privacy suppression. LINK uses estimated address-range locations; WestCAT and Tri Delta use Census street interpolation. Mobility Matters has city/ZIP data only and does not contribute to street-based heat. Each displayed cell needs at least 20 events across five occupied 100 m areas. Colors show relative recorded activity, not unmet demand or verified completed rides.</p>{/if}
         <p class="note">WestCAT events are joined into bookings; Tri Delta records are bookings; Mobility Matters records are rides and may include several trip legs. Totals count these source records, not equivalent trip legs. Rider counts include only records with client IDs: {data ? count(data.summary.client_identified_records ?? data.summary.records) : '—'} records.</p>
         <p class="note">{data ? count(data.event_summary.missing_time) : '—'} displayed events have no time. Full-day views include these events; narrower time windows exclude them.</p>
+        {#if data?.record_analysis}
+          <RecordActivityCharts analysis={data.record_analysis} />
+        {/if}
         {#if data?.paired_analysis}
           <PairedTripAnalysis analysis={data.paired_analysis} />
         {:else if data}
@@ -158,6 +167,11 @@
           {#each statusOptions as code}<option value={code}>{code}</option>{/each}
         </select></label>
         <p class="note">Status meanings are not assumed. These totals describe source records, not verified completed rides.</p>
+        <label>Map display<select bind:value={mapStyle}>
+          <option value="heat" disabled={!data?.spatial_analysis || locationView === 'paired'}>Continuous heatmap · Address-based coverage</option>
+          <option value="counts">City event counts</option>
+        </select></label>
+        {#if locationView === 'paired'}<p class="note">Paired locations currently use city counts.</p>{/if}
         <label>Map locations<select bind:value={locationView} onchange={() => focusedCity = ''}>
           <option value="endpoints">All trip endpoints</option>
           <option value="paired" disabled={!data?.paired_analysis}>Paired home & activity</option>

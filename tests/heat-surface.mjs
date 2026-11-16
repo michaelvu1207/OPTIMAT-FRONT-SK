@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { heatSamples,densityAt,heatReference,heatColor } from '../src/lib/utils/heatSurface.js';
+const points=heatSamples([{lat:38,lng:-122,count:100},{lat:38,lng:-122,count:50}]);
+const [x,y]=points[0].xy;
+assert.equal(densityAt(x,y,points),150);
+assert.ok(densityAt(x+1000,y,points)<150);
+assert.equal(densityAt(x+3001,y,points),0);
+assert.equal(heatReference(points),150);
+assert.deepEqual(heatColor(0),[0,0,0,0]);
+assert.ok(heatColor(1)[0]>heatColor(1)[1]);
+assert.deepEqual(heatColor(2),heatColor(1));
+assert.equal(heatSamples([{lat:NaN,lng:0,count:3},{lat:38,lng:-122,count:0}]).length,0);
+console.log('Heat surface: additive density, geographic decay, cutoff and palette passed.');

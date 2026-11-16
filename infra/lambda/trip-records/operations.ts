@@ -1,6 +1,8 @@
 import { errorResponse, jsonResponse, type ParsedRequest } from '../_shared/adapter.js';
 import { queryRows } from '../_shared/db.js';
 import { PAIRED_CTES, PAIRED_PAYLOAD, PAIR_SOURCE_COLUMNS } from './paired-analysis.js';
+import { RECORD_ANALYSIS_CTES, RECORD_ANALYSIS_PAYLOAD } from './record-analysis.js';
+import { SPATIAL_CTES, SPATIAL_PAYLOAD } from './spatial-analysis.js';
 
 function dateParam(value: string | null): string | null {
   if (!value) return null;
@@ -63,7 +65,7 @@ export const OPERATIONS_SQL = `WITH allowed AS MATERIALIZED (
   UNION ALL
   SELECT destination_city, destination_lat, destination_lng, dropoff_arrive_time, 'destinations'
     FROM filtered WHERE $7 IN ('combined','destinations') AND destination_in_window
-), points AS (
+), ${RECORD_ANALYSIS_CTES}, ${SPATIAL_CTES}, points AS (
   SELECT city, lat, lng, count(*)::integer AS count FROM events
   WHERE lat IS NOT NULL AND lng IS NOT NULL GROUP BY city,lat,lng
 ), hours AS (
@@ -78,6 +80,8 @@ export const OPERATIONS_SQL = `WITH allowed AS MATERIALIZED (
   FROM filtered ORDER BY service_date, pickup_depart_time NULLS LAST, import_id, source_row LIMIT $8 OFFSET $9
 )
 SELECT jsonb_build_object(
+  'spatial_analysis', ${SPATIAL_PAYLOAD},
+  'record_analysis', ${RECORD_ANALYSIS_PAYLOAD},
   'paired_analysis', ${PAIRED_PAYLOAD},
   'imports', (SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'provider_id',provider_id,'provider_name',provider_name,
     'filename',filename,'date_from',to_char(date_from,'YYYY-MM-DD'),'date_to',to_char(date_to,'YYYY-MM-DD'),
@@ -108,12 +112,12 @@ export async function operationsDashboard(req: ParsedRequest) {
       filters.providerId, filters.from, filters.to,
       filters.hourFrom, filters.hourTo, filters.status, filters.mode, filters.limit, filters.offset,
     ]);
-    const response = jsonResponse({ ...rows[0]?.payload, filters, precision: 'city_reference_point', timezone: 'America/Los_Angeles' }, 200, req.origin);
+    const response = jsonResponse({ ...rows[0]?.payload, filters, precision: 'city_counts_and_aggregated_1km_cells', timezone: 'America/Los_Angeles' }, 200, req.origin);
     if (typeof response === 'object') response.headers = { ...response.headers, 'Cache-Control': 'no-store' };
     return response;
   } catch (error) {
     const code = (error as { code?: string }).code;
     console.error('Operations query failed', { code });
-    return errorResponse(code === '42P01' ? 'Operational data is not installed. Apply migration 0005 and import the reviewed operational sources.' : 'Operational data could not be loaded.', 503, req.origin);
+    return errorResponse(code === '42P01' ? 'Operational data is not installed. Apply migration 0005 through 0007 and import the reviewed operational sources and spatial cells.' : 'Operational data could not be loaded.', 503, req.origin);
   }
 }
