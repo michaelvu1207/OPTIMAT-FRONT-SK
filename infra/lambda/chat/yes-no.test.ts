@@ -64,3 +64,31 @@ test('compound follow-ups cannot become a single yes/no choice', () => {
   assert.equal(registerQuestion(turn, 'Are you a veteran and do you have a disability?'), null);
   assert.ok(registerQuestion(turn, 'Is this your destination?'));
 });
+
+test('explicit statements correct saved facts even without a stored question', () => {
+  const turn = context();
+  turn.riderEligibility = { veteran: false, disabled: false };
+  applyTypedBinaryAnswer(turn, 'Actually I am a veteran and I have a disability.');
+  assert.equal(turn.riderEligibility.veteran, true);
+  assert.equal(turn.riderEligibility.disabled, true);
+  assert.equal(turn.binaryQuestions?.length, 2);
+  assert.equal(registerQuestion(turn, 'Are you a veteran?'), null);
+  applyTypedBinaryAnswer(turn, 'I am not a veteran and I am not disabled.');
+  assert.equal(turn.riderEligibility.veteran, false);
+  assert.equal(turn.riderEligibility.disabled, false);
+});
+
+test('corrections update supported question variants and synchronize prior answers', () => {
+  const turn = context();
+  const variants = [registerQuestion(turn, 'Do you have any disabilities?')!, registerQuestion(turn, 'Do you have a disability?')!];
+  applyBinaryAnswer(turn, { question_id: variants[0].id, answer: 'no' });
+  applyTypedBinaryAnswer(turn, 'Actually I have a disability.');
+  assert.equal(turn.riderEligibility.disabled, true);
+  assert.deepEqual(variants.map(question => question.answer), ['yes', 'yes']);
+  applyBinaryAnswer(turn, { question_id: variants[1].id, answer: 'declined' });
+  assert.deepEqual(variants.map(question => question.answer), ['declined', 'declined']);
+  assert.equal(turn.riderEligibility.disabled, null);
+  applyTypedBinaryAnswer(turn, 'I am not disabled.');
+  assert.deepEqual(variants.map(question => question.answer), ['no', 'no']);
+  assert.deepEqual(turn.riderEligibility.declined_facts, []);
+});

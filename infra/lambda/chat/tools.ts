@@ -1,4 +1,5 @@
 import { clarifyTripTime, routePlanner } from './tripChoices.js';
+import type { TripTimeContext } from './trip-time.js';
 /**
  * Tool definitions and execution logic for the OPTIMAT chat service.
  * Lambda version — uses raw SQL via pg instead of Supabase JS client.
@@ -49,7 +50,7 @@ export interface AssessEligibilityParams {
   assessments: EligibilityAssessment[];
 }
 
-export interface TurnContext extends LocationContext {
+export interface TurnContext extends LocationContext, TripTimeContext {
   binaryQuestions?: BinaryQuestion[];
   riderEligibility: RiderEligibility;
   lastSearch: null | {
@@ -889,7 +890,7 @@ export async function executeTool(
   turn: TurnContext,
 ): Promise<ToolResult> {
   switch (toolName) {
-    case 'clarify_trip_time': return clarifyTripTime(toolInput);
+    case 'clarify_trip_time': return clarifyTripTime(toolInput, turn);
     case 'open_route_planner': return routePlanner(toolInput);
     case 'ask_yes_no': {
       const question = registerQuestion(turn, (toolInput as { question?: unknown })?.question);

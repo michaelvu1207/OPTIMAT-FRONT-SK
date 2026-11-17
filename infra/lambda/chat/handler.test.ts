@@ -30,6 +30,76 @@ function toolResponse(name: string, input: unknown) {
   return { stopReason: 'tool_use', output: { message: { content: [{ toolUse: { toolUseId: name, name, input } }] } } };
 }
 
+function mockStatefulConversation(t: TestContext, initial: Record<string, unknown> = {}) {
+  let trip = initial;
+  const history: Array<{ role: string; content: string }> = [];
+  t.mock.method(pg.Pool.prototype, 'query', (async (sql: string, values: any[] = []) => {
+    if (sql.startsWith('SELECT id FROM')) return { rows: [{ id: 'local-test' }] };
+    if (sql.startsWith('SELECT trip FROM')) return { rows: [{ trip: structuredClone(trip) }] };
+    if (sql.startsWith('SELECT role, content FROM')) return { rows: structuredClone(history) };
+    if (sql.startsWith('INSERT INTO optimat.chat_trip_state')) trip = JSON.parse(values[1]);
+    if (sql.startsWith('INSERT INTO optimat.messages')) history.push({ role: values[1], content: values[2] });
+    return { rows: [] };
+  }) as any);
+  return () => trip as any;
+}
+
+test('multi-turn pickup clarification is saved, reused by reminders and protected from repeated tool calls', async t => {
+  const saved = mockStatefulConversation(t);
+  let calls = 0;
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    calls++;
+    assert.match(command.input.system[0].text, /"pickup":"noon"/);
+    if (calls === 2) return toolResponse('clarify_trip_time', { time: '12:00 PM' });
+    if (calls === 3) {
+      const result = JSON.parse(command.input.messages.at(-1).content[0].toolResult.content[0].text);
+      assert.equal(result.known, true);
+      assert.equal(result.meaning, 'pickup');
+    }
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Thanks. What city do you live in?' }] } } };
+  }) as any);
+  const first = await sendLocalMessage('I need a ride from Danville to Walnut Creek tomorrow at noon.');
+  assert.equal(calls, 0);
+  assert.ok(first.attachments.some((item: any) => item.type === 'time_choices'));
+  await sendLocalMessage('noon is my requested pickup time.');
+  const reminder = await sendLocalMessage('I still need a ride tomorrow at noon.');
+  assert.equal(calls, 3);
+  assert.equal(reminder.attachments.some((item: any) => item.type === 'time_choices'), false);
+  assert.equal(saved().trip_time.pickup, 'noon');
+  const newTrip = await sendLocalMessage('I need another ride tomorrow at noon.');
+  assert.equal(calls, 3);
+  assert.ok(newTrip.attachments.some((item: any) => item.type === 'time_choices'));
+  assert.equal(saved().trip_time.pickup, undefined);
+});
+
+test('arrival button wording is persisted without inventing pickup time', async t => {
+  const saved = mockStatefulConversation(t);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    assert.match(command.input.system[0].text, /"arrival":"noon"/);
+    assert.doesNotMatch(command.input.system[0].text, /"pickup":"noon"/);
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'What pickup time would you like?' }] } } };
+  }) as any);
+  await sendLocalMessage('I need a ride tomorrow at noon.');
+  await sendLocalMessage('I need to arrive by noon. This is not my pickup time.');
+  const reply = await sendLocalMessage('I still need a ride tomorrow at noon.');
+  assert.equal(reply.attachments.some((item: any) => item.type === 'time_choices'), false);
+  assert.equal(saved().trip_time.arrival, 'noon');
+  assert.equal(saved().trip_time.pickup, undefined);
+});
+
+test('explicit corrections replace previously stored search facts before inference and persistence', async t => {
+  const saved = mockStatefulConversation(t, { rider_eligibility: { age: 70, residence_city: 'Danville', disabled: false, veteran: false } });
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    assert.match(command.input.system[0].text, /disabled=true/);
+    assert.match(command.input.system[0].text, /veteran=true/);
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Thank you for correcting those details.' }] } } };
+  }) as any);
+  await sendLocalMessage('Actually I have a disability and I am a veteran.');
+  assert.equal(saved().rider_eligibility.disabled, true);
+  assert.equal(saved().rider_eligibility.veteran, true);
+  assert.deepEqual(saved().binary_questions.map((question: any) => question.answer), ['yes', 'yes']);
+});
+
 test('Walnut Creek full handler asks both mandatory facts even when the model ignores the tool error', async (t) => {
   mockDatabase(t);
   let calls = 0;

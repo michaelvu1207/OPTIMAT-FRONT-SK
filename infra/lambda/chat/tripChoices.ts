@@ -1,8 +1,13 @@
+import { knownTripTime, type TripTimeContext } from './trip-time.js';
+
 // Local choices and route-planner links require no external API calls.
-export function clarifyTripTime(input: unknown) {
+export function clarifyTripTime(input: unknown, turn?: TripTimeContext) {
   const time = (input as { time?: unknown })?.time;
   if (typeof time !== 'string' || !time.trim() || time.length > 80) return { success: false, error: 'Provide the rider’s stated time (up to 80 characters).' };
   const value = time.trim();
+  const meaning = turn ? knownTripTime(turn, value) : null;
+  if (meaning) return { success: true, data: { known: true, time: value, meaning, message: `The rider already clarified this as ${meaning} time. Reuse it without asking again. Arrival time is not pickup time; do not invent a pickup buffer.` } };
+  if (turn?.tripTime) turn.tripTime.pending = value;
   return { success: true, data: { question: `What does ${value} mean for your trip?`, options: [
     { label: 'Pickup time', message: `${value} is my requested pickup time.` },
     { label: 'Arrival time', message: `I need to arrive by ${value}. This is not my pickup time.` },

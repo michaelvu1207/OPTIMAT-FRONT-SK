@@ -1,4 +1,5 @@
 import { ambiguousTripTime, clarifyTripTime } from './tripChoices.js';
+import { updateTripTime, knownTripTime, tripTimeFactsBlock } from './trip-time.js';
 import { namedMunicipalPass } from './named-provider.js';
 import { bookingGuidance, timelineProviderQuestion } from './booking-guidance.js';
 /**
@@ -316,7 +317,10 @@ export const handler = createHandler(async (req) => {
     if (!answer) return errorResponse('Please choose an answer to a question in this conversation.', 400, req.origin);
     body.message = `Question: ${answer.question} Answer: ${YES_NO_OPTIONS.find(option => option.value === answer.answer)!.label}.`;
   }
-  if (body.yes_no_answer === undefined) applyTypedBinaryAnswer(turn, body.message);
+  if (body.yes_no_answer === undefined) {
+    applyTypedBinaryAnswer(turn, body.message);
+    updateTripTime(turn, body.message);
+  }
   applyUserDestination(turn, body.message);
   const selectedAgeRange = getAgeRange(body.age_range)?.id || ageRangeFromMessage(body.message);
   if (selectedAgeRange) turn.riderEligibility = mergeAgeFacts(turn.riderEligibility, { age_range: selectedAgeRange });
@@ -324,7 +328,7 @@ export const handler = createHandler(async (req) => {
     const exactAge = exactAgeFromMessage(body.message);
     if (exactAge !== null) turn.riderEligibility = mergeAgeFacts(turn.riderEligibility, { age: exactAge });
   }
-  let systemPrompt = `${SYSTEM_PROMPT}\n\n${buildCurrentTimeBlock()}\n\n${buildRiderFactsBlock(turn.riderEligibility)}\n${binaryFactsBlock(turn)}\nDestination verification state: ${JSON.stringify(turn.destinationVerification || null)}. If pending or verified, do not search providers until the rider confirms a destination. Present candidate choices or allow manual address entry. Only user_provided state records rider confirmation.`;
+  let systemPrompt = `${SYSTEM_PROMPT}\n\n${buildCurrentTimeBlock()}\n\n${buildRiderFactsBlock(turn.riderEligibility)}\n${binaryFactsBlock(turn)}\n${tripTimeFactsBlock(turn)}\nDestination verification state: ${JSON.stringify(turn.destinationVerification || null)}. If pending or verified, do not search providers until the rider confirms a destination. Present candidate choices or allow manual address entry. Only user_provided state records rider confirmation.`;
 
   // Load conversation history
   const existingMessages = await queryRows(
@@ -381,10 +385,11 @@ export const handler = createHandler(async (req) => {
   let finalResponse = recordedBookingResponse || '';
   let contextLimited = false;
   let searchedThisTurn = false;
-  const ambiguousTime = recordedBookingResponse ? null : ambiguousTripTime(body.message);
+  const statedTime = recordedBookingResponse ? null : ambiguousTripTime(body.message);
+  const ambiguousTime = statedTime && !knownTripTime(turn, statedTime) ? statedTime : null;
   if (ambiguousTime) {
     finalResponse = `Please choose whether ${ambiguousTime} is your pickup time or arrival time.`;
-    attachments.push({ type: 'time_choices', data: clarifyTripTime({ time: ambiguousTime }).data });
+    attachments.push({ type: 'time_choices', data: clarifyTripTime({ time: ambiguousTime }, turn).data });
   }
 
   try {
@@ -442,7 +447,8 @@ export const handler = createHandler(async (req) => {
             open_route_planner: 'route_planner',
           };
           const duplicateProviderInfo = toolUse.name === 'get_provider_info' && attachments.some(item => item.type === 'provider_info' && JSON.stringify(item.data) === JSON.stringify(result.data));
-          if (!duplicateProviderInfo && (toolUse.name !== 'ask_age_range' || !ageBounds(turn.riderEligibility))) attachments.push({
+          const knownTime = toolUse.name === 'clarify_trip_time' && (result.data as { known?: boolean }).known;
+          if (!duplicateProviderInfo && !knownTime && (toolUse.name !== 'ask_age_range' || !ageBounds(turn.riderEligibility))) attachments.push({
             type: typeMap[toolUse.name] || 'tool_result',
             data: result.data,
             metadata: { tool_name: toolUse.name, tool_use_id: toolUse.toolUseId, conversation_id: body.conversation_id },

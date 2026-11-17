@@ -54,6 +54,9 @@ export function applyBinaryAnswer(turn: TurnContext, input: unknown): BinaryQues
   question.answer = answer as BinaryAnswer;
   const field = eligibilityField(question.question);
   if (field) {
+    for (const related of turn.binaryQuestions || []) {
+      if (eligibilityField(related.question) === field) related.answer = answer as BinaryAnswer;
+    }
     turn.riderEligibility.declined_facts = (turn.riderEligibility.declined_facts || []).filter(item => item !== field);
     if (answer === 'declined') {
       turn.riderEligibility[field] = null;
@@ -85,10 +88,13 @@ export function applyTypedBinaryAnswer(turn: TurnContext, message: string): void
   for (const item of statements) {
     const answer = item.no.test(message) ? 'no' : item.yes.test(message) ? 'yes' : undefined;
     if (!answer) continue;
-    let question = turn.binaryQuestions?.find(question => question.question === item.question);
+    const field = eligibilityField(item.question);
+    let question = turn.binaryQuestions?.find(question => eligibilityField(question.question) === field);
     if (!question) {
-      // Registration may be suppressed by an existing fact; no need to change it here.
-      question = registerQuestion(turn, item.question) || undefined;
+      // This is an explicit rider statement, not a request to ask again. It can
+      // correct a fact saved by a search even when no binary question was stored.
+      question = { id: createHash('sha256').update(item.question.toLowerCase()).digest('hex').slice(0, 24), question: item.question };
+      (turn.binaryQuestions ||= []).push(question);
     }
     if (question) applyBinaryAnswer(turn, { question_id: question.id, answer });
   }

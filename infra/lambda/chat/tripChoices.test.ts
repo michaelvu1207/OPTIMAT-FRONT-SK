@@ -4,7 +4,7 @@ import { clarifyTripTime, routePlanner, ambiguousTripTime } from './tripChoices.
 test('time choices preserve the stated time without creating a pickup buffer', () => {
   const result = clarifyTripTime({ time: 'noon' });
   assert.equal(result.success, true);
-  assert.deepEqual(result.data?.options.map(option => option.message), ['noon is my requested pickup time.', 'I need to arrive by noon. This is not my pickup time.']);
+  assert.deepEqual(result.data?.options?.map(option => option.message), ['noon is my requested pickup time.', 'I need to arrive by noon. This is not my pickup time.']);
   assert.equal(clarifyTripTime({ time: '' }).success, false);
   assert.equal(clarifyTripTime(null).success, false);
 });

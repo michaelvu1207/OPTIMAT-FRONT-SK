@@ -3,11 +3,13 @@ import type { RiderEligibility, TurnContext } from './tools.js';
 import type { DestinationState } from './destination.js';
 import type { BinaryQuestion } from './yes-no.js';
 import { getAgeRange } from './age.js';
+import type { TripTimeState } from './trip-time.js';
 
 type StoredTripState = {
   rider_eligibility?: RiderEligibility;
   binary_questions?: BinaryQuestion[];
   destination_verification?: DestinationState;
+  trip_time?: TripTimeState;
   [key: string]: unknown;
 };
 
@@ -25,6 +27,7 @@ export async function loadTurnContext(conversationId: string): Promise<TurnConte
       riderEligibility: (trip as StoredTripState).rider_eligibility || {},
       binaryQuestions: (trip as StoredTripState).binary_questions || [],
       destinationVerification: (trip as StoredTripState).destination_verification,
+      tripTime: (trip as StoredTripState).trip_time,
       lastSearch: null,
       latestAssessment: null,
     };
@@ -97,7 +100,7 @@ export async function saveTurnContext(conversationId: string, turn: TurnContext)
          updated_at = NOW()`,
       [
         conversationId,
-        JSON.stringify({ rider_eligibility: turn.riderEligibility, ...(turn.binaryQuestions?.length ? { binary_questions: turn.binaryQuestions } : {}), ...(turn.destinationVerification ? { destination_verification: turn.destinationVerification } : {}) }),
+        JSON.stringify({ rider_eligibility: turn.riderEligibility, ...(turn.binaryQuestions?.length ? { binary_questions: turn.binaryQuestions } : {}), ...(turn.destinationVerification ? { destination_verification: turn.destinationVerification } : {}), ...(turn.tripTime && (turn.tripTime.pending || turn.tripTime.pickup || turn.tripTime.arrival) ? { trip_time: turn.tripTime } : {}) }),
         turn.latestAssessment ? JSON.stringify(turn.latestAssessment) : null,
       ],
     );
