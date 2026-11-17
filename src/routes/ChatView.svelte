@@ -28,6 +28,9 @@
   let mounted = false;
   let isPhone = false;
   let isCompact = false;
+  // Show both panels only when there is room for the existing 35/65 split.
+  // Touch-friendly navigation and phone-specific chat styling use separate rules.
+  const SPLIT_VIEW_QUERY = '(min-width: 900px)';
   let showChat = false;
   let showProviderResults = false;
   let providerData = null;
@@ -90,7 +93,7 @@
 
   onMount(async () => {
     isPhone = window.matchMedia('(max-width: 767px)').matches;
-    isCompact = window.matchMedia('(max-width: 1024px)').matches;
+    isCompact = !window.matchMedia(SPLIT_VIEW_QUERY).matches;
     mounted = true;
     await checkServerHealth();
     if (serverOnline) {
@@ -107,11 +110,11 @@
   });
 
   onMount(() => {
-    const media = window.matchMedia('(max-width: 1024px)');
+    const media = window.matchMedia(SPLIT_VIEW_QUERY);
     const phone = window.matchMedia('(max-width: 767px)');
     const updateResponsiveLayout = () => {
       isPhone = phone.matches;
-      isCompact = media.matches;
+      isCompact = !media.matches;
       if (isCompact) {
         selectedProvider = null;
         clearTransitRoute();
@@ -988,7 +991,7 @@
     appMode={true}
     fitMobileViewport={true}
   >
-    <!-- Phones and tablets give the conversation the full width. -->
+    <!-- Narrow windows give chat the full width; wider tablets show both panels. -->
     <Resizable.PaneGroup direction="horizontal" class="flex-1 h-full min-h-0 min-w-0">
       {#if !isCompact}
       <!-- Left: the map, full height. Provider details live in the chat, not beside it. -->

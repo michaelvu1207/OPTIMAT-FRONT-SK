@@ -32,12 +32,14 @@ try {
   for (const viewport of [
     { width: 320, height: 568 }, { width: 390, height: 664 }, { width: 430, height: 740 },
     { width: 768, height: 1024 }, { width: 820, height: 1180 }, { width: 1024, height: 768 },
+    { width: 899, height: 800 }, { width: 900, height: 800 }, { width: 912, height: 1368 },
     { width: 844, height: 390 }, { width: 640, height: 400 }, { width: 320, height: 400 },
     { width: 1280, height: 800 }
   ]) {
     const mobile = viewport.width < 768;
-    const compact = viewport.width <= 1024;
-    const page = await browser.newPage({ viewport, isMobile: compact, hasTouch: compact });
+    const compact = viewport.width < 900;
+    const touchViewport = viewport.width <= 1024;
+    const page = await browser.newPage({ viewport, isMobile: touchViewport, hasTouch: touchViewport });
     await page.route('**/*', route => {
       const url = new URL(route.request().url());
       if (url.origin === new URL(baseUrl).origin) return route.continue();
@@ -61,6 +63,13 @@ try {
     assert.equal(await page.locator('.app-nav').evaluate(el => el.scrollWidth > el.clientWidth + 1), false,
       'Navigation should wrap instead of requiring sideways scrolling');
     assert.equal(await page.locator('.leaflet-container').count(), compact ? 0 : 1);
+    if (!compact) {
+      const chatBox = await page.locator('.chat-layout').boundingBox();
+      const mapBox = await page.locator('.leaflet-container').boundingBox();
+      assert.ok(chatBox.width >= viewport.width * 0.6, 'Chat should retain most of the available width');
+      assert.ok(mapBox.width >= viewport.width * 0.3, 'Map should remain usable beside the chat');
+      assert.ok(mapBox.x + mapBox.width <= chatBox.x + 1, 'Map and chat should sit side by side');
+    }
     assert.ok(Number(await page.locator('#chat-question').evaluate(el => parseFloat(getComputedStyle(el).fontSize))) >= 16,
       'Input text should not trigger iOS focus zoom');
     if (screenshotDir) await page.screenshot({ path: join(screenshotDir, `chat-${viewport.width}x${viewport.height}.png`) });
@@ -89,6 +98,8 @@ try {
       }, reducedHeight);
       await page.waitForFunction(height => Math.abs(document.querySelector('.page-shell').getBoundingClientRect().height - height) < 1, reducedHeight);
       await assertComposerVisible(page, reducedHeight);
+      assert.equal(await page.locator('.leaflet-container').count(), compact ? 0 : 1,
+        'Opening the keyboard must not change the horizontal layout');
       await page.locator('#chat-question').fill('I need a ride');
       assert.equal(await page.getByRole('button', { name: 'Send message', exact: true }).isEnabled(), true);
       await page.locator('.chat-messages').evaluate(el => el.scrollTo({ top: el.scrollHeight, behavior: 'instant' }));
@@ -127,7 +138,7 @@ try {
     assert.equal(await page.locator('.page-shell').evaluate(el => el.getBoundingClientRect().height), shellHeight);
     await session.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
 
-    // Crossing the tablet/desktop breakpoint preserves both the conversation and draft.
+    // Crossing the single/split-panel breakpoint preserves the conversation and draft.
     await page.locator('#chat-question').fill('Keep this draft');
     const readingReply = page.getByRole('article', { name: 'OPTIMAT response', exact: true }).last();
     await readingReply.focus();
@@ -142,6 +153,8 @@ try {
     }, viewport.height);
     await page.setViewportSize(resized);
     await page.waitForFunction(width => innerWidth === width, resized.width);
+    await page.waitForFunction(expected => document.querySelectorAll('.leaflet-container').length === expected,
+      resized.width >= 900 ? 1 : 0);
     assert.equal(await page.locator('#chat-question').inputValue(), 'Keep this draft');
     assert.equal(await page.getByText('Travel advice 30.', { exact: true }).count(), 1);
     await assertComposerVisible(page, resized.height);
