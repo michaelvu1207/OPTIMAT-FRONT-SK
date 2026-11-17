@@ -2,6 +2,7 @@
   import { providerTimeline } from '$lib/providers/providerTimeline';
 
   export let provider: Record<string, unknown>;
+  export let showApplicationLink = true;
   $: timeline = providerTimeline(provider);
 </script>
 
@@ -33,9 +34,9 @@
     {#if timeline.instructions}
       <p class="mt-2 whitespace-pre-line">{timeline.instructions}</p>
     {/if}
-    {#if timeline.sourceUrl || timeline.verifiedAt}
+    {#if (showApplicationLink && timeline.sourceUrl) || timeline.verifiedAt}
       <p class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-        {#if timeline.sourceUrl}
+        {#if showApplicationLink && timeline.sourceUrl}
           <a href={timeline.sourceUrl} target="_blank" rel="noopener noreferrer" class="font-medium text-primary underline" on:click|stopPropagation>Application information (opens in a new tab)</a>
         {/if}
         {#if timeline.verifiedAt}<span>Last verified: {timeline.verifiedAt}</span>{/if}

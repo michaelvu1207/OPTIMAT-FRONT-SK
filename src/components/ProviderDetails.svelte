@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatBooking, formatEligibilityReqs, formatFare, membershipBillingNotice, formatRoutingType, tryParseJson } from '$lib/providers/providerFields';
-  import { formatProcessingTime } from '$lib/providers/providerTimeline';
+  import { formatProcessingTime, providerTimeline } from '$lib/providers/providerTimeline';
   import ProviderTimeline from './ProviderTimeline.svelte';
 
   export let info: unknown;
@@ -79,6 +79,9 @@
   {@const booking = text(formatBooking(provider.booking))}
   {@const serviceHours = hours(provider.service_hours)}
   {@const cities = Array.isArray(provider.service_area_cities) ? provider.service_area_cities.map(text).filter(Boolean) : []}
+  {@const timelineProvider = timelineEntry(provider)}
+  {@const timeline = providerTimeline(timelineProvider)}
+  {@const showFirstRideContact = !timeline.fixedRoute && timeline.required !== false && Boolean(timeline.sourceUrl || number)}
   <section class="min-w-0 rounded-lg border border-border bg-background p-3 text-sm text-foreground" aria-label={`Service details for ${name}`} data-provider-details>
     <h3 class="text-base font-semibold break-words">{name}</h3>
     {#if text(provider.routing_type)}<p class="mt-1">{formatRoutingType(provider.routing_type)}</p>{/if}
@@ -86,6 +89,17 @@
       {#if number}<a class="font-semibold text-primary underline" href={`tel:${number.replace(/[^\d+]/g, '')}`}>Call {number}</a>{/if}
       {#if url}<a class="text-primary underline" href={url} target="_blank" rel="noopener noreferrer">Provider website</a>{/if}
     </div>
+    {#if showFirstRideContact}
+      <section class="mt-3 rounded-lg border border-primary/30 bg-primary/5 p-3" aria-label={`Before your first ride with ${name}`} data-first-ride-contact>
+        <h4 class="font-semibold">Before your first ride</h4>
+        <p class="mt-1">Confirm application or enrollment steps with the provider.</p>
+        {#if timeline.sourceUrl}
+          <a class="mt-2 inline-flex min-h-11 max-w-full items-center rounded-md border border-primary px-3 py-2 font-semibold text-primary underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" href={timeline.sourceUrl} target="_blank" rel="noopener noreferrer"><span>View application information<span class="sr-only"> (opens in a new tab)</span></span></a>
+        {:else if number}
+          <a class="mt-2 inline-flex min-h-11 max-w-full items-center rounded-md border border-primary px-3 py-2 font-semibold text-primary underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" href={`tel:${number.replace(/[^\d+]/g, '')}`}>Call {number} about getting started</a>
+        {/if}
+      </section>
+    {/if}
     <dl class="mt-3 space-y-3">
       <div><dt class="font-semibold">Eligibility</dt><dd class="whitespace-pre-line break-words">{eligibility || 'Contact the provider to confirm eligibility requirements.'}</dd></div>
       {#if fare}<div><dt class="font-semibold">Fare</dt><dd>{fare}</dd>{#if membershipBillingNotice(provider.fare)}<dd data-membership-notice>{membershipBillingNotice(provider.fare)}</dd>{/if}</div>{/if}
@@ -93,7 +107,7 @@
       <div><dt class="font-semibold">Service hours</dt><dd>{serviceHours.length ? serviceHours.join('; ') : 'Contact the provider to confirm service hours.'}</dd></div>
       {#if cities.length}<div><dt class="font-semibold">Service area</dt><dd class="break-words">{cities.join(', ')}</dd></div>{/if}
     </dl>
-    <ProviderTimeline provider={timelineEntry(provider)} />
+    <ProviderTimeline provider={timelineProvider} showApplicationLink={!showFirstRideContact} />
     {#if Array.isArray(provider.contacts)}
       {#each provider.contacts as contact}
         {@const person = record(contact)}
