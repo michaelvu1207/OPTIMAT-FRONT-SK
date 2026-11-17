@@ -2183,8 +2183,12 @@ How can I assist you today?`,
                 <div class="mt-3 space-y-2">
 
                   {#each binaryChoices?.questions || [] as question (question.id)}
-                    <div class="min-w-0 rounded-lg border border-border bg-background p-3 pt-4" role="group" aria-label={question.question} data-yes-no-choices>
+                    {@const isDisabilityQuestion = /^do you have (?:a |any )?disabilit(?:y|ies)\?$/i.test(question.question.trim())}
+                    <div class="min-w-0 rounded-lg border border-border bg-background p-3 pt-4" role="group" aria-label={question.question} aria-describedby={isDisabilityQuestion ? `disability-help-${message.id}-${question.id}` : undefined} data-yes-no-choices>
                       <h3 class="text-sm font-semibold text-foreground">{question.question}</h3>
+                      {#if isDisabilityQuestion}
+                        <p id={`disability-help-${message.id}-${question.id}`} class="mt-2 text-sm text-foreground">This helps check provider eligibility. You do not need to share a diagnosis, and you can choose “Would rather not say.”</p>
+                      {/if}
                       <div class="mt-3 flex flex-wrap gap-2">
                         {#each binaryChoices.options || [] as option (option.value)}
                           {@const selected = selectedBinaryAnswers.get(question.id)}
