@@ -352,7 +352,7 @@ Deno.test("the search returns candidates and passes no eligibility verdict of it
   });
 });
 
-Deno.test("One-Seat Regional Ride is retired from provider search", async () => {
+Deno.test("One-Seat Regional Ride requires confirmed cross-agency geography", async () => {
   await withGoogleFetch(async () => {
     const result = await executeFindProviders(
       {

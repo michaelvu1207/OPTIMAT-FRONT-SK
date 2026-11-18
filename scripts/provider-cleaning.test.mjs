@@ -85,8 +85,8 @@ assert.equal(
   'WestCAT Dial-A-Ride',
 );
 assert.equal(MANUAL_NAME_MAP['Walnut Creek Lyft Self Access Pass'], null);
-assert.equal(shouldSkipProvider('One-Seat Regional Ride'), true);
-assert.equal(shouldSkipProvider('One Seat Ride'), true);
+assert.equal(shouldSkipProvider('One-Seat Regional Ride'), false);
+assert.equal(shouldSkipProvider('One Seat Ride'), false);
 
 assert.deepEqual(
   applyManualProviderDefaults({ provider_name: 'WestCAT Paratransit' }).schedule_type,

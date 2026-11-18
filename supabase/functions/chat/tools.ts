@@ -6,6 +6,7 @@
  */
 
 import { TABLES } from "../_shared/supabase.ts";
+import { isOneSeat, normalizeOneSeat, oneSeatTripPolicy } from './one-seat.ts';
 import {
   citiesMatch,
   resolveTravelDate,
@@ -812,14 +813,9 @@ const PROVIDER_SEARCH_COLUMNS = [
   "is_operating",
 ].join(",");
 
-/** Retired services remain stored for auditability but never reach a rider-facing answer. */
+/** Inactive services remain stored for auditability. */
 export function isPubliclyAvailableProvider(provider: Provider): boolean {
-  const normalizedName = String(provider.provider_name || provider.name || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  return provider.is_operating !== false &&
-    normalizedName !== "oneseatregionalride" &&
-    normalizedName !== "oneseatride";
+  return provider.is_operating !== false;
 }
 
 /**
@@ -893,7 +889,7 @@ export async function loadProviderRoster(supabase: DatabaseClient): Promise<stri
     .order("provider_name");
   if (error) throw new Error(`Database error: ${error.message}`);
 
-  const rows = ((data || []) as unknown as Provider[]).filter(isPubliclyAvailableProvider);
+  const rows = ((data || []) as unknown as Provider[]).filter(isPubliclyAvailableProvider).map(normalizeOneSeat);
   const lines = rows.map((provider) => {
     const requirement = requirementText(provider.eligibility_reqs) || "none stated";
     const fixedRoute = !isDirectRideProvider(provider);
@@ -926,7 +922,7 @@ export async function loadProviderRoster(supabase: DatabaseClient): Promise<stri
 async function loadProviderSearchRows(supabase: DatabaseClient): Promise<Provider[]> {
   const { data, error } = await supabase.from(TABLES.PROVIDERS).select(PROVIDER_SEARCH_COLUMNS);
   if (error) throw new Error(`Database error: ${error.message}`);
-  return ((data || []) as unknown as Provider[]).filter(isPubliclyAvailableProvider);
+  return ((data || []) as unknown as Provider[]).filter(isPubliclyAvailableProvider).map(normalizeOneSeat);
 }
 
 function parsedServiceZone(provider: Provider): {
@@ -969,7 +965,17 @@ export function partitionByGeography(
   destination: GeocodedLocation,
 ): GeographyPartition {
   const partition: GeographyPartition = { both: [], originOnly: [], destinationOnly: [] };
+  const regional = oneSeatTripPolicy(providers, (provider, end) => {
+    const zone = parsedServiceZone(provider);
+    const point = end === 'origin' ? source : destination;
+    return !!zone && isPointInPolygon(point.lat, point.lng, zone);
+  });
   for (const provider of providers) {
+    if (provider.is_operating === false) continue;
+    if (isOneSeat(provider)) {
+      if (regional.recommend) partition.both.push(normalizeOneSeat(provider));
+      continue;
+    }
     const zone = parsedServiceZone(provider);
     if (!zone) continue;
     const coversOrigin = isPointInPolygon(source.lat, source.lng, zone);
@@ -1124,7 +1130,9 @@ export async function executeCheckTripCoverage(
     const directProviders = providers.filter(isDirectRideProvider);
     const geography = partitionByGeography(directProviders, locations.source, locations.destination);
     const matches = geography.both;
-    const connectionDiagnostic = matches.length > 0
+    const connectionDiagnostic = matches.some(isOneSeat)
+      ? { reason_code: "cross_agency_connection", provider_names: matches.map(p => p.provider_name), message: "One-Seat Regional Ride is a regional option. Confirm eligibility, exact pickup coverage, both trip times, and fare with its booking service." }
+      : matches.length > 0
       ? {
         reason_code: "single_provider_covers_trip",
         provider_names: matches.slice(0, 10).map((provider) => provider.provider_name),
@@ -1564,10 +1572,10 @@ export async function executeFindProviders(
     const withMatchCriteria = (provider: Provider): Provider => ({
       ...provider,
       match_criteria: {
-        algorithm: "Both trip points are inside the service area; the provider operates on the requested date/time; rider eligibility is evaluated before recommendation.",
+        algorithm: "Match direct service areas or distinct regional jurisdictions for One Seat, then service hours and rider eligibility. Confirm regional pickup coverage when booking.",
         passed: [
-          { label: "Origin inside service area", detail: locations.source.formatted_address },
-          { label: "Destination inside service area", detail: locations.destination.formatted_address },
+          { label: isOneSeat(provider) ? "Origin in regional jurisdiction; confirm pickup coverage when booking" : "Origin inside service area", detail: locations.source.formatted_address },
+          { label: isOneSeat(provider) ? "Destination in a different regional jurisdiction; confirm coverage when booking" : "Destination inside service area", detail: locations.destination.formatted_address },
           {
             label: hasServiceHours(provider)
               ? "Service hours include requested trip window"
@@ -1589,7 +1597,9 @@ export async function executeFindProviders(
       : [];
 
     const providersWithoutHours = candidates.filter((provider) => !hasServiceHours(provider)).length;
-    const connectionDiagnostic = geographyProviders.length > 0
+    const connectionDiagnostic = geographyProviders.some(isOneSeat)
+      ? { reason_code: "cross_agency_connection", provider_names: geographyProviders.map(p => p.provider_name), message: "One-Seat Regional Ride is a regional option. Confirm eligibility, exact pickup coverage, both trip times, and fare with its booking service." }
+      : geographyProviders.length > 0
       ? {
         reason_code: "single_provider_covers_trip",
         provider_names: geographyProviders.slice(0, 10).map((provider) => provider.provider_name),

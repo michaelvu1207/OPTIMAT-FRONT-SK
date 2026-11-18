@@ -65,6 +65,46 @@ test('compound follow-ups cannot become a single yes/no choice', () => {
   assert.ok(registerQuestion(turn, 'Is this your destination?'));
 });
 
+test('reported multi-sentence refusal wins over embedded I have a disability', () => {
+  const turn = context();
+  registerQuestion(turn, 'Do you have a disability?');
+  applyTypedBinaryAnswer(turn, 'Friday is November 20, 2026. Please use November 20, leaving at 12pm and returning at 3pm. I would rather not say whether I have a disability. Please show the options with any unconfirmed eligibility marked for provider verification.');
+  assert.equal(turn.riderEligibility.disabled, null);
+  assert.deepEqual(turn.riderEligibility.declined_facts, ['disabled']);
+  assert.equal(turn.binaryQuestions![0].answer, 'declined');
+});
+
+test('refusals target named facts even with multiple questions, previous facts, or no pending question', () => {
+  for (const text of ["I prefer not to say whether I am disabled.", "I don't want to disclose my disability status.", 'I decline to share whether I have a disability.']) {
+    const turn = context();
+    turn.riderEligibility.disabled = true;
+    registerQuestion(turn, 'Are you a veteran?');
+    applyTypedBinaryAnswer(turn, text);
+    assert.equal(turn.riderEligibility.disabled, null, text);
+    assert.equal(turn.riderEligibility.veteran, undefined);
+    assert.ok(turn.riderEligibility.declined_facts?.includes('disabled'));
+  }
+});
+
+test('hypothetical and uncertain disability mentions never become positive answers', () => {
+  for (const text of ['If I have a disability, would I qualify?', 'I do not know whether I have a disability.', 'Can you tell me whether I am disabled?', 'My friend says I have a disability.']) {
+    const turn = context();
+    registerQuestion(turn, 'Do you have a disability?');
+    applyTypedBinaryAnswer(turn, text);
+    assert.equal(turn.riderEligibility.disabled, undefined, text);
+  }
+});
+
+test('a refusal for one field preserves an independent statement and permits a later correction', () => {
+  const turn = context();
+  applyTypedBinaryAnswer(turn, 'I am a veteran, but I would rather not say whether I have a disability.');
+  assert.equal(turn.riderEligibility.veteran, true);
+  assert.equal(turn.riderEligibility.disabled, null);
+  applyTypedBinaryAnswer(turn, 'Actually, I am not disabled.');
+  assert.equal(turn.riderEligibility.disabled, false);
+  assert.deepEqual(turn.riderEligibility.declined_facts, []);
+});
+
 test('explicit statements correct saved facts even without a stored question', () => {
   const turn = context();
   turn.riderEligibility = { veteran: false, disabled: false };

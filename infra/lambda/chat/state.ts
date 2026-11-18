@@ -3,9 +3,11 @@ import type { RiderEligibility, TurnContext } from './tools.js';
 import type { DestinationState } from './destination.js';
 import type { BinaryQuestion } from './yes-no.js';
 import { getAgeRange } from './age.js';
+import type { TravelDateState } from './travel-date.js';
 import type { TripTimeState } from './trip-time.js';
 
 type StoredTripState = {
+  travel_date?: TravelDateState;
   rider_eligibility?: RiderEligibility;
   binary_questions?: BinaryQuestion[];
   destination_verification?: DestinationState;
@@ -27,6 +29,7 @@ export async function loadTurnContext(conversationId: string): Promise<TurnConte
       riderEligibility: (trip as StoredTripState).rider_eligibility || {},
       binaryQuestions: (trip as StoredTripState).binary_questions || [],
       destinationVerification: (trip as StoredTripState).destination_verification,
+      travelDate: (trip as StoredTripState).travel_date,
       tripTime: (trip as StoredTripState).trip_time,
       lastSearch: null,
       latestAssessment: null,
@@ -100,7 +103,7 @@ export async function saveTurnContext(conversationId: string, turn: TurnContext)
          updated_at = NOW()`,
       [
         conversationId,
-        JSON.stringify({ rider_eligibility: turn.riderEligibility, ...(turn.binaryQuestions?.length ? { binary_questions: turn.binaryQuestions } : {}), ...(turn.destinationVerification ? { destination_verification: turn.destinationVerification } : {}), ...(turn.tripTime && (turn.tripTime.pending || turn.tripTime.pickup || turn.tripTime.arrival) ? { trip_time: turn.tripTime } : {}) }),
+        JSON.stringify({ rider_eligibility: turn.riderEligibility, ...(turn.travelDate ? { travel_date: turn.travelDate } : {}), ...(turn.binaryQuestions?.length ? { binary_questions: turn.binaryQuestions } : {}), ...(turn.destinationVerification ? { destination_verification: turn.destinationVerification } : {}), ...(turn.tripTime && (turn.tripTime.pending || turn.tripTime.pickup || turn.tripTime.arrival) ? { trip_time: turn.tripTime } : {}) }),
         turn.latestAssessment ? JSON.stringify(turn.latestAssessment) : null,
       ],
     );

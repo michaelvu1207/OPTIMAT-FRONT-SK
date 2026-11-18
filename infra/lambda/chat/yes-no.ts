@@ -67,7 +67,7 @@ export function applyBinaryAnswer(turn: TurnContext, input: unknown): BinaryQues
 }
 
 export function binaryFactsBlock(turn: TurnContext): string {
-  return 'Explicit button answers (authoritative unless the rider corrects them): ' + JSON.stringify(
+  return 'Explicit rider answers, from buttons or text (authoritative unless the rider corrects them): ' + JSON.stringify(
     (turn.binaryQuestions || []).filter(item => item.answer).map(({ question, answer }) => ({ question, answer }))
   ) + '. declined means unknown, never No or consent. Do not ask the same fact again after a refusal. Continue with other details and explain provider verification where needed.';
 }
@@ -75,27 +75,39 @@ export function binaryFactsBlock(turn: TurnContext): string {
 // Bind short typed answers only when there is exactly one unanswered question.
 // Explicit statements also allow corrections without forcing button use.
 export function applyTypedBinaryAnswer(turn: TurnContext, message: string): void {
-  message = message.replace(/\bI[’']m\b/gi, 'I am');
+  message = message.replace(/[’]/g, "'").replace(/\bI'm\b/gi, 'I am').replace(/\bI'd\b/gi, 'I would');
   const pending = (turn.binaryQuestions || []).filter(item => !item.answer);
   const short = message.trim().replace(/[.!]$/, '').toLowerCase();
   const value = /^(yes|yeah|yep)$/.test(short) ? 'yes' : /^(no|nope)$/.test(short) ? 'no'
     : /^(?:i (?:would )?(?:rather|prefer) not (?:to )?(?:say|answer|share)|would rather not say)$/.test(short) ? 'declined' : undefined;
   if (value && pending.length === 1) applyBinaryAnswer(turn, { question_id: pending[0].id, answer: value });
   const statements = [
-    { question: 'Are you a veteran?', yes: /\bi am (?:a |an )?(?:military )?veteran\b/i, no: /\bi am not (?:a |an )?(?:military )?veteran\b/i },
-    { question: 'Do you have a disability?', yes: /\bi (?:have a disability|am disabled)\b/i, no: /\bi (?:do not have a disability|don't have a disability|am not disabled)\b/i },
+    { question: 'Are you a veteran?', topic: /\bveteran(?: status)?\b/i, yes: /^i am (?:a |an )?(?:military )?veteran\b/i, no: /^i am not (?:a |an )?(?:military )?veteran\b/i },
+    { question: 'Do you have a disability?', topic: /\b(?:disabilit(?:y|ies)|disabled)\b/i, yes: /^i (?:have a disability|am disabled)\b/i, no: /^i (?:do not have a disability|don't have a disability|am not disabled)\b/i },
   ];
-  for (const item of statements) {
-    const answer = item.no.test(message) ? 'no' : item.yes.test(message) ? 'yes' : undefined;
-    if (!answer) continue;
-    const field = eligibilityField(item.question);
-    let question = turn.binaryQuestions?.find(question => eligibilityField(question.question) === field);
+  const setFact = (questionText: string, answer: BinaryAnswer) => {
+    turn.binaryQuestions ||= [];
+    let question = turn.binaryQuestions.find(q => q.question.toLowerCase() === questionText.toLowerCase());
     if (!question) {
-      // This is an explicit rider statement, not a request to ask again. It can
-      // correct a fact saved by a search even when no binary question was stored.
-      question = { id: createHash('sha256').update(item.question.toLowerCase()).digest('hex').slice(0, 24), question: item.question };
-      (turn.binaryQuestions ||= []).push(question);
+      question = { id: createHash('sha256').update(questionText.toLowerCase()).digest('hex').slice(0, 24), question: questionText };
+      turn.binaryQuestions.push(question);
     }
-    if (question) applyBinaryAnswer(turn, { question_id: question.id, answer });
+    applyBinaryAnswer(turn, { question_id: question.id, answer });
+  };
+  // Evaluate clauses, not substrings: "whether I have a disability" is not an
+  // assertion. A refusal controls its entire clause, even with embedded yes/no words.
+  const refusal = /\b(?:(?:i\s+)?(?:would\s+)?(?:rather|prefer)\s+not\s+(?:to\s+)?(?:say|answer|share|disclose)|i\s+(?:don't|do not)\s+want\s+to\s+(?:say|answer|share|disclose)|i\s+decline\s+to\s+(?:say|answer|share|disclose))\b/i;
+  for (const raw of message.split(/[.!?;\n]+|\bbut\b|,?\s+and\s+(?=I\b)/i)) {
+    const clause = raw.trim().replace(/^(?:(?:actually|yes|no|to clarify)[,:]?\s+)+/i, '');
+    if (refusal.test(clause)) {
+      const topics = statements.filter(item => item.topic.test(clause));
+      for (const item of topics) setFact(item.question, 'declined');
+      if (!topics.length && pending.length === 1) applyBinaryAnswer(turn, { question_id: pending[0].id, answer: 'declined' });
+      continue;
+    }
+    for (const item of statements) {
+      const answer = item.no.test(clause) ? 'no' : item.yes.test(clause) ? 'yes' : undefined;
+      if (answer) setFact(item.question, answer);
+    }
   }
 }

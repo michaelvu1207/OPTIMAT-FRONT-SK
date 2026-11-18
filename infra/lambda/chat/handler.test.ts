@@ -6,6 +6,71 @@ import { GeoPlacesClient } from '@aws-sdk/client-geo-places';
 import { handler } from './index.js';
 import { MAX_MODEL_REQUEST_BYTES } from './model-payload.js';
 
+test('server date and typed refusal override incorrect model search arguments and persist', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-16T20:00:00Z') });
+  const providers = [{ provider_name: 'Synthetic ADA option', provider_type: 'ADA Paratransit', eligibility_reqs: 'Requires ADA eligibility.',
+    service_zone: { type: 'Polygon', coordinates: [[[-123, 37], [-121, 37], [-121, 39], [-123, 39], [-123, 37]]] } }];
+  mockDatabase(t, providers);
+  let stored: any;
+  t.mock.method(pg.Pool.prototype, 'query', (async (sql: string, values: any[]) => {
+    if (sql.startsWith('INSERT INTO optimat.chat_trip_state')) stored = JSON.parse(values[1]);
+    return { rows: sql.startsWith('SELECT id FROM') ? [{ id: 'local-test' }] : sql.startsWith('SELECT * FROM optimat.providers') ? providers : [] };
+  }) as any);
+  let calls = 0;
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    assert.match(command.input.system[0].text, /AUTHORITATIVE TRAVEL DATE: 2026-11-20 \(Friday/);
+    assert.match(command.input.system[0].text, /"answer":"declined"/);
+    if (++calls === 1) return toolResponse('find_providers', {
+      source_address: '3815 Lakeside Dr, Richmond', destination_address: '365 Lennon Ln, Walnut Creek',
+      travel_date: '2026-11-21', departure_time: '12:00', return_time: '15:00', trip_type: 'round_trip',
+      rider_eligibility: { age: 65, residence_city: 'San Pablo', disabled: true },
+    });
+    if (calls === 2) return toolResponse('assess_eligibility', { assessments: [{ provider_name: 'Synthetic ADA option', verdict: 'verification_required', reason: 'Provider must verify ADA eligibility.' }] });
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Your trip date is Friday, November 20, 2026. Confirm eligibility with the provider.' }] } } };
+  }) as any);
+  const result = await sendLocalMessage('I need a trip from 3815 Lakeside Dr, Richmond to 365 Lennon Ln, Walnut Creek next Friday, leaving at 12pm and returning at 3pm. I am a San Pablo resident, age 65+. I would rather not say whether I have a disability.');
+  const search = result.attachments.find((a: any) => a.metadata?.tool_name === 'find_providers').data;
+  assert.equal(search.travel_date, '2026-11-20');
+  assert.equal(search.rider_eligibility.disabled, null);
+  assert.equal(search.candidates.length, 1);
+  assert.equal(stored.travel_date.iso, '2026-11-20');
+  assert.equal(stored.rider_eligibility.disabled, null);
+  assert.deepEqual(stored.rider_eligibility.declined_facts, ['disabled']);
+});
+
+test('stored travel date survives a later turn without recalculating its relative phrase', async (t) => {
+  mockDatabase(t);
+  const travel_date = { raw: 'next Friday', iso: '2026-11-20', display: 'Friday, November 20, 2026', error: null };
+  t.mock.method(pg.Pool.prototype, 'query', (async (sql: string) => ({ rows:
+    sql.startsWith('SELECT id FROM') ? [{ id: 'local-test' }] : sql.startsWith('SELECT trip FROM') ? [{ trip: { travel_date } }] : [] })) as any);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    assert.match(command.input.system[0].text, /AUTHORITATIVE TRAVEL DATE: 2026-11-20/);
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Which city do you live in?' }] } } };
+  }) as any);
+  await sendLocalMessage('Please keep the same trip.');
+});
+
+test('invalid weekday/date input is clarified without allowing the model to guess', async (t) => {
+  mockDatabase(t);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', () => { throw new Error('Must not ask the model to resolve a calendar conflict'); });
+  const result = await sendLocalMessage('Please travel on Friday, November 21, 2026.');
+  assert.match(result.message, /Saturday, November 21, 2026/);
+  assert.match(result.message, /Did you mean/);
+});
+
+test('incorrect model date prose is repaired once then falls back to the verified date', async (t) => {
+  mockDatabase(t);
+  let calls = 0;
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async () => {
+    calls++;
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'November 20, 2026 is a Thursday. Did you mean Friday November 21, 2026?' }] } } };
+  }) as any);
+  const result = await sendLocalMessage('Use November 20, 2026 for my trip.');
+  assert.equal(calls, 2);
+  assert.match(result.message, /Friday, November 20, 2026/);
+  assert.doesNotMatch(result.message, /Thursday|November 21/);
+});
+
 function mockDatabase(t: TestContext, providers: unknown[] = []) {
   t.mock.method(pg.Pool.prototype, 'query', (async (sql: string) => {
     if (sql.startsWith('SELECT id FROM')) return { rows: [{ id: 'local-test' }] };
@@ -43,6 +108,35 @@ function mockStatefulConversation(t: TestContext, initial: Record<string, unknow
   }) as any);
   return () => trip as any;
 }
+
+test('travel date, clarified time and typed refusal survive together across follow-up turns', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-18T20:00:00Z') });
+  const saved = mockStatefulConversation(t);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', (async (command: any) => {
+    const prompt = command.input.system[0].text;
+    assert.match(prompt, /AUTHORITATIVE TRAVEL DATE: 2026-11-20/);
+    assert.match(prompt, /"pickup":"noon"/);
+    assert.match(prompt, /"answer":"declined"/);
+    return { stopReason: 'end_turn', output: { message: { content: [{ text: 'Which city do you live in?' }] } } };
+  }) as any);
+  await sendLocalMessage('I need a ride next Friday at noon. I would rather not say whether I have a disability.');
+  assert.equal(saved().trip_time.pending, 'noon');
+  assert.equal(saved().travel_date.iso, '2026-11-20');
+  await sendLocalMessage('noon is my requested pickup time.');
+  await sendLocalMessage('Please keep the same trip.');
+  assert.equal(saved().travel_date.iso, '2026-11-20');
+  assert.equal(saved().trip_time.pickup, 'noon');
+  assert.deepEqual(saved().rider_eligibility.declined_facts, ['disabled']);
+});
+
+test('calendar clarification takes precedence over ambiguous time without losing the date error', async t => {
+  const saved = mockStatefulConversation(t);
+  t.mock.method(BedrockRuntimeClient.prototype, 'send', () => { throw new Error('Calendar conflict must be clarified first'); });
+  const result = await sendLocalMessage('I need a ride on Friday, November 21, 2026 at noon.');
+  assert.match(result.message, /Saturday, November 21, 2026/);
+  assert.equal(result.attachments.some((item: any) => item.type === 'time_choices'), false);
+  assert.ok(saved().travel_date.error);
+});
 
 test('multi-turn pickup clarification is saved, reused by reminders and protected from repeated tool calls', async t => {
   const saved = mockStatefulConversation(t);

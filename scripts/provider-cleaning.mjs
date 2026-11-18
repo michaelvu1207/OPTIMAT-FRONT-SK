@@ -146,10 +146,7 @@ export function parseCityNames(text) {
 }
 
 export function shouldSkipProvider(csvName) {
-  const normalized = String(csvName ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  return MANUAL_NAME_MAP[csvName] === '__MERGE_WITH_WEEKDAY__' ||
-    normalized === 'oneseatregionalride' ||
-    normalized === 'oneseatride';
+  return MANUAL_NAME_MAP[csvName] === '__MERGE_WITH_WEEKDAY__';
 }
 
 export function getDbLookupName(csvName, providerName) {

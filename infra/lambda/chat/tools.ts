@@ -1,5 +1,7 @@
 import { clarifyTripTime, routePlanner } from './tripChoices.js';
 import type { TripTimeContext } from './trip-time.js';
+import { isOneSeat, normalizeOneSeat, oneSeatTripPolicy } from './one-seat.js';
+import { resolveTravelDate, type TravelDateState } from './travel-date.js';
 /**
  * Tool definitions and execution logic for the OPTIMAT chat service.
  * Lambda version — uses raw SQL via pg instead of Supabase JS client.
@@ -51,6 +53,7 @@ export interface AssessEligibilityParams {
 }
 
 export interface TurnContext extends LocationContext, TripTimeContext {
+  travelDate?: TravelDateState;
   binaryQuestions?: BinaryQuestion[];
   riderEligibility: RiderEligibility;
   lastSearch: null | {
@@ -100,6 +103,11 @@ export interface ToolResult {
 // ─── Tool Definitions ───────────────────────────────────────────────────────
 
 export const toolDefinitions = [
+  {
+    name: 'resolve_trip_date',
+    description: 'Resolve the exact date phrase supplied by the rider using the Pacific calendar. Use the returned ISO date and weekday; never calculate them yourself.',
+    input_schema: { type: 'object' as const, properties: { raw: { type: 'string' } }, required: ['raw'] },
+  },
   {
     name: 'clarify_trip_time',
     description: 'Show Pickup time and Arrival time buttons when a rider states a time without specifying its meaning. Do not ask again if already explicit or clarified.',
@@ -418,8 +426,20 @@ async function getTransitDirections(origin: string, destination: string, _apiKey
 }
 
 function isPubliclyAvailableProvider(provider: Provider): boolean {
-  const name = String(provider.provider_name || provider.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  return provider.is_operating !== false && name !== 'oneseatregionalride' && name !== 'oneseatride';
+  return provider.is_operating !== false;
+}
+
+export function regionalTripProviders<T extends Provider>(providers: T[], source: GeocodedLocation, destination: GeocodedLocation) {
+  const covers = (provider: T, end: 'origin' | 'destination') => {
+    let zone = provider.service_zone;
+    if (typeof zone === 'string') { try { zone = JSON.parse(zone); } catch { return false; } }
+    if (!zone) return false;
+    const point = end === 'origin' ? source : destination;
+    return isPointInPolygon(point.lat, point.lng, zone);
+  };
+  const active = providers.filter(isPubliclyAvailableProvider);
+  const policy = oneSeatTripPolicy(active, covers);
+  return { policy, matches: active.filter(p => isOneSeat(p) ? policy.recommend : covers(p, 'origin') && covers(p, 'destination')).map(normalizeOneSeat) };
 }
 
 function isDirectRideProvider(provider: Provider): boolean {
@@ -482,6 +502,11 @@ export async function executeFindProviders(
     turn.latestAssessment = null;
     return { success: false, error: requiredQuestion };
   }
+  if (turn.travelDate?.error) return { success: false, error: turn.travelDate.error };
+  // A model cannot replace the server-resolved date with its own calculation.
+  if (turn.travelDate?.iso) params = { ...params, travel_date: turn.travelDate.iso };
+  const checkedDate = resolveTravelDate(params.travel_date);
+  if (!checkedDate.iso) return { success: false, error: checkedDate.error || 'Please confirm the travel date.' };
   try {
     const [sourceLocation, destLocation] = await Promise.all([
       geocodeAddress(params.source_address, apiKey),
@@ -494,25 +519,20 @@ export async function executeFindProviders(
       .filter((provider) => isPubliclyAvailableProvider(provider as Provider))
       .filter((provider) => isDirectRideProvider(provider as Provider));
 
+    const regional = regionalTripProviders(providers as Provider[], sourceLocation, destLocation);
     const matching: Provider[] = [];
-    for (const p of providers) {
-      let zone = p.service_zone;
-      if (!zone) continue;
-      if (typeof zone === 'string') { try { zone = JSON.parse(zone); } catch { continue; } }
-      if (isPointInPolygon(sourceLocation.lat, sourceLocation.lng, zone) &&
-          isPointInPolygon(destLocation.lat, destLocation.lng, zone)) {
+    for (const p of regional.matches) {
         matching.push({
           ...p,
           match_criteria: {
-            algorithm: 'Match both addresses and service hours, then exclude ADA Paratransit for riders who explicitly report no disability. Assess remaining requirements from provider data.',
+            algorithm: 'Match direct service areas or distinct regional jurisdictions for One Seat, then service hours and rider eligibility. Confirm regional pickup coverage when booking.',
             passed: [
-              { label: 'Origin inside service area', detail: sourceLocation.formatted_address },
-              { label: 'Destination inside service area', detail: destLocation.formatted_address },
+              { label: isOneSeat(p) ? 'Origin in regional jurisdiction; confirm pickup coverage when booking' : 'Origin inside service area', detail: sourceLocation.formatted_address },
+              { label: isOneSeat(p) ? 'Destination in a different regional jurisdiction; confirm coverage when booking' : 'Destination inside service area', detail: destLocation.formatted_address },
             ],
             not_hard_filtered: ['remaining eligibility requirements'],
           },
         });
-      }
     }
 
     // Apply service hours before the disability policy. Other eligibility
@@ -526,7 +546,7 @@ export async function executeFindProviders(
           passed: [
             ...(((p.match_criteria as Record<string, unknown>)?.passed as unknown[]) || []),
             {
-              label: 'Service hours include requested trip window',
+              label: hasKnownServiceHours(p) ? 'Service hours include requested trip window' : 'Service hours are not on file; confirm both trip times when booking',
               detail: `Departure ${params.departure_time}; return ${params.return_time}`,
             },
           ],
@@ -569,6 +589,7 @@ export async function executeFindProviders(
       destination_coordinates: { lat: destLocation.lat, lng: destLocation.lng },
       filtered_out_count: matching.length - filtered.length,
       diagnostics: {
+        regional_connection: regional.policy,
         geography_match_count: matching.length,
         schedule_match_count: scheduled.length,
         disability_excluded_count: disabilityExcluded.length,
@@ -624,8 +645,8 @@ async function executeGetProviderInfo(params: GetProviderInfoParams): Promise<To
   try {
     const providers = (await queryRows(
       `SELECT * FROM ${TABLES.PROVIDERS} WHERE provider_name ILIKE $1 LIMIT 5`,
-      [`%${params.provider_name}%`]
-    )).filter((provider) => isPubliclyAvailableProvider(provider as Provider));
+      [isOneSeat({ provider_name: params.provider_name }) ? '%One%Seat%' : `%${params.provider_name}%`]
+    )).filter((provider) => isPubliclyAvailableProvider(provider as Provider)).map(normalizeOneSeat);
     if (!providers.length) {
       return {
         success: false,
@@ -890,6 +911,13 @@ export async function executeTool(
   turn: TurnContext,
 ): Promise<ToolResult> {
   switch (toolName) {
+    case 'resolve_trip_date': {
+      if (turn.travelDate) return { success: !turn.travelDate.error, data: turn.travelDate, ...(turn.travelDate.error ? { error: turn.travelDate.error } : {}) };
+      const raw = String((toolInput as { raw?: unknown })?.raw || '').trim();
+      if (!raw || !turn.locationMessages?.some(message => message.toLowerCase().includes(raw.toLowerCase()))) return { success: false, error: 'Use a date phrase actually supplied by the rider, not a calculated date.' };
+      turn.travelDate = resolveTravelDate(raw);
+      return { success: !turn.travelDate.error, data: turn.travelDate, ...(turn.travelDate.error ? { error: turn.travelDate.error } : {}) };
+    }
     case 'clarify_trip_time': return clarifyTripTime(toolInput, turn);
     case 'open_route_planner': return routePlanner(toolInput);
     case 'ask_yes_no': {

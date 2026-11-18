@@ -1,6 +1,7 @@
 import { ambiguousTripTime, clarifyTripTime } from './tripChoices.js';
 import { updateTripTime, knownTripTime, tripTimeFactsBlock } from './trip-time.js';
 import { namedMunicipalPass } from './named-provider.js';
+import { dateFromMessage, invalidDateResponse, travelDateBlock } from './travel-date.js';
 import { bookingGuidance, timelineProviderQuestion } from './booking-guidance.js';
 /**
  * Chat Lambda Function
@@ -87,6 +88,7 @@ For general questions about transportation providers, accessibility, eligibility
 Please do not make up information, only use the information provided by the user.
 
 Date accuracy is required before every response and tool call:
+- Use the AUTHORITATIVE TRAVEL DATE supplied by the server. If it is absent, call resolve_trip_date with the rider's exact phrase before calculating or stating a date. Never do calendar arithmetic yourself. "next Friday" means the next occurrence of Friday, not an extra week later. Stored resolved dates persist across follow-up turns.
 - First check the current local date and time supplied below in America/Los_Angeles. This server clock is authoritative; do not take today's date from conversation history, examples, or memory.
 - For "today" and "tomorrow", use the exact calendar date and weekday in the server-verified dates below. Tomorrow means the next local calendar day, including across month and year boundaries.
 - Before outputting any date, silently verify that the relative phrase, calendar date, year, and weekday all agree. For other dates, resolve them from the current local date and check the weekday against the resolved calendar date. Use the same verified date in tool parameters and the trip summary.
@@ -127,7 +129,7 @@ If a provider-specific question has no identifiable provider, ask for its name. 
 Never display raw JSON, internal field names, record IDs, database timestamps, import notes, or map geometry in rider-facing answers. Explain the relevant service facts in plain language. A provider record is not proof that you have checked its website; only claim an official source was checked when a tool actually retrieved supporting evidence. If application information is missing, say that you cannot confirm it and suggest contacting the provider, rather than claiming the website has no application requirement.
 Don't format responses in markdown. Be very concise with your responses.
 Use the rider-facing term "ADA paratransit eligibility" consistently; never substitute legacy status wording in OPTIMAT-authored text.
-One Seat Ride is not a standalone provider. For cross-area trips, direct riders to the applicable paratransit agencies for coordination and never invent a separate fixed fare.
+One-Seat Regional Ride is OPTIMAT's cross-agency recommendation. When returned as a candidate, assess it and show its recommendation card with booking/contact details just like LINK. Do not dismiss it as merely a coordination program or substitute Mobility Matters as its booking agency. LINK is a single-agency service, not the cross-agency provider. Follow the regional_connection diagnostic: crossing cities alone is not crossing agency jurisdictions, and One Seat is suppressed for same-agency trips. Other options such as Mobility Matters may coexist with One Seat for regional trips. Age 65+ alone does not establish ADA eligibility; use the returned requirements and verification status. Confirm pickup coverage, both trip times, and each leg's fare with the booking service; never invent a fixed One Seat fare.
 `;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -321,6 +323,8 @@ export const handler = createHandler(async (req) => {
     applyTypedBinaryAnswer(turn, body.message);
     updateTripTime(turn, body.message);
   }
+  const suppliedDate = dateFromMessage(body.message);
+  if (suppliedDate) turn.travelDate = suppliedDate;
   applyUserDestination(turn, body.message);
   const selectedAgeRange = getAgeRange(body.age_range)?.id || ageRangeFromMessage(body.message);
   if (selectedAgeRange) turn.riderEligibility = mergeAgeFacts(turn.riderEligibility, { age_range: selectedAgeRange });
@@ -328,7 +332,9 @@ export const handler = createHandler(async (req) => {
     const exactAge = exactAgeFromMessage(body.message);
     if (exactAge !== null) turn.riderEligibility = mergeAgeFacts(turn.riderEligibility, { age: exactAge });
   }
-  let systemPrompt = `${SYSTEM_PROMPT}\n\n${buildCurrentTimeBlock()}\n\n${buildRiderFactsBlock(turn.riderEligibility)}\n${binaryFactsBlock(turn)}\n${tripTimeFactsBlock(turn)}\nDestination verification state: ${JSON.stringify(turn.destinationVerification || null)}. If pending or verified, do not search providers until the rider confirms a destination. Present candidate choices or allow manual address entry. Only user_provided state records rider confirmation.`;
+  let systemPrompt = `${SYSTEM_PROMPT}\n\n${buildCurrentTimeBlock()}\n\n${buildRiderFactsBlock(turn.riderEligibility)}\n${binaryFactsBlock(turn)}\nDestination verification state: ${JSON.stringify(turn.destinationVerification || null)}. If pending or verified, do not search providers until the rider confirms a destination. Present candidate choices or allow manual address entry. Only user_provided state records rider confirmation.`;
+  systemPrompt += `\n\n${travelDateBlock(turn.travelDate)}`;
+  systemPrompt += `\n\n${tripTimeFactsBlock(turn)}`;
 
   // Load conversation history
   const existingMessages = await queryRows(
@@ -382,10 +388,12 @@ export const handler = createHandler(async (req) => {
   // Tool-calling loop
   let currentMessages: any[] = [];
   let iterations = 0;
-  let finalResponse = recordedBookingResponse || '';
+  const dateClarification = turn.travelDate?.error;
+  let finalResponse = dateClarification || recordedBookingResponse || '';
+  let dateRepairAttempted = false;
   let contextLimited = false;
   let searchedThisTurn = false;
-  const statedTime = recordedBookingResponse ? null : ambiguousTripTime(body.message);
+  const statedTime = recordedBookingResponse || dateClarification ? null : ambiguousTripTime(body.message);
   const ambiguousTime = statedTime && !knownTripTime(turn, statedTime) ? statedTime : null;
   if (ambiguousTime) {
     finalResponse = `Please choose whether ${ambiguousTime} is your pickup time or arrival time.`;
@@ -394,7 +402,7 @@ export const handler = createHandler(async (req) => {
 
   try {
     currentMessages = convertMessagesToBedrockFormat(boundConversationHistory(messageHistory));
-    while (!recordedBookingResponse && !ambiguousTime && iterations < MAX_TOOL_ITERATIONS) {
+    while (!dateClarification && !recordedBookingResponse && !ambiguousTime && iterations < MAX_TOOL_ITERATIONS) {
       iterations++;
 
       const modelRequest = {
@@ -418,6 +426,11 @@ export const handler = createHandler(async (req) => {
       }
 
       if (toolUseBlocks.length === 0 || response.stopReason === 'end_turn') {
+        if (!dateRepairAttempted && invalidDateResponse(finalResponse, turn.travelDate)) {
+          dateRepairAttempted = true;
+          currentMessages.push({ role: 'assistant', content: outputContent }, { role: 'user', content: [{ text: `Calendar validation rejected your draft. ${travelDateBlock(turn.travelDate)} Rewrite the answer with the verified calendar date and weekday. Keep the existing provider results and other rider facts. Do not ask the rider to resolve an error in your own calendar calculation.` }] });
+          continue;
+        }
         break;
       }
 
@@ -474,6 +487,13 @@ export const handler = createHandler(async (req) => {
     if (!(error instanceof ModelContextLimitError)) throw error;
     contextLimited = true;
     finalResponse = 'There are too many search details to assess safely in one response. Please narrow the trip details or ask about a specific provider. I have not completed provider eligibility verification.';
+  }
+
+  if (invalidDateResponse(finalResponse, turn.travelDate)) {
+    // Do not publish an impossible date if the model ignores the repair request.
+    finalResponse = turn.travelDate?.iso
+      ? `Your travel date is ${turn.travelDate.display}. Please use the provider details below if available, and confirm availability directly with the provider.`
+      : 'Please confirm the travel date using month, day, and year.';
   }
 
   // Do not expose incomplete candidates as recommendations after hitting a budget.
